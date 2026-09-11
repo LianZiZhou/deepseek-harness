@@ -7,6 +7,7 @@ import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import AuthorizationService from '@deepseek-ai/dsh-authorization'
+import SettingsController from '@deepseek-ai/dsh-api-settings-controller'
 import type { AuthorizationInteraction, AuthorizationNotice } from '@deepseek-ai/dsh-authorization'
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
@@ -42,6 +43,7 @@ async function loadYaml(lines: readonly string[]): Promise<Context> {
     ['@deepseek-ai/dsh-llm', LlmRuntime],
     ['@deepseek-ai/dsh-credentials-local', LocalCredentialProvider],
     ['@deepseek-ai/dsh-authorization', AuthorizationService],
+    ['@deepseek-ai/dsh-api-settings-controller', SettingsController],
     ['@deepseek-ai/dsh-llm-pi-ai', piAi],
     ['@deepseek-ai/dsh-llm-zai-coding-plan', zai],
   ])
@@ -69,6 +71,7 @@ async function composed(): Promise<Context> {
     `    path: ${JSON.stringify(join(root ?? tmpdir(), 'credentials.yaml'))}`,
     '    watch: false',
     "- name: '@deepseek-ai/dsh-authorization'",
+    "- name: '@deepseek-ai/dsh-api-settings-controller'",
     "- name: '@deepseek-ai/dsh-llm-pi-ai'",
     "- name: '@deepseek-ai/dsh-llm-zai-coding-plan'",
   ])
@@ -109,6 +112,21 @@ describe('real Loader composition', () => {
     expect(interaction.notices[0]?.url).toContain('https://chat.z.ai/api/oauth/authorize?')
     await expect(loaded.credentials.readRecord(ZAI))
       .resolves.toEqual({ kind: 'api-key', key: 'existing-key.secret' })
+  })
+
+  it('reports the sign-in through the Remote namespace a configuration page reads', { timeout: 60_000 }, async () => {
+    const loaded = await composed()
+    // Every installed provider that ships a login registers a flow, so the
+    // namespace answers many; this one is the row a page renders the sign-in on.
+    expect(loaded.authorizationController.list()).toContainEqual({
+      key: 'llm-pi-ai/zai',
+      label: 'Z.AI',
+      methods: [
+        { id: 'oauth', label: 'Sign in with Z.AI (GLM Coding Plan)' },
+        { id: 'api-key', label: 'Z.AI API key' },
+      ],
+      inFlight: false,
+    })
   })
 
   it('takes the sign-in back off the flow when the plugin unloads', { timeout: 60_000 }, async () => {

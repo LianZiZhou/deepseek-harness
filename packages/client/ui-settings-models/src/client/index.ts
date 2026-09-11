@@ -128,6 +128,9 @@ export function apply(ctx: ClientContext): void {
   // follows its settings scope, so it needs no subscription here.
   ctx.effect(() => {
     const refreshModels = (): void => { refreshIfLoaded(controller) }
+    // A reconnect is the one moment a first read can have been lost, and a
+    // mounted or unmounted adapter is the one that changes which sign-ins exist.
+    const refreshSignIn = (): void => { void signIn.reload() }
     const disposers = [
       ctx.remote.$on('api-authorization/notice', (notice) => { signIn.notice(notice) }),
       ctx.remote.$on('api-authorization/prompt', (prompt) => { signIn.prompt(prompt) }),
@@ -136,7 +139,9 @@ export function apply(ctx: ClientContext): void {
       ctx.remote.$on('credentials/record-updated', refreshModels),
       ctx.remote.$on('credentials/reference-updated', refreshModels),
       ctx.remote.$on('llm/adapters-updated', refreshModels),
+      ctx.remote.$on('llm/adapters-updated', refreshSignIn),
       ctx.on('connection/reset', refreshModels),
+      ctx.on('connection/reset', refreshSignIn),
     ]
     return () => {
       welcomeController.dispose()

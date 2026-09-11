@@ -141,6 +141,7 @@ export const en = {
   signInSubmit: 'Continue',
   signInCancel: 'Cancel sign-in',
   signInOpenPage: 'Open the page',
+  signInLoadFailed: 'The available sign-ins could not be read',
   signInDone: 'Signed in to {provider}.',
   signInCancelled: 'The {provider} sign-in was cancelled.',
 }
@@ -289,6 +290,7 @@ export const zh: { [Key in keyof typeof en]: string } = {
   signInSubmit: '继续',
   signInCancel: '取消登录',
   signInOpenPage: '打开页面',
+  signInLoadFailed: '无法读取可用的登录方式',
   signInDone: '已登录 {provider}。',
   signInCancelled: '{provider} 登录已取消。',
 }

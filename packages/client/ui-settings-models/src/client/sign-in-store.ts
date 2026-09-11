@@ -46,6 +46,13 @@ export interface SignInState {
   flows: readonly AuthorizationEntryView[]
   /** The live attempt per flow key; a key with none has never been started. */
   attempts: Readonly<Record<string, SignInAttempt>>
+  /**
+   * Why the last read failed, when it did. An unreadable list is not the same
+   * fact as an empty one — a page that showed nothing either way would hide a
+   * broken connection behind a composition that offers no sign-in — so the
+   * failure is held and the next reload clears it.
+   */
+  error?: string | undefined
 }
 
 /** A row that has never been started, which is also what a finished row resets to. */
@@ -88,7 +95,18 @@ export class SignInStore {
     this.store.update((s) => {
       s.status = 'ready'
       s.flows = listed.ok ? listed.value : []
+      s.error = listed.ok ? undefined : messageOf(listed.error)
     })
+  }
+
+  /**
+   * Re-read the list only once it has been read at all: an unopened page must
+   * not fetch on a background reconnect.
+   * @returns nothing; the snapshot carries the outcome.
+   */
+  async reload(): Promise<void> {
+    if (this.store.getSnapshot().status === 'idle') return
+    await this.load()
   }
 
   /**

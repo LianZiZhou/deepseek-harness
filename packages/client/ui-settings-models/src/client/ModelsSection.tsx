@@ -337,10 +337,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
       .finally(() => { setDeleting(false) })
   }
 
-  if (state.status === 'idle') {
-    void controller.load()
-    void signIn?.load()
-  }
+  if (state.status === 'idle') void controller.load()
   if (state.status === 'error') {
     /* v8 ignore next -- an error status always carries text; the fallback satisfies the nullable type */
     const errorText = state.error ?? ''

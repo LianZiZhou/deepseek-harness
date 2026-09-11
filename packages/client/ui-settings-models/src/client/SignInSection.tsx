@@ -29,6 +29,21 @@ export interface SignInSectionProps {
   t: (key: keyof typeof en) => string
 }
 
+/**
+ * Whether a flow belongs in this section at all.
+ *
+ * Every provider that collects a key interactively registers a flow, and for
+ * those the flow is the key field the card above already shows — a row here
+ * would ask for the same secret twice. A row earns its place only when the
+ * flow offers something the field cannot do: a conversation the human has to
+ * leave the page for.
+ * @param flow - one registered flow.
+ * @returns whether to render a row for it.
+ */
+function isSignIn(flow: AuthorizationEntryView): boolean {
+  return flow.methods.some(method => method.id !== 'api-key')
+}
+
 /** Substitute the one placeholder this section's copy uses. */
 function withFlow(template: string, label: string): string {
   return template.replace('{provider}', label)
@@ -188,13 +203,21 @@ export function SignInSection(props: SignInSectionProps): ReactNode {
     listener => store.subscribe(listener),
     () => store.getSnapshot(),
   )
-  if (state.flows.length === 0) return null
+  // The section's own first read, on its own store: the page snapshot has
+  // usually loaded before this section ever mounts, so hanging the read off
+  // that snapshot's idle state would leave it unread forever.
+  if (state.status === 'idle') void controller.load()
+  const flows = state.flows.filter(isSignIn)
+  if (flows.length === 0 && state.error === undefined) return null
   return (
     <div className={styles['section']}>
       <h3 className={styles['modelCatalogTitle']}>{t('signInTitle')}</h3>
       <p className={styles['intro']}>{t('signInIntro')}</p>
+      {state.error === undefined
+        ? null
+        : <p className={styles['error']}>{`${t('signInLoadFailed')}: ${state.error}`}</p>}
       <div className={styles['rows']}>
-        {state.flows.map(flow => (
+        {flows.map(flow => (
           <SignInRow
             key={flow.key}
             flow={flow}

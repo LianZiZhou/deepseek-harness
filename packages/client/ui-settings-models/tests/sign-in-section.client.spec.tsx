@@ -64,6 +64,30 @@ describe('the sign-in rows', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  it('leaves out a flow whose only method is the key field shown above', async () => {
+    const keyOnly: AuthorizationEntryView = {
+      key: 'llm-pi-ai/groq',
+      label: 'Groq',
+      methods: [{ id: 'api-key', label: 'Groq API key' }],
+      inFlight: false,
+    }
+    const store = new SignInStore(remote([keyOnly]))
+    await act(async () => { await store.load() })
+    const { container } = render(<SignInSection controller={store} t={t} />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('says the list could not be read instead of pretending there is nothing to sign in to', async () => {
+    const api = remote()
+    const failing = Object.assign(api, {
+      list: vi.fn(() => Promise.resolve({ ok: false, error: { code: 'internal', message: 'no seam', details: {} } })),
+    }) as unknown as SignInRemote
+    const store = new SignInStore(failing)
+    await act(async () => { await store.load() })
+    render(<SignInSection controller={store} t={t} />)
+    expect(screen.getByText(`${en.signInLoadFailed}: no seam`)).toBeTruthy()
+  })
+
   it('offers one button per method the flow declares', async () => {
     const api = remote()
     await mount(api)

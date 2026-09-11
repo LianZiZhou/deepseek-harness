@@ -73,6 +73,16 @@ describe('the sign-in controller', () => {
     expect(store.store.getSnapshot()).toMatchObject({ status: 'ready', flows: [] })
   })
 
+  it('re-reads the list only once it has been read at all', async () => {
+    const api = remote()
+    const store = new SignInStore(api)
+    await store.reload()
+    expect(api.list).not.toHaveBeenCalled()
+    await store.load()
+    await store.reload()
+    expect(api.list).toHaveBeenCalledTimes(2)
+  })
+
   it('follows one attempt from its notices to its outcome', async () => {
     const api = remote()
     const store = new SignInStore(api)
