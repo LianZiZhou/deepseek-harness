@@ -429,6 +429,7 @@
       "@deepseek-ai/dsh-llm-pi-ai": ["./packages/llm/llm-pi-ai/src"],
       "@deepseek-ai/dsh-llm-replay": ["./packages/test-support/llm-replay/src"],
       "@deepseek-ai/dsh-llm-retry": ["./packages/llm/llm-retry/src"],
+      "@deepseek-ai/dsh-llm-zai-coding-plan": ["./packages/llm/llm-zai-coding-plan/src"],
       "@deepseek-ai/dsh-loader-smoke": ["./packages/test-support/loader-smoke/src"],
       "@deepseek-ai/dsh-lsp": ["./packages/lsp/lsp/src"],
       "@deepseek-ai/dsh-lsp-stdio": ["./packages/lsp/lsp-stdio/src"],

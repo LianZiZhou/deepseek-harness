@@ -1,5 +1,5 @@
 ---
-description: "LLM（大语言模型）能力包组：一个提供方无关的模型调用服务、DeepSeek 与 pi-ai 提供方适配器、请求重试执行，以及具备回放感知的 token 计量。"
+description: "LLM（大语言模型）能力包组：一个提供方无关的模型调用服务、DeepSeek 与 pi-ai 提供方适配器、厂商登录、请求重试执行，以及具备回放感知的 token 计量。"
 kind: "package-group"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-llm 组提供 harness 的模型调用能力：一个提供方无关的服务，任何组合都可以通过它向模型提供方发起流式请求，外加适配器、提供方专用请求元数据、重试执行与计量。核心 `llm` 包定义所有插件与会话日志使用的消息、内容块与流式分片词汇；提供方适配器把某个提供方的协议格式（wire format）翻译为该词汇；DeepSeek 请求扩展插件在模型输入之外贡献具有生命周期归属的元数据；`llm-retry` 在持久化的 agent（智能体）步骤边界上重跑失败的请求；`token-meter` 从持久化日志测量请求与上下文压力。本页列出该包组的组成；每个包 README 负责各自的包级约定。
+llm 组提供 harness 的模型调用能力：一个提供方无关的服务，任何组合都可以通过它向模型提供方发起流式请求，外加适配器、提供方专用请求元数据、重试执行与计量。核心 `llm` 包定义所有插件与会话日志使用的消息、内容块与流式分片词汇；提供方适配器把某个提供方的协议格式（wire format）翻译为该词汇，而 pi-ai 未实现其登录的厂商则以「向某条路由贡献一个登录」的形式到来；DeepSeek 请求扩展插件在模型输入之外贡献具有生命周期归属的元数据；`llm-retry` 在持久化的 agent（智能体）步骤边界上重跑失败的请求；`token-meter` 从持久化日志测量请求与上下文压力。本页列出该包组的组成；每个包 README 负责各自的包级约定。
 
 ## 目录
 
@@ -29,6 +29,7 @@ llm 组提供 harness 的模型调用能力：一个提供方无关的服务，�
 | [`llm-deepseek-api-key/`](llm-deepseek-api-key/README.zh.md) | API key 鉴权与 official 模型发现 | `ctx.llm` |
 | [`llm-deepseek-account/`](llm-deepseek-account/README.zh.md) | 账号 token 鉴权、失效处理与模型发现 | `ctx.llm` |
 | [`llm-pi-ai/`](llm-pi-ai/README.zh.md) | 通过 pi-ai 目录与协议格式服务配置的提供方路由，包括手工声明的网关 | 注册到 `ctx.llm` |
+| [`llm-zai-coding-plan/`](llm-zai-coding-plan/README.zh.md) | 让人在浏览器中登录 Z.AI 的 GLM Coding Plan，并铸造 `zai` 路由用于认证的密钥 | 向 `ctx.authorization` 贡献一个登录 |
 | [`deepseek-llm-api-extensions/`](deepseek-llm-api-extensions/README.zh.md) | 在官方 DeepSeek 请求上注册具有生命周期归属的顶层字段 | `ctx.deepseekLlmApiExtensions` |
 | [`plugin-package-inventory-deepseek/`](plugin-package-inventory-deepseek/README.zh.md) | 为官方 DeepSeek 请求贡献当前启用的 Loader 包清单 | 贡献 `dsh_plugin_packages` |
 | [`llm-retry/`](llm-retry/README.zh.md) | 在持久 agent 步骤边界上按各提供方策略重试失败的模型请求 | 监听 `agent/request-error` |

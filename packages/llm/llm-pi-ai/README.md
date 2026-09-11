@@ -94,6 +94,27 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 A provider pi-ai ships a login for can be signed into through the harness authorization seam: the flow offers OAuth or an interactive key prompt (a key is typed into pi-ai's own login prompt, not into the settings form), and the resulting credential is stored in the harness credential store at `llm-pi-ai/<provider id>`. The stored sign-in authenticates its route beneath any `apiKeyEnv` override and refreshes itself under the store's cross-process lock; signing out deletes the stored record. A hand-declared route key outside the record grammar — a lowercase hyphenated identifier — cannot be signed into, because a record write for it refuses with `LlmError('UNSTORABLE_PROVIDER_ID')`; such a route authenticates through `apiKeyEnv` or ambient provider settings instead.
 
+### Contribute a login pi-ai does not ship
+
+A vendor whose sign-in pi-ai has not implemented is added by a separate plugin rather than by editing this one: `contributePiAiLogin(ctx, contribution)` puts one more *method* on the flow this package already registers for an installed route, and the contributor hands back a key instead of writing a record — this package stays the single writer of every `llm-pi-ai/<provider id>` record, and a contribution needs to know nothing about pi-ai's own auth model.
+
+```ts
+import type { Context } from '@deepseek-ai/cordis'
+import type { AuthorizationSession } from '@deepseek-ai/dsh-authorization'
+import { contributePiAiLogin } from '@deepseek-ai/dsh-llm-pi-ai'
+
+declare const ctx: Context
+declare function mintKey(session: AuthorizationSession): Promise<string>
+
+contributePiAiLogin(ctx, {
+  provider: 'zai',
+  method: { id: 'oauth', label: 'Sign in with Z.AI' },
+  run: async session => ({ apiKey: await mintKey(session) }),
+})
+```
+
+The contribution lives as long as the contributing fiber; the route's flow is re-registered when one arrives or leaves, which withdraws an attempt already running for that route. A contributed method is offered ahead of pi-ai's own key prompt and behind pi-ai's own sign-in, so a surface running a flow's first method reaches the browser conversation. Naming a route pi-ai does not ship refuses with `LlmError('UNKNOWN_PI_AI_ROUTE')`, and a method id the route already offers refuses with `LlmError('DUPLICATE_LOGIN_METHOD')`; a run resolving with an empty key fails the attempt with `LlmError('EMPTY_CONTRIBUTED_KEY')` rather than reporting an authorization that stored nothing. [`dsh-llm-zai-coding-plan`](../llm-zai-coding-plan/README.md) is the shipped consumer.
+
 ### Resolve the model catalog
 
 A profile's `models` list replaces the route's installed catalog rather than extending it; each entry defaults its unset fields from the installed model of the same id, so narrowing a route to two models, correcting one capacity, or adding a model newer than the installed catalog are one-line edits. `modelOverrides` reshapes individual installed-catalog models without that cost — correct one model, keep the other thirty-seven — and is refused when set beside a `models` list, on a hand-declared route, or naming a model the catalog does not describe, because a silently unchanged model would be a typo someone hunts for later.
@@ -147,6 +168,7 @@ Initial prompt text and active tools use pi-ai's `Context.systemPrompt` and `Con
 | [`src/index.ts`](src/index.ts) | Config snapshots, directory and route registration |
 | [`src/auth.ts`](src/auth.ts) | The credential store and ambient auth context over the harness credential plane |
 | [`src/login.ts`](src/login.ts) | Authorization flows for the installed providers that ship a login |
+| [`src/external-login.ts`](src/external-login.ts) | The contribution point another plugin adds one login method to a route through |
 | [`src/config.ts`](src/config.ts) | Profile schema, resolution, and serviceability checks |
 | [`src/catalog.ts`](src/catalog.ts) | Installed-catalog integration and drift gates |
 | [`src/provider-data.ts`](src/provider-data.ts) | Generated authentication and endpoint metadata for configuration surfaces |

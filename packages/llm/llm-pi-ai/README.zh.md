@@ -94,6 +94,27 @@ kind: "package-reference"
 
 pi-ai 提供登录的提供方可以通过 harness 授权 seam 登录：流程提供 OAuth 或交互式密钥提示（密钥键入 pi-ai 自己的登录提示，而非设置表单），得到的凭据存储在 harness 凭据存储的 `llm-pi-ai/<provider id>` 记录中。存储的登录在其路由的 `apiKeyEnv` 覆盖之下完成认证，并在存储的跨进程锁下自行刷新；退出登录即删除存储记录。落在记录文法之外——小写连字符标识符——的手工声明路由键无法登录，因为对它的记录写入会以 `LlmError('UNSTORABLE_PROVIDER_ID')` 拒绝；这类路由改用 `apiKeyEnv` 或提供方 ambient 设置认证。
 
+### 贡献 pi-ai 未提供的登录
+
+pi-ai 尚未实现其登录的厂商由另一个插件添加，而不是靠改动本插件：`contributePiAiLogin(ctx, contribution)` 在本包已为某条已安装路由注册的 flow 上再加一个**方法**，贡献方交回一个密钥而不是写入记录——本包仍是每条 `llm-pi-ai/<provider id>` 记录的唯一写入方，而一次贡献无需了解 pi-ai 自己的 auth 模型。
+
+```ts
+import type { Context } from '@deepseek-ai/cordis'
+import type { AuthorizationSession } from '@deepseek-ai/dsh-authorization'
+import { contributePiAiLogin } from '@deepseek-ai/dsh-llm-pi-ai'
+
+declare const ctx: Context
+declare function mintKey(session: AuthorizationSession): Promise<string>
+
+contributePiAiLogin(ctx, {
+  provider: 'zai',
+  method: { id: 'oauth', label: 'Sign in with Z.AI' },
+  run: async session => ({ apiKey: await mintKey(session) }),
+})
+```
+
+贡献与贡献方 fiber 同寿；某条路由上有贡献到来或离开时，其 flow 会重新注册，这会撤回该路由上已在运行的尝试。被贡献的方法排在 pi-ai 自己的密钥提问之前、pi-ai 自己的登录之后，因此运行 flow 首个方法的界面会抵达浏览器对话。点名 pi-ai 不提供的路由会以 `LlmError('UNKNOWN_PI_AI_ROUTE')` 拒绝，点名路由已提供的方法 id 会以 `LlmError('DUPLICATE_LOGIN_METHOD')` 拒绝；返回空密钥的运行会让尝试以 `LlmError('EMPTY_CONTRIBUTED_KEY')` 失败，而不是报告一次什么都没存下的授权。[`dsh-llm-zai-coding-plan`](../llm-zai-coding-plan/README.zh.md) 是已发布的使用方。
+
 ### 解析模型目录
 
 profile 的 `models` 列表会替换而非扩展路由的已安装目录；每个条目从同 id 已安装模型取未设置字段的默认值，因此把路由收窄到两个模型、修正一个容量或添加比已安装目录更新的模型都是一行编辑。`modelOverrides` 无需该代价即可重塑个别已安装目录模型——修正一个模型，保留其余三十七个——当它与 `models` 列表并存、位于手工声明路由上、或点名目录未描述的模型时会被拒绝，因为静默不变的模型会成为别人日后寻找的拼写错误。
@@ -147,6 +168,7 @@ Config 更新严格验证发生变化的 provider。初始加载将已存储的�
 | [`src/index.ts`](src/index.ts) | Config 快照、目录及路由注册 |
 | [`src/auth.ts`](src/auth.ts) | 覆盖 harness 凭据平面的凭据存储与 ambient auth context |
 | [`src/login.ts`](src/login.ts) | 面向提供登录的已安装提供方的授权流程 |
+| [`src/external-login.ts`](src/external-login.ts) | 另一个插件向某条路由添加一个登录方法所经由的贡献点 |
 | [`src/config.ts`](src/config.ts) | Profile schema、解析与可服务性校验 |
 | [`src/catalog.ts`](src/catalog.ts) | 已安装目录集成与漂移门禁 |
 | [`src/provider-data.ts`](src/provider-data.ts) | 配置界面使用的认证与端点生成数据 |

@@ -1,0 +1,49 @@
+{
+  "name": "@deepseek-ai/dsh-llm-zai-coding-plan",
+  "description": "Z.AI GLM Coding Plan browser sign-in: mints the durable api key the pi-ai zai route authenticates with",
+  "version": "0.2.1-alpha.5",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/llm/llm-zai-coding-plan"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-authorization": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-llm-pi-ai": "workspace:*",
+    "@deepseek-ai/dsh-timeout": "workspace:*",
+    "@deepseek-ai/dsh-util-crypto": "workspace:*",
+    "@deepseek-ai/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/cordis-plugin-include": "workspace:~",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:~",
+    "@deepseek-ai/dsh-authorization": "workspace:*",
+    "@deepseek-ai/dsh-credentials": "workspace:*",
+    "@deepseek-ai/dsh-credentials-local": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-llm-pi-ai": "workspace:*",
+    "@deepseek-ai/dsh-timeout": "workspace:*",
+    "@deepseek-ai/dsh-util-crypto": "workspace:*"
+  }
+}

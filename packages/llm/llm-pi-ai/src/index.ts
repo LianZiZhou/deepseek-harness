@@ -89,6 +89,8 @@ export type {
   ResolvedPiAiProviderProfile,
 } from './config.ts'
 export { recordKeyFor } from './auth.ts'
+export { contributePiAiLogin } from './external-login.ts'
+export type { PiAiContributedKey, PiAiLoginContribution } from './external-login.ts'
 export { supportedProtocols } from './provider.ts'
 
 export const name = 'llm-pi-ai'
