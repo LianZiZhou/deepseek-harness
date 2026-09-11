@@ -16,7 +16,7 @@ Status: implemented
 
 某条路由的贡献集合变化时，其 flow 会重新注册，这会撤回该路由上已在运行的尝试——选择器不该提供一个正在运行的 flow 无法服务的方法。被贡献的方法排在 pi-ai 自己的 API 密钥提问之前、pi-ai 自己的 OAuth 之后，因此当存在浏览器对话时，运行 flow 首个方法的界面会抵达它。贡献注册表以 context root 弱引用为键，因此同一进程中的两个组合绝不会看到彼此的贡献；每次贡献都经 `ctx.effect` 注册，因此会随其插件一同离开。向 pi-ai 不提供的路由贡献会以 `UNKNOWN_PI_AI_ROUTE` 拒绝，方法 id 冲突以 `DUPLICATE_LOGIN_METHOD` 拒绝，而返回空密钥的运行会让尝试以 `EMPTY_CONTRIBUTED_KEY` 失败，而不是报告一次什么都没存下的授权。
 
-`@deepseek-ai/dsh-llm-zai-coding-plan` 是第一个使用方，端到端拥有 Z.AI 协议：来自 `chat.z.ai` 的授权码、在 `zcode.z.ai` 的 token 交换、在 `api.z.ai` 的业务登录与密钥配置，以及 54548 端口上与粘贴重定向地址赛跑的 loopback 监听器。它没有配置。端口固定，是因为 Z.AI 会拿重定向地址与其自家桌面客户端注册的地址比对；铸造出的密钥名为 `deepseek-harness`，因此登录两次会复用同一个密钥，吊销它也绝不影响其他客户端创建的密钥。
+`@deepseek-ai/dsh-llm-zai-coding-plan` 是第一个使用方，端到端拥有 Z.AI 协议：来自 `chat.z.ai` 的授权码、在 `zcode.z.ai` 的 token 交换、以及在 `api.z.ai` 的业务登录与密钥配置。授权码经由人传回。Z.AI 会拿 `redirect_uri` 与服务端白名单比对，而该白名单如今只接受他们自家桌面端的 scheme——任何 loopback 地址都会在授权页被拒绝，报 `Redirect URI not registered for this client`——因此本流程申请的是 `zcode://zai-auth/callback`，这个地址任何浏览器都不会交回本进程，由人粘贴他们浏览器打不开的那个地址。`redirectUri` 是本插件唯一的配置字段，因为这份白名单归 Z.AI 改动，且已经变过一次。铸造出的密钥名为 `deepseek-harness`，因此登录两次会复用同一个密钥，吊销它也绝不影响其他客户端创建的密钥。
 
 ## Alternatives considered
 
@@ -28,10 +28,12 @@ Status: implemented
 
 **让贡献返回 pi-ai 自己的 `Credential` 联合类型。** 因缺少使用方而被否决：今天可能被贡献的每一种登录最终都落在一个 API 密钥上，而把约定放宽成一个贡献方必须从 pi-ai 导入的联合类型，恰恰会重新引入这个 seam 所消除的耦合。等到确有需要时，被贡献的 OAuth grant 只差加一个字段。
 
-**只用粘贴，不设 loopback 监听器。** 更简单，对于人通过网络访问的 harness 也是正确的。它输在常见场景上：在本机安装上，重定向能在人无需复制任何东西的情况下完成登录。让两者赛跑的代价只是一个 `AbortController`，而 seam 本就为此定义了提问撤回。
+**设 loopback 监听器，让本机安装无需复制。** 本流程最初正是这么发布的——54548 端口上的服务器与粘贴赛跑——在本机安装上它能在人什么都不做的情况下完成登录。它被移除，是因为 Z.AI 的白名单对这个 client id 拒绝一切 loopback 重定向；监听器永远收不到任何东西，保留它只会把失败从授权页挪到一次无声的挂起。
+
+**把本 harness 注册为 `zcode://` 处理器以捕获重定向。** 这是 Z.AI 自家桌面端的做法，也能恢复「无需复制」的路径。否决理由：注册期间它会把一个 URL scheme 从 ZCode 手里抢走，它是逐平台的桌面手术，而且在 harness 的主要姿态下毫无价值——人通过网络访问的服务器上，浏览器与进程根本不在同一台机器上。
 
 ## Consequences
 
 厂商登录如今只是一个普通的包：`dsh-llm-zai-coding-plan` 约 350 行，对 pi-ai 一无所知，下一个照搬其形状即可。代价是 `dsh-llm-pi-ai` 上多了一个必须保持兼容的公开扩展点，以及 `zai` 路由上的一处行为变化：`dsh-base` bundle 把本插件与它所扩展的适配器一起挂载，因此在每个基于 base 的 profile 中，该路由的首个方法都是浏览器登录，静默运行首个方法的界面会打开浏览器，而不是提问密钥。
 
-Z.AI 的端点是从其桌面客户端对齐来的私有端点。没有任何测试会触达 Z.AI：`tests/fake-zai.ts` 应答整条序列，`tests/composition.spec.ts` 通过 Loader 启动实际发布的组合，因此 Z.AI 那侧的变化由人登录时发现，而不是由 CI 发现。`zai-coding-cn`（`open.bigmodel.cn`）是有意不服务的；该部署仍需手工填入密钥。
+Z.AI 的端点是从其桌面客户端对齐来的私有端点，而这个风险并非假想：本流程最初对接的那份重定向白名单，在第一个人登录之前就已被撤销。没有任何测试会触达 Z.AI——`tests/fake-zai.ts` 应答整条序列，`tests/composition.spec.ts` 通过 Loader 启动实际发布的组合——因此下一次同类变化仍由人登录时发现而非 CI，这也正是重定向可配置、且错误中始终点名出问题那一步的原因。`zai-coding-cn`（`open.bigmodel.cn`）是有意不服务的；该部署仍需手工填入密钥。

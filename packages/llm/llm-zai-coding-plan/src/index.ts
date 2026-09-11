@@ -21,16 +21,34 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
 import { contributePiAiLogin } from '@deepseek-ai/dsh-llm-pi-ai'
 import { runZaiSignIn } from './oauth.ts'
 
 export { KEY_NAME } from './mint.ts'
-export { CALLBACK_PORT } from './oauth.ts'
+export { REDIRECT_URI } from './oauth.ts'
 export { runZaiSignIn }
 export type { ZaiSignInOptions } from './oauth.ts'
 export { ZaiSignInError } from './transport.ts'
 
 export const name = 'llm-zai-coding-plan'
+
+/** The one thing a deployment may need to correct without waiting for a release. */
+export interface Config {
+  /**
+   * The redirect to ask Z.AI for. Z.AI validates it against a server-side
+   * allowlist this harness does not control, and that allowlist has already
+   * moved once — every loopback address it once accepted is now refused at the
+   * authorize page. Set this when it moves again; omitting it asks for the
+   * address Z.AI's own desktop client uses.
+   */
+  readonly redirectUri?: string
+}
+
+/** Runtime schema for {@link Config}. */
+export const Config: z<Config> = z.object({
+  redirectUri: z.string(),
+})
 
 /** The pi-ai route this sign-in authenticates; its models and endpoint are pi-ai's own. */
 const ROUTE = 'zai'
@@ -42,12 +60,15 @@ const ROUTE = 'zai'
  * in is what makes the route worth configuring, and a composition that never
  * mounts the pi-ai adapter simply has no flow for the method to appear on.
  * @param ctx - the plugin context.
+ * @param config - the optional redirect override.
  * @returns Disposer that withdraws the method.
  */
-export function apply(ctx: Context): () => void {
+export function apply(ctx: Context, config: Config = {}): () => void {
   return contributePiAiLogin(ctx, {
     provider: ROUTE,
     method: { id: 'oauth', label: 'Sign in with Z.AI (GLM Coding Plan)' },
-    run: session => runZaiSignIn(session),
+    run: session => runZaiSignIn(session, {
+      ...config.redirectUri === undefined ? {} : { redirectUri: config.redirectUri },
+    }),
   })
 }

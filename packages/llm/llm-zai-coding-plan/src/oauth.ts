@@ -6,7 +6,8 @@
  * against `chat.z.ai` with no PKCE, a token exchange whose body is not the
  * OAuth-standard one, and a key-provisioning sequence afterwards. None of the
  * three is a published API, so every field this module sends is the one Z.AI's
- * own client sends.
+ * own client sends — including the redirect, which is why the code comes back
+ * through the human rather than through a local listener.
  *
  * @module dsh-llm-zai-coding-plan/oauth
  */
@@ -14,7 +15,6 @@
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import type { AuthorizationSession } from '@deepseek-ai/dsh-authorization'
 import type { PiAiContributedKey } from '@deepseek-ai/dsh-llm-pi-ai'
-import { CALLBACK_PATH, listenForCallback } from './callback.ts'
 import { mintCodingPlanKey } from './mint.ts'
 import { trimmedString, ZaiSignInError, zaiPost } from './transport.ts'
 import type { ZaiFetch, ZaiRequestContext } from './transport.ts'
@@ -29,19 +29,25 @@ const AUTHORIZE_URL = 'https://chat.z.ai/api/oauth/authorize'
 const TOKEN_URL = 'https://zcode.z.ai/api/v1/oauth/token'
 
 /**
- * The port the browser is redirected back to. Fixed rather than ephemeral
- * because Z.AI matches the redirect against the address its own client
- * registers; a port of this harness's choosing is refused at the authorize
- * page, before the human can do anything about it.
+ * Where Z.AI sends the browser afterwards.
+ *
+ * Z.AI validates this against a server-side allowlist registered for the client
+ * id above, and that allowlist admits only its own desktop scheme: every
+ * loopback address is refused at the authorize page with `Redirect URI not
+ * registered for this client`, before the human can do anything about it. A
+ * `zcode://` address is one no browser hands back to this process, so the code
+ * returns the one way that always works — the human copies the address their
+ * browser ended on. {@link ZaiSignInOptions.redirectUri} exists because this
+ * allowlist has already moved once.
  */
-export const CALLBACK_PORT = 54548
+export const REDIRECT_URI = 'zcode://zai-auth/callback'
 
-/** What a caller may replace for a test; production supplies neither. */
+/** What a caller may replace; production supplies none of it. */
 export interface ZaiSignInOptions {
   /** The fetch implementation every Z.AI call runs on. */
   readonly fetch?: ZaiFetch
-  /** The loopback port to listen on; `0` binds an ephemeral one. */
-  readonly port?: number
+  /** The redirect to ask Z.AI for, when their allowlist has moved again. */
+  readonly redirectUri?: string
 }
 
 /** An authorization code and the state it came back with. */
@@ -53,11 +59,12 @@ interface AuthorizationAnswer {
 /**
  * Read an authorization answer out of whatever the human pasted.
  *
- * A human who cannot reach the loopback address copies something from the
- * browser's address bar, and what lands in the box is the whole redirect as
- * often as it is the code alone. All four spellings Z.AI's redirect can be
- * reduced to are accepted, because asking again for a differently-shaped copy
- * of the same value is not a question anyone can act on.
+ * What lands in the box is the whole redirect as often as it is the code alone
+ * — a browser that cannot open `zcode://` shows the address, one that can hands
+ * it to ZCode and leaves the human copying it from elsewhere. All four
+ * spellings Z.AI's redirect can be reduced to are accepted, because asking
+ * again for a differently-shaped copy of the same value is not a question
+ * anyone can act on.
  * @param input - the pasted text.
  * @returns the code and state it carried, either of which may be absent.
  */
@@ -132,42 +139,10 @@ async function exchangeCode(
 }
 
 /**
- * Wait for the authorization code, from whichever of the two ways it arrives.
- *
- * The browser redirect and the pasted address are raced rather than ordered:
- * the human on the harness's own machine never sees the question, and the one
- * whose browser is elsewhere is not left waiting on a redirect that cannot
- * reach this process. Whichever loses is withdrawn, so a surface never keeps
- * showing a question the flow has already answered.
- * @param session - the running attempt.
- * @param listener - the loopback listener, when one could be bound.
- * @returns the code and the state it came back with.
- */
-async function awaitAuthorization(
-  session: AuthorizationSession,
-  listener: Awaited<ReturnType<typeof listenForCallback>>,
-): Promise<AuthorizationAnswer> {
-  const withdraw = new AbortController()
-  const pasted = session.prompt({
-    kind: 'text',
-    message: 'Paste the address your browser was redirected to, or the authorization code it showed.',
-    placeholder: `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}?code=…`,
-    signal: withdraw.signal,
-  }).then(text => ({ pasted: text }))
-  // Attached before the race so the withdrawn question's rejection is never
-  // the process's problem, whichever side wins.
-  pasted.catch(() => {})
-  const caught = listener?.received.then(query => ({ query }))
-  const winner = caught === undefined ? await pasted : await Promise.race([pasted, caught])
-  withdraw.abort()
-  return 'query' in winner ? winner.query : parseAuthorizationAnswer(winner.pasted)
-}
-
-/**
  * Run one GLM Coding Plan sign-in.
  *
  * @param session - the running attempt, carrying the human and the cancellation signal.
- * @param options - test-supplied replacements for the fetch implementation and the loopback port.
+ * @param options - replacements for the fetch implementation and the redirect.
  * @returns the durable key to store for the `zai` route.
  * @throws {ZaiSignInError} code `ZAI_NO_CODE` when no authorization code arrived,
  *   or `ZAI_STATE_MISMATCH` when the answer belongs to a different attempt.
@@ -178,29 +153,26 @@ export async function runZaiSignIn(
 ): Promise<PiAiContributedKey> {
   const context: ZaiRequestContext = { fetch: options.fetch ?? fetch, signal: session.signal }
   const state = randomUUID()
-  const port = options.port ?? CALLBACK_PORT
-  const listener = await listenForCallback(port)
-  try {
-    const redirectUri = `http://localhost:${listener?.port ?? port}${CALLBACK_PATH}`
-    session.notify({
-      message: listener === undefined
-        ? 'Open this page to sign in to Z.AI, then paste the address your browser ends up at.'
-        : 'Open this page to sign in to Z.AI; this harness is listening for the redirect.',
-      url: authorizeUrl(state, redirectUri),
-    })
-    const answer = await awaitAuthorization(session, listener)
-    if (answer.code === undefined || answer.code.length === 0) {
-      throw new ZaiSignInError('Z.AI sign-in produced no authorization code', 'ZAI_NO_CODE')
-    }
-    if (answer.state !== undefined && answer.state !== state) {
-      throw new ZaiSignInError(
-        'Z.AI returned an authorization code for a different sign-in attempt', 'ZAI_STATE_MISMATCH')
-    }
-    session.notify({ message: 'Exchanging the authorization code…' })
-    const accessToken = await exchangeCode({ code: answer.code, state, redirectUri }, context)
-    session.notify({ message: 'Provisioning your Z.AI API key…' })
-    return { apiKey: await mintCodingPlanKey(accessToken, context) }
-  } finally {
-    listener?.close()
+  const redirectUri = options.redirectUri ?? REDIRECT_URI
+  session.notify({
+    message: 'Open this page and sign in to Z.AI. Your browser will then be sent to an address it cannot'
+      + ' open — copy that address and paste it here.',
+    url: authorizeUrl(state, redirectUri),
+  })
+  const answer = parseAuthorizationAnswer(await session.prompt({
+    kind: 'text',
+    message: 'Paste the address your browser was redirected to, or the authorization code it showed.',
+    placeholder: `${redirectUri}?code=…`,
+  }))
+  if (answer.code === undefined || answer.code.length === 0) {
+    throw new ZaiSignInError('Z.AI sign-in produced no authorization code', 'ZAI_NO_CODE')
   }
+  if (answer.state !== undefined && answer.state !== state) {
+    throw new ZaiSignInError(
+      'Z.AI returned an authorization code for a different sign-in attempt', 'ZAI_STATE_MISMATCH')
+  }
+  session.notify({ message: 'Exchanging the authorization code…' })
+  const accessToken = await exchangeCode({ code: answer.code, state, redirectUri }, context)
+  session.notify({ message: 'Provisioning your Z.AI API key…' })
+  return { apiKey: await mintCodingPlanKey(accessToken, context) }
 }

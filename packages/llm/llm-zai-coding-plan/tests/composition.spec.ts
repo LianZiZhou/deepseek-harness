@@ -63,7 +63,7 @@ async function loadYaml(lines: readonly string[]): Promise<Context> {
 }
 
 /** The shipping composition: the credential plane, the seam, the adapter, this plugin. */
-async function composed(): Promise<Context> {
+async function composed(config: readonly string[] = []): Promise<Context> {
   const loaded = await loadYaml([
     "- name: '@deepseek-ai/dsh-llm'",
     "- name: '@deepseek-ai/dsh-credentials-local'",
@@ -74,6 +74,7 @@ async function composed(): Promise<Context> {
     "- name: '@deepseek-ai/dsh-api-settings-controller'",
     "- name: '@deepseek-ai/dsh-llm-pi-ai'",
     "- name: '@deepseek-ai/dsh-llm-zai-coding-plan'",
+    ...config,
   ])
   const unloaded = [...loaded.loader.entries()]
     .filter(entry => entry.fiber === undefined && !entry.disabled)
@@ -127,6 +128,17 @@ describe('real Loader composition', () => {
       ],
       inFlight: false,
     })
+  })
+
+  it('asks for the redirect a deployment corrected when the allowlist moved again', { timeout: 60_000 }, async () => {
+    const loaded = await composed(['  config:', '    redirectUri: zcode://corrected/cb'])
+    const context = routed(mintReplies({ [`POST ${TOKEN}`]: { code: 0, data: { zai: { access_token: 'oauth-token' } } } }))
+    vi.stubGlobal('fetch', context.fetch)
+    const interaction = pasting('pasted-code')
+    await expect(loaded.authorization.begin({ key: ZAI, method: 'oauth', interaction }))
+      .resolves.toEqual({ status: 'authorized' })
+    const page = interaction.notices.find(notice => notice.url !== undefined)?.url
+    expect(new URL(page as string).searchParams.get('redirect_uri')).toBe('zcode://corrected/cb')
   })
 
   it('takes the sign-in back off the flow when the plugin unloads', { timeout: 60_000 }, async () => {

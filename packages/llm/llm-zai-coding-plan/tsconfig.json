@@ -12,6 +12,9 @@
       "path": "../../../vendor/cosmokit"
     },
     {
+      "path": "../../../vendor/schemastery"
+    },
+    {
       "path": "../../../vendor/cordis"
     },
     {

@@ -11329,6 +11329,10 @@ importers:
         version: link:../../core/tools
 
   packages/llm/llm-zai-coding-plan:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
