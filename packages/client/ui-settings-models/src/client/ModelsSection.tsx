@@ -34,6 +34,8 @@ import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import type { ModelsOperations } from './operations.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
+import { SignInSection } from './SignInSection.tsx'
+import type { SignInStore } from './sign-in-store.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
 
@@ -41,6 +43,12 @@ import styles from './ModelsSection.module.css'
 export interface ModelsSectionInjected {
   /** The page store (loaded on mount, refreshed on pushed invalidations). */
   controller: ModelsSettingsStore
+  /**
+   * The sign-in controller for the providers whose credential is obtained by
+   * conversation. Optional because the sign-in rows are additive: a shell that
+   * injects none renders the page without them rather than not at all.
+   */
+  signIn?: SignInStore | undefined
   hooks: {
     /** Page snapshot bound by the UI renderer as useSnapshot. */
     snapshot: ModelsSettingsStore['store']
@@ -236,16 +244,16 @@ export function providerCopy(template: string, target: ProviderIdentity): string
  * @returns the section, or null while the shell has not injected yet.
  */
 export function ModelsSection(props: ModelsSectionProps): ReactNode {
-  const { controller, useSnapshot, operations, schema, t, renderSlot } = props
+  const { controller, signIn, useSnapshot, operations, schema, t, renderSlot } = props
   if (
     controller === undefined || useSnapshot === undefined || operations === undefined
     || schema === undefined || t === undefined
   ) return null
-  return <Loaded injected={{ controller, useSnapshot, operations, schema, t }} renderSlot={renderSlot} />
+  return <Loaded injected={{ controller, signIn, useSnapshot, operations, schema, t }} renderSlot={renderSlot} />
 }
 
 function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderSlot: ModelsRenderSlot }): ReactNode {
-  const { controller, operations, schema, t } = injected
+  const { controller, signIn, operations, schema, t } = injected
   const snapshot = injected.useSnapshot(value => value)
   const state = { ...snapshot, rows: snapshot.rows.map(row => row.entry.provider === 'deepseek-account'
     ? { ...row, entry: { ...row.entry, displayName: t('deepSeekAccount') } } : row) }
@@ -329,7 +337,10 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
       .finally(() => { setDeleting(false) })
   }
 
-  if (state.status === 'idle') void controller.load()
+  if (state.status === 'idle') {
+    void controller.load()
+    void signIn?.load()
+  }
   if (state.status === 'error') {
     /* v8 ignore next -- an error status always carries text; the fallback satisfies the nullable type */
     const errorText = state.error ?? ''
@@ -717,6 +728,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
             )
             : null}
       </div>
+      {signIn === undefined ? null : <SignInSection controller={signIn} t={t} />}
       {renderSlot('settings.models.footer', {})}
       <Modal
         open={deleteTarget !== undefined}

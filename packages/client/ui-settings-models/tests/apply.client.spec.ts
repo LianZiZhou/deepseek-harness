@@ -35,6 +35,13 @@ async function bench(mock = RemoteMock.create().load(remoteDefaultResponses), se
   locale.setLocale('zh')
   ctx.provide('locale', locale)
   const remote = new TestRemote(ctx, {
+    authorization: {
+      list: vi.fn(() => Promise.resolve({ ok: true, value: [] })),
+      begin: vi.fn(() => Promise.resolve({ ok: true, value: { status: 'cancelled' } })),
+      answer: vi.fn(),
+      decline: vi.fn(),
+      cancel: vi.fn(),
+    },
     credentials: {
       describe: vi.fn(() => Promise.resolve({ ok: true, value: {} })),
       set: vi.fn(),
@@ -108,7 +115,7 @@ describe('ui-settings-models apply', () => {
 
   it('declares the services it uses', () => {
     expect(inject).toEqual([
-      'slots', 'locale', 'remote', 'remote.credentials', 'remote.llm', 'remote.settings', 'remote.session',
+      'slots', 'locale', 'remote', 'remote.authorization', 'remote.credentials', 'remote.llm', 'remote.settings', 'remote.session',
       'configForms', 'settingsSchema',
     ])
   })
@@ -269,6 +276,29 @@ describe('pushed invalidations', () => {
     refreshIfLoaded(idle as import('../src/client/store.ts').ModelsSettingsStore)
     expect(loads).toHaveLength(1)
   })
+  it('routes the pushed sign-in conversation into the page sign-in store', async () => {
+    const b = await bench()
+    declare(b.slots)
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    const entry = b.slots.entries('settings.section')[0]!
+    const injected = (
+      entry.inject as unknown as () => import('../src/client/ModelsSection.tsx').ModelsSectionInjected
+    )()
+    const signIn = injected.signIn!
+    const key = 'llm-pi-ai/zai'
+
+    b.remote.emit('api-authorization/notice', [{ attempt: 'a1', key, message: 'Open this page' }])
+    expect(signIn.attempt(key).notices).toHaveLength(1)
+
+    b.remote.emit('api-authorization/prompt', [{
+      attempt: 'a1', key, prompt: 'p1', kind: 'text', message: 'Paste the code',
+    }])
+    expect(signIn.attempt(key).prompt?.prompt).toBe('p1')
+
+    b.remote.emit('api-authorization/prompt-closed', [{ attempt: 'a1', prompt: 'p1' }])
+    expect(signIn.attempt(key).prompt).toBeUndefined()
+  })
+
 
   it('routes pushed credential invalidation into the shared onboarding join', async () => {
     const b = await bench()

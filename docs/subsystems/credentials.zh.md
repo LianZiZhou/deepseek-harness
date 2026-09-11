@@ -131,6 +131,77 @@ async begin(request: AuthorizationRequest): Promise<AuthorizationOutcome>
 
 Source: [`packages/credentials/authorization/src/index.ts`](../../packages/credentials/authorization/src/index.ts)
 
+<a id="ctxauthorizationcontroller--authorizationcontroller"></a>
+
+### `ctx.authorizationController` — `AuthorizationController`
+
+Host service backing the generated `ctx.remote.authorization` namespace.
+
+Nothing here interprets a flow: the seam owns which flows exist and what each one does, and this class owns only what the wire adds — the key grammar, the attempt and prompt identity a stateless page needs, and the refusal mapping. No method returns a credential, because no flow hands one to its caller.
+
+```ts cordis-catalog
+/**
+ * Every sign-in this composition offers, for a configuration page listing
+ * what can be authorized. A deployment mounting no authorization seam offers
+ * none, which is a fact about the composition rather than a failure — the
+ * page renders no sign-in and its credential fields still work.
+ * @returns one entry per registered flow, in registration order; empty when nothing is mounted.
+ */
+@Remote list(): AuthorizationEntryView[]
+
+/**
+ * Run one sign-in for the page that asked, and settle when it ends.
+ *
+ * The call lives as long as the conversation: the browser holds it open while
+ * the human is away in their own browser tab, and the notices and questions
+ * raised meanwhile arrive as forwarded events carrying this attempt's id.
+ * Abandoning the call — a closed page, a navigated-away tab — aborts the
+ * signal, which withdraws the attempt.
+ * @param key - the credential record to authorize, in `<scope>/<id>` form.
+ * @param method - which of the flow's methods to run; its first when absent.
+ * @param signal - caller lifetime; abort withdraws the attempt.
+ * @returns `authorized` once the flow commits its record, or `cancelled` when the human declined or the page gave up.
+ * @throws TypertRemoteFailure when the request is invalid, no seam is mounted, or the flow fails.
+ */
+@Remote async begin(key: string, method: string | undefined, signal: AbortSignal): Promise<AuthorizationOutcomeView>
+
+/**
+ * Answer one question a running sign-in asked.
+ *
+ * Answering a question that is no longer open is refused rather than ignored:
+ * a page that raced its own withdrawal must learn its answer went nowhere,
+ * because the flow is still waiting for a different one.
+ * @param attempt - the attempt whose question is being answered.
+ * @param prompt - the question's id, as its event carried it.
+ * @param value - what the human typed, or the chosen option's id.
+ * @throws TypertRemoteFailure when the request is invalid or that question is not open.
+ */
+@Remote answer(attempt: string, prompt: string, value: string): void
+
+/**
+ * Report that the human declined one question, which settles its attempt as
+ * cancelled rather than failed.
+ * @param attempt - the attempt whose question was declined.
+ * @param prompt - the question's id, as its event carried it.
+ * @throws TypertRemoteFailure when the request is invalid or that question is not open.
+ */
+@Remote decline(attempt: string, prompt: string): void
+
+/**
+ * Withdraw the attempt running for one key, from a second call.
+ *
+ * Separate from the `begin` call's own signal because a Cancel button is a
+ * new request: the page pressing it holds no handle on the call it is
+ * cancelling. Withdrawing a key with nothing running is a no-op, so a page
+ * racing a flow that just settled is not told it made a mistake.
+ * @param key - the credential record whose attempt should stop.
+ * @throws TypertRemoteFailure when the request is invalid or no seam is mounted.
+ */
+@Remote cancel(key: string): void
+```
+
+Source: [`packages/api/settings-controller/src/authorization.ts`](../../packages/api/settings-controller/src/authorization.ts)
+
 <a id="ctxcredentials--credentialprovider-abstract-seam"></a>
 
 ### `ctx.credentials` — `CredentialProvider` (abstract seam)
@@ -366,6 +437,61 @@ abstract getDeviceIdentity(): Promise<{ deviceId?: string; userId?: AccountUserI
 ```
 
 Source: [`packages/credentials/deepseek-account/src/index.ts`](../../packages/credentials/deepseek-account/src/index.ts)
+
+<a id="api-authorization-events"></a>
+
+### `api-authorization/*` events
+
+<a id="api-authorizationnotice--emit"></a>
+
+#### `api-authorization/notice` — emit
+
+A running sign-in reported progress, or what the human must do next.
+
+```ts cordis-catalog
+/**
+ * A running sign-in reported progress, or what the human must do next.
+ * @mode emit
+ * @param notice - the attempt, its flow key, and the message with any page or code it refers to.
+ */
+'api-authorization/notice'(notice: AuthorizationNoticeEvent): void
+```
+
+Source: [`packages/api/settings-controller/src/types.ts`](../../packages/api/settings-controller/src/types.ts)
+
+<a id="api-authorizationprompt--emit"></a>
+
+#### `api-authorization/prompt` — emit
+
+A running sign-in needs a question answered before it can continue.
+
+```ts cordis-catalog
+/**
+ * A running sign-in needs a question answered before it can continue.
+ * @mode emit
+ * @param prompt - the attempt, its flow key, the question id, and how to present it.
+ */
+'api-authorization/prompt'(prompt: AuthorizationPromptEvent): void
+```
+
+Source: [`packages/api/settings-controller/src/types.ts`](../../packages/api/settings-controller/src/types.ts)
+
+<a id="api-authorizationprompt-closed--emit"></a>
+
+#### `api-authorization/prompt-closed` — emit
+
+A running sign-in withdrew one of its own questions.
+
+```ts cordis-catalog
+/**
+ * A running sign-in withdrew one of its own questions.
+ * @mode emit
+ * @param closed - the attempt and the withdrawn question's id.
+ */
+'api-authorization/prompt-closed'(closed: AuthorizationPromptClosedEvent): void
+```
+
+Source: [`packages/api/settings-controller/src/types.ts`](../../packages/api/settings-controller/src/types.ts)
 
 <a id="authorization-events"></a>
 

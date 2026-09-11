@@ -13,6 +13,7 @@ import {
   ModelsSection, needsSetup, providerCopy, providerTargetLabel, removeProviderProfile,
 } from '../src/client/ModelsSection.tsx'
 import type { ModelsSectionInjected, ModelsSectionProps } from '../src/client/ModelsSection.tsx'
+import { SignInStore } from '../src/client/sign-in-store.ts'
 import { ProviderEditor, pathOps } from '../src/client/ProviderEditor.tsx'
 import type { ProviderEditorProps } from '../src/client/ProviderEditor.tsx'
 import {
@@ -319,8 +320,14 @@ async function mountFace(scripted: ReturnType<typeof scriptedFace>) {
   const controller = new ModelsSettingsStore(ctx, settingsSchema, mirror)
   await controller.load()
   const renderSlot = stubRenderSlot()
+  // The sign-in rows are additive and their own suite covers them; the page
+  // still mounts one so its own wiring is exercised rather than skipped.
+  const signIn = new SignInStore({
+    list: () => Promise.resolve({ ok: true, value: [] }),
+  } as never)
   const injected: ModelsSectionProps = {
     controller,
+    signIn,
     useSnapshot: bindSnapshotSelector(controller.store),
     operations: operationsWith(face),
     schema: settingsSchema,
@@ -328,7 +335,7 @@ async function mountFace(scripted: ReturnType<typeof scriptedFace>) {
     renderSlot: renderSlot as unknown as ModelsSectionProps['renderSlot'],
   }
   const view = render(<ModelsSection {...injected} />)
-  return { view, ctx, face, update, mutate, set, unset, controller, mirror, renderSlot }
+  return { view, ctx, face, update, mutate, set, unset, controller, mirror, renderSlot, signIn }
 }
 
 async function mountSection(overrides: Parameters<typeof scriptedFace>[0] = {}) {

@@ -30,6 +30,7 @@ import type {} from '@deepseek-ai/dsh-settings/types'
 import type {} from '@deepseek-ai/dsh-user-approval'
 import type {} from '@deepseek-ai/dsh-user-questions'
 export type {} from '@deepseek-ai/dsh-api-session-controller/types'
+export type {} from '@deepseek-ai/dsh-api-settings-controller/types'
 
 export { API_REMOTE_FORWARDED_EVENTS } from './remote-events.ts'
 export type { ApiRemoteForwardedEvent } from './types.ts'

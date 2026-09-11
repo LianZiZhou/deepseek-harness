@@ -136,6 +136,13 @@ export const en = {
   onboardingSave: 'Save and continue',
   onboardingSaving: 'Saving…',
   keyRequired: 'Enter an API key to continue.',
+  signInTitle: 'Sign in',
+  signInIntro: 'These providers issue their credential through a browser sign-in rather than an API key you hold.',
+  signInSubmit: 'Continue',
+  signInCancel: 'Cancel sign-in',
+  signInOpenPage: 'Open the page',
+  signInDone: 'Signed in to {provider}.',
+  signInCancelled: 'The {provider} sign-in was cancelled.',
 }
 
 /** The settings.models namespace key union. */
@@ -277,4 +284,11 @@ export const zh: { [Key in keyof typeof en]: string } = {
   onboardingSave: '保存并继续',
   onboardingSaving: '保存中…',
   keyRequired: '请输入 API 密钥后继续。',
+  signInTitle: '登录',
+  signInIntro: '以下提供方通过浏览器登录签发凭据，而不是由你自己持有的 API 密钥。',
+  signInSubmit: '继续',
+  signInCancel: '取消登录',
+  signInOpenPage: '打开页面',
+  signInDone: '已登录 {provider}。',
+  signInCancelled: '{provider} 登录已取消。',
 }

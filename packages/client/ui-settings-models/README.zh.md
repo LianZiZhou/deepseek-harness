@@ -69,6 +69,10 @@ API 密钥输入框初始为空，并通过 `autocomplete="new-password"` 请求
 
 版本化声明步骤完成后，DeepSeek 步骤从同一份合并快照投影首次运行就绪状态。用户已经能够到达的**任何**提供商都会直接结束该步骤、不做渲染；只有没有任何提供商的用户才会被询问官方 DeepSeek 密钥。「稍后配置」只完成这次协调器遍历；适配器缺失、路由不活动、合并失败、只读部署或能力不可用时，该步骤不渲染即完成——Models 仍是诊断界面。
 
+### 登录
+
+凭据要通过与人对话获取的提供方——OAuth grant、在浏览器中铸造的码——无法靠键入密钥来配置，因此页面末尾为 Host 经 `authorization.list()` 提供的每一种登录各渲染一行。每行为 flow 声明的每个方法各带一个按钮，运行其中一个便就地展开整段对话：flow 发出的 notice（含要打开的页面，以及需要在那里输入的码）、它就人所得结果提出的问题，以及这次尝试如何结束。已有别的页面在运行的 flow 仍会显示，但按钮禁用。当组合没有注册任何 flow 时，该分区完全不渲染，因为页面对部署不具备的能力无话可说。
+
 ### 扩展 slot
 
 本分区为仓库外分发的插件声明两个席位，类型定义在 [`src/client/slot-contract.ts`](src/client/slot-contract.ts) 并从 `./client` 导出。`settings.models.provider-card`（keyed）渲染在每张展示目录行的卡片内部——已保存行的卡片、其首次运行 setup 形态、以及「添加提供商」草稿卡——以 `entryKey = settingsNs` 分发，owner props 携带该行的 `ConfigurableProviderView`、其 configured 状态与已确认的 api-key 凭据状态，因此以某适配器家族的 namespace 注册一次即可收到该家族的全部卡片，含手工声明的路由；手工声明的草稿卡尚无目录行，保存之前不分发。`settings.models.footer`（list）渲染在行列表与新增控件之后。注册方通过 `ctx.slots.inject` 激活，并以 type-only import 引入本包 `/client` 入口；没有注册方时两个席位均不渲染任何内容。

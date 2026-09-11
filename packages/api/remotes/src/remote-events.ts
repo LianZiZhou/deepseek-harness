@@ -14,6 +14,7 @@ import type {} from '@deepseek-ai/dsh-prompt-presets/types'
 import type {} from '@deepseek-ai/dsh-plugin-manager/types'
 import type {} from '@deepseek-ai/dsh-plugin-market/types'
 import type {} from '@deepseek-ai/dsh-schedule/client'
+import type {} from '@deepseek-ai/dsh-api-settings-controller/remote-events'
 import type { TypertForwardableEventEntry } from '@deepseek-ai/dsh-typert-protocol'
 
 /**
@@ -27,6 +28,9 @@ import type { TypertForwardableEventEntry } from '@deepseek-ai/dsh-typert-protoc
 export const API_REMOTE_FORWARDED_EVENTS = [
   { event: 'agent-preset/selected', mode: 'emit' },
   { event: 'approval/request', mode: 'waterfall' },
+  { event: 'api-authorization/notice', mode: 'emit' },
+  { event: 'api-authorization/prompt', mode: 'emit' },
+  { event: 'api-authorization/prompt-closed', mode: 'emit' },
   { event: 'api-session/activity', mode: 'emit', resources: { session: (sessionId): SessionId => sessionId } },
   { event: 'api-session/added', mode: 'emit', resources: { session: (summary): SessionId => summary.sessionId } },
   { event: 'api-session/error', mode: 'emit', resources: { session: (sessionId): SessionId => sessionId } },

@@ -23,6 +23,7 @@ import type { DeepSeekOnboardingInjected } from './DeepSeekOnboardingDialog.tsx'
 import { WelcomeNotice } from './WelcomeNotice.tsx'
 import type { WelcomeNoticeInjected } from './WelcomeNotice.tsx'
 import { WelcomeNoticeStore } from './welcome-store.ts'
+import { SignInStore } from './sign-in-store.ts'
 import { ModelsSettingsStore } from './store.ts'
 import { createModelsOperations } from './operations.ts'
 import { createSettingsSchemaOperations } from './schema-operations.ts'
@@ -48,6 +49,8 @@ export type {
   ModelsSettingsState, ProviderDirectoryEntry, ProviderRow,
 } from './store.ts'
 export type { ModelDiscoveryOutcome, ModelsOperations, SettingsWriteOutcome } from './operations.ts'
+export { SignInStore } from './sign-in-store.ts'
+export type { SignInAttempt, SignInRemote, SignInState } from './sign-in-store.ts'
 
 /**
  * Refetch the page snapshot only after its first load: an unopened Models
@@ -65,7 +68,7 @@ export function refreshIfLoaded(controller: ModelsSettingsStore): void {
  * constrained; registration depends on each slot through `slots.inject()`.
  */
 export const inject = [
-  'slots', 'locale', 'remote', 'remote.credentials', 'remote.llm', 'remote.settings', 'remote.session',
+  'slots', 'locale', 'remote', 'remote.authorization', 'remote.credentials', 'remote.llm', 'remote.settings', 'remote.session',
   'configForms', 'settingsSchema',
 ]
 
@@ -87,11 +90,16 @@ export function apply(ctx: ClientContext): void {
   // own `inject`; the cards receive callbacks and never a context.
   const operations = createModelsOperations(ctx)
   const controller = new ModelsSettingsStore(ctx, schema, ctx.configForms.describe())
+  // The sign-in conversation rides its own namespace and its own pushed
+  // events, so it keeps a store of its own rather than widening the page
+  // snapshot with state no provider row reads.
+  const signIn = new SignInStore(ctx.remote.authorization)
   // Registration-time text (the nav label thunk) and the inject faces share
   // one bound translate; copy freshness rides the locale revision.
   const t = ctx.locale.bind(NS) as ModelsSectionInjected['t']
   const injected = (): ModelsSectionInjected => ({
     controller,
+    signIn,
     hooks: { snapshot: controller.store },
     operations,
     schema,
@@ -121,6 +129,9 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => {
     const refreshModels = (): void => { refreshIfLoaded(controller) }
     const disposers = [
+      ctx.remote.$on('api-authorization/notice', (notice) => { signIn.notice(notice) }),
+      ctx.remote.$on('api-authorization/prompt', (prompt) => { signIn.prompt(prompt) }),
+      ctx.remote.$on('api-authorization/prompt-closed', (closed) => { signIn.promptClosed(closed) }),
       ctx.remote.$on('settings/document-updated', () => { refreshModels() }),
       ctx.remote.$on('credentials/record-updated', refreshModels),
       ctx.remote.$on('credentials/reference-updated', refreshModels),
