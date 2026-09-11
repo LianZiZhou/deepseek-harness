@@ -12,7 +12,7 @@ Status: implemented
 
 ## Decision
 
-`dsh-llm-pi-ai` 暴露 `contributePiAiLogin(ctx, contribution)`：另一个插件向本包已为某条已安装路由注册的 flow 添加一个登录**方法**，点名路由、方法 id 与标签，以及一个返回 `{ apiKey }` 的 `run(session)`。记录由适配器写入；贡献方从不触碰凭据平面，因此 `dsh-llm-pi-ai` 仍是所有以其格式写入的记录的唯一写入方，而一次贡献完全不携带任何 pi-ai 类型。
+`dsh-llm-pi-ai` 暴露 `contributePiAiLogin(ctx, contribution)`：另一个插件向本包已为某条已安装路由注册的 flow 添加一个登录**方法**，点名路由、方法 id 与标签，以及一个返回 `{ apiKey }` 的 `run(session)`。记录由适配器写入；贡献方从不触碰凭据平面，因此 `dsh-llm-pi-ai` 仍是所有以其格式写入的记录的唯一写入方，而一次贡献完全不携带任何 pi-ai 类型。登录成功后——无论是被贡献的还是 pi-ai 自带的——还会声明它所登录的那条路由，因为本适配器只注册其 settings 分节声明的内容，仅有凭据会让 Models 页面与模型选择器毫无变化。已存在的 profile 绝不会被改写；settings provider 缺失或拒绝写入时保留凭据并告警：登录本身成功了，在那里让它失败等于丢掉人确实已经拿到的凭据。
 
 某条路由的贡献集合变化时，其 flow 会重新注册，这会撤回该路由上已在运行的尝试——选择器不该提供一个正在运行的 flow 无法服务的方法。被贡献的方法排在 pi-ai 自己的 API 密钥提问之前、pi-ai 自己的 OAuth 之后，因此当存在浏览器对话时，运行 flow 首个方法的界面会抵达它。贡献注册表以 context root 弱引用为键，因此同一进程中的两个组合绝不会看到彼此的贡献；每次贡献都经 `ctx.effect` 注册，因此会随其插件一同离开。向 pi-ai 不提供的路由贡献会以 `UNKNOWN_PI_AI_ROUTE` 拒绝，方法 id 冲突以 `DUPLICATE_LOGIN_METHOD` 拒绝，而返回空密钥的运行会让尝试以 `EMPTY_CONTRIBUTED_KEY` 失败，而不是报告一次什么都没存下的授权。
 

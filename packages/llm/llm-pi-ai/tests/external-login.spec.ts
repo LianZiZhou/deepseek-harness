@@ -6,7 +6,10 @@ import { Context } from '@deepseek-ai/cordis'
 import AuthorizationService from '@deepseek-ai/dsh-authorization'
 import type { AuthorizationInteraction, AuthorizationSession } from '@deepseek-ai/dsh-authorization'
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
+import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import z from '@deepseek-ai/schemastery'
 import { authContextFrom, credentialStoreFrom, recordKeyFor } from '../src/auth.ts'
+import { MemorySettings } from '../../../settings/settings/tests/memory.ts'
 import { contributePiAiLogin } from '../src/external-login.ts'
 import type { PiAiContributedKey } from '../src/external-login.ts'
 import { registerPiAiFlows } from '../src/login.ts'
@@ -15,13 +18,23 @@ const ZAI = recordKeyFor('zai')
 const CODEX = recordKeyFor('openai-codex')
 const dirs: string[] = []
 
+/** The section shape this package registers, narrowed to what a route declaration touches. */
+const Section = z.object({ providers: z.dict(z.object({}).default({})).default({}) })
+
 /** A context with the record store and the seam, ready for flows. */
-async function harness(): Promise<Context> {
+async function harness(options: { settings?: Record<string, unknown>; writable?: boolean } = {}): Promise<Context> {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-pi-contrib-'))
   dirs.push(dir)
   const ctx = new Context()
   await ctx.plugin(LocalCredentialProvider, { path: join(dir, '.credentials.yaml'), watch: false })
   await ctx.plugin(AuthorizationService)
+  if (options.settings !== undefined) {
+    await ctx.plugin(MemorySettings, { doc: options.settings, writable: options.writable ?? true })
+    installSettingsSection(ctx, settingsNamespace('llm-pi-ai'), Section, { providers: {} }, {
+      setSource: () => {},
+      onChange: () => {},
+    })
+  }
   return ctx
 }
 
@@ -91,6 +104,63 @@ describe('contributed pi-ai logins', () => {
     await expect(ctx.authorization.begin({ key: ZAI, method: 'oauth', interaction: surface() }))
       .resolves.toEqual({ status: 'authorized' })
     expect(run).toHaveBeenCalledOnce()
+    await expect(ctx.credentials.readRecord(ZAI)).resolves.toEqual({ kind: 'api-key', key: 'id.secret' })
+  })
+
+  it('declares the route it signed into, so the signed-in models are usable', async () => {
+    const ctx = await harness({ settings: {} })
+    mountFlows(ctx)
+    contributePiAiLogin(ctx, {
+      provider: 'zai',
+      method: { id: 'oauth', label: 'Sign in' },
+      run: () => Promise.resolve({ apiKey: 'id.secret' }),
+    })
+    await expect(ctx.authorization.begin({ key: ZAI, method: 'oauth', interaction: surface() }))
+      .resolves.toEqual({ status: 'authorized' })
+    const section = ctx.settings.describe().find(d => String(d.ns) === 'llm-pi-ai')?.value
+    expect(section).toEqual({ providers: { zai: {} } })
+  })
+
+  it('leaves a route someone already configured exactly as it is', async () => {
+    const configured = { 'llm-pi-ai': { providers: { zai: { baseURL: 'https://proxy.example/v1' } } } }
+    const ctx = await harness({ settings: configured })
+    mountFlows(ctx)
+    contributePiAiLogin(ctx, {
+      provider: 'zai',
+      method: { id: 'oauth', label: 'Sign in' },
+      run: () => Promise.resolve({ apiKey: 'id.secret' }),
+    })
+    await expect(ctx.authorization.begin({ key: ZAI, method: 'oauth', interaction: surface() }))
+      .resolves.toEqual({ status: 'authorized' })
+    const section = ctx.settings.describe().find(d => String(d.ns) === 'llm-pi-ai')?.value
+    expect(section).toEqual({ providers: { zai: { baseURL: 'https://proxy.example/v1' } } })
+  })
+  it('keeps the credential when the settings document refuses the route', async () => {
+    const ctx = await harness({ settings: {}, writable: false })
+    mountFlows(ctx)
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+    contributePiAiLogin(ctx, {
+      provider: 'zai',
+      method: { id: 'oauth', label: 'Sign in' },
+      run: () => Promise.resolve({ apiKey: 'id.secret' }),
+    })
+    await expect(ctx.authorization.begin({ key: ZAI, method: 'oauth', interaction: surface() }))
+      .resolves.toEqual({ status: 'authorized' })
+    await expect(ctx.credentials.readRecord(ZAI)).resolves.toEqual({ kind: 'api-key', key: 'id.secret' })
+    expect(warn).toHaveBeenCalled()
+  })
+
+
+  it('keeps the credential when no settings provider can take the route', async () => {
+    const ctx = await harness()
+    mountFlows(ctx)
+    contributePiAiLogin(ctx, {
+      provider: 'zai',
+      method: { id: 'oauth', label: 'Sign in' },
+      run: () => Promise.resolve({ apiKey: 'id.secret' }),
+    })
+    await expect(ctx.authorization.begin({ key: ZAI, method: 'oauth', interaction: surface() }))
+      .resolves.toEqual({ status: 'authorized' })
     await expect(ctx.credentials.readRecord(ZAI)).resolves.toEqual({ kind: 'api-key', key: 'id.secret' })
   })
 

@@ -12,6 +12,7 @@ import type { AuthEvent, AuthPrompt, AuthType, Provider } from '@earendil-works/
 import type { Context } from '@deepseek-ai/cordis'
 import type { AuthorizationMethod, AuthorizationPrompt, AuthorizationSession } from '@deepseek-ai/dsh-authorization'
 import { isCredentialKeySegment } from '@deepseek-ai/dsh-credentials'
+import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import { catalogProvider, catalogProviderIds } from './catalog.ts'
 import { recordKeyFor } from './auth.ts'
@@ -37,6 +38,45 @@ function loginMethods(ctx: Context, provider: Provider): AuthorizationMethod[] {
   const apiKeyAt = own.findIndex(method => method.id === 'api-key')
   if (apiKeyAt < 0) return [...own, ...contributed]
   return [...own.slice(0, apiKeyAt), ...contributed, ...own.slice(apiKeyAt)]
+}
+
+/** This package's settings section, where a route's profile lives. */
+const NS = settingsNamespace('llm-pi-ai')
+
+/**
+ * Give the route a profile, so what was just signed into is usable.
+ *
+ * A stored credential is not a route: this adapter mounts dormant and registers
+ * only what the settings section declares, so a sign-in that stopped at the
+ * credential would leave the human looking at a Models page that gained
+ * nothing and a picker with no new model. The empty profile is the whole
+ * declaration a signed-in catalog route needs — endpoint, protocol, and models
+ * come from the installed catalog, and the credential comes from the record the
+ * login just wrote, so no `apiKeyEnv` is involved.
+ *
+ * An existing profile is left exactly as it is: it may carry an endpoint, a
+ * narrowed model list, or a credential reference that this sign-in has no
+ * business rewriting. A composition with no settings provider, or one that
+ * refuses the write, keeps the credential and reports the refusal — the login
+ * itself succeeded, and failing it here would discard a credential the human
+ * did obtain.
+ * @param ctx - the plugin context carrying the optional settings service.
+ * @param provider - the route that was signed into.
+ */
+async function declareRoute(ctx: Context, provider: string): Promise<void> {
+  const settings = ctx.get('settings')
+  if (settings === undefined) return
+  const section = settings.describe().find(descriptor => descriptor.ns === NS)?.value as
+    { providers?: Record<string, unknown> } | undefined
+  if (section?.providers?.[provider] !== undefined) return
+  try {
+    await settings.mutate(NS, [{ op: 'set', path: ['providers', provider], value: {} }])
+  } catch (error: unknown) {
+    ctx.logger.warn(
+      'llm-pi-ai: signed in to "%s" but could not declare its route; add it on the Models page to use its models',
+      provider)
+    ctx.logger.warn(error)
+  }
 }
 
 /**
@@ -213,11 +253,11 @@ export function registerPiAiFlows(ctx: Context, auth: PiAiAuthInjection): void {
       async run(session) {
         const contribution = contributedLogins(ctx, providerId)
           .find(entry => entry.method.id === session.method)
-        if (contribution !== undefined) {
-          await runContributed(contribution, providerId, session, auth)
-          return
-        }
-        await runPiAi(provider, providerId, session, auth)
+        if (contribution === undefined) await runPiAi(provider, providerId, session, auth)
+        else await runContributed(contribution, providerId, session, auth)
+        // After the credential, because a route declared before one exists
+        // would register and then fail every request until the login finished.
+        await declareRoute(ctx, providerId)
       },
     }))
   }

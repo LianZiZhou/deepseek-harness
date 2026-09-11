@@ -34,14 +34,14 @@ The [`dsh-base`](../../bundle/base/README.md) bundle mounts it beside the pi-ai 
 - name: '@deepseek-ai/dsh-llm-zai-coding-plan'
 ```
 
-The route entry is what makes the signed-in models selectable; the plugin itself needs none, because signing in is what makes a route worth configuring. A composition that mounts no pi-ai adapter simply has no flow for the method to appear on.
+The route entry above is not a prerequisite: signing in declares one, because a credential without a route leaves the Models page and the picker unchanged. It is shown for a composition that wants the route before anyone signs in. A composition that mounts no pi-ai adapter simply has no flow for the method to appear on.
 
 ### What the human does
 
 1. A surface begins the `llm-pi-ai/zai` authorization with method `oauth`.
 2. The plugin reports the `chat.z.ai` authorize page to open, and asks for the address the browser ends on.
 3. The human signs in; Z.AI sends the browser to `zcode://zai-auth/callback?code=…`, which no browser can open. They copy that address — or just the code — and paste it back.
-4. The plugin exchanges the code, mints the key, and the adapter stores it. The Z.AI console then lists a key named `deepseek-harness`.
+4. The plugin exchanges the code, mints the key, and the adapter stores it and declares the `zai` route. Z.AI's models are then in the picker, and the Z.AI console lists a key named `deepseek-harness`.
 
 Signing in again reuses that key rather than making another, so revoking it in the Z.AI console signs this harness out and leaves keys made by other clients alone.
 
