@@ -32,6 +32,6 @@ Status: implemented
 
 ## Consequences
 
-厂商登录如今只是一个普通的包：`dsh-llm-zai-coding-plan` 约 350 行，对 pi-ai 一无所知，下一个照搬其形状即可。代价是 `dsh-llm-pi-ai` 上多了一个必须保持兼容的公开扩展点，以及 `zai` 路由上的一处行为变化——只要挂载了本插件，该路由 flow 的首个方法就变成浏览器登录，因此静默运行首个方法的界面会打开浏览器，而不再提问密钥。
+厂商登录如今只是一个普通的包：`dsh-llm-zai-coding-plan` 约 350 行，对 pi-ai 一无所知，下一个照搬其形状即可。代价是 `dsh-llm-pi-ai` 上多了一个必须保持兼容的公开扩展点，以及 `zai` 路由上的一处行为变化：`dsh-base` bundle 把本插件与它所扩展的适配器一起挂载，因此在每个基于 base 的 profile 中，该路由的首个方法都是浏览器登录，静默运行首个方法的界面会打开浏览器，而不是提问密钥。
 
 Z.AI 的端点是从其桌面客户端对齐来的私有端点。没有任何测试会触达 Z.AI：`tests/fake-zai.ts` 应答整条序列，`tests/composition.spec.ts` 通过 Loader 启动实际发布的组合，因此 Z.AI 那侧的变化由人登录时发现，而不是由 CI 发现。`zai-coding-cn`（`open.bigmodel.cn`）是有意不服务的；该部署仍需手工填入密钥。

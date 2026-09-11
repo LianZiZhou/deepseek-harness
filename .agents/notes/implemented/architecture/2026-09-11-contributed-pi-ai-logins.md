@@ -32,6 +32,6 @@ A route's flow is re-registered when its contributed set changes, which withdraw
 
 ## Consequences
 
-A vendor sign-in is now an ordinary package: `dsh-llm-zai-coding-plan` is ~350 lines that know nothing about pi-ai, and the next one copies its shape. The cost is a public extension point on `dsh-llm-pi-ai` that must stay compatible, and one behavior change on the `zai` route — its flow's first method becomes the browser sign-in wherever this plugin is mounted, so a surface that silently runs the first method opens a browser where it previously prompted for a key.
+A vendor sign-in is now an ordinary package: `dsh-llm-zai-coding-plan` is ~350 lines that know nothing about pi-ai, and the next one copies its shape. The cost is a public extension point on `dsh-llm-pi-ai` that must stay compatible, and one behavior change on the `zai` route: the `dsh-base` bundle mounts the plugin beside the adapter it extends, so in every base-backed profile that route's first method is the browser sign-in, and a surface that silently runs the first method opens a browser where it would otherwise prompt for a key.
 
 Z.AI's endpoints are private ones mirrored from its desktop client. No test reaches Z.AI: `tests/fake-zai.ts` answers the whole sequence and `tests/composition.spec.ts` boots the shipping composition through the Loader, so a change on Z.AI's side is found by a human signing in rather than by CI. `zai-coding-cn` (`open.bigmodel.cn`) is deliberately not served; that deployment still enters a key by hand.

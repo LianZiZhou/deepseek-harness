@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/llm/llm-zai-coding-plan/README.md
-README.md: a54b4572e58da8d851ac41f3b4ec4e1676f46a36
-README.zh.md: 305c961156edc3d808fdff9b6da58c2c09b3b4f7
+README.md: f52c749ada78503602fef3b194558cfe7f8019c2
+README.zh.md: 3e15af755fe0f5be13f889ab5b86c0e0bcc0f684

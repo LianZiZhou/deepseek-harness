@@ -135,6 +135,13 @@
     - id: llm-pi-ai
       name: '@deepseek-ai/dsh-llm-pi-ai'
 
+    # The Z.AI GLM Coding Plan browser sign-in, contributed as a second login
+    # method on the pi-ai `zai` route beside the key prompt pi-ai ships. It adds
+    # a method, never a route: the picker gains no model until someone signs in
+    # and the Models page supplies the `zai` profile.
+    - id: llm-zai-coding-plan
+      name: '@deepseek-ai/dsh-llm-zai-coding-plan'
+
     - id: session-persistence-jsonl
       name: '@deepseek-ai/dsh-session-persistence-jsonl'
       config:

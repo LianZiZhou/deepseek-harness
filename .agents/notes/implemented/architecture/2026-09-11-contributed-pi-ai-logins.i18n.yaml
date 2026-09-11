@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-11-contributed-pi-ai-logins.md
-2026-09-11-contributed-pi-ai-logins.md: e6e726a4262ed3ed27eae1a1a1b3a44b0948cf0b
-2026-09-11-contributed-pi-ai-logins.zh.md: b646ee791040883456e646e7bb54679d28c56a2d
+2026-09-11-contributed-pi-ai-logins.md: 471c5dccfb1d7e530b3bec66f0fbe36c57ef1374
+2026-09-11-contributed-pi-ai-logins.zh.md: 934143d51ee2656f1bf7bc35c25d36d58e1f0ff6

@@ -24,7 +24,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-当部署的 Z.AI 访问权来自 GLM Coding Plan 订阅、而非某人手里已有的密钥时，把它与 pi-ai 适配器一起挂载。该方法会出现在 `zai` 登录里，名为 **Sign in with Z.AI (GLM Coding Plan)**，排在 pi-ai 自己的密钥提问之前，因此运行 flow 首个方法的界面会打开浏览器。
+[`dsh-base`](../../bundle/base/README.zh.md) bundle 已把它与 pi-ai 适配器一起挂载，因此每个基于 base 的 profile 都已提供它：该方法会出现在 `zai` 登录里，名为 **Sign in with Z.AI (GLM Coding Plan)**，排在 pi-ai 自己的密钥提问之前，因此运行 flow 首个方法的界面会打开浏览器。手工组合的 profile 自行挂载这两者：
 
 ```yaml
 - name: '@deepseek-ai/dsh-llm-pi-ai'

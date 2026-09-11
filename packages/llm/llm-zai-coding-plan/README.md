@@ -24,7 +24,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount it beside the pi-ai adapter when a deployment's Z.AI access comes from a GLM Coding Plan subscription rather than from a key someone already holds. The method appears on the `zai` sign-in as **Sign in with Z.AI (GLM Coding Plan)**, ahead of pi-ai's own key prompt, so a surface that runs a flow's first method opens the browser.
+The [`dsh-base`](../../bundle/base/README.md) bundle mounts it beside the pi-ai adapter, so every base-backed profile already offers it: the method appears on the `zai` sign-in as **Sign in with Z.AI (GLM Coding Plan)**, ahead of pi-ai's own key prompt, so a surface that runs a flow's first method opens the browser. A profile composed by hand mounts the pair itself:
 
 ```yaml
 - name: '@deepseek-ai/dsh-llm-pi-ai'
