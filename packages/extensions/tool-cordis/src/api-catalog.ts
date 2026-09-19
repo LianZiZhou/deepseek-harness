@@ -1588,6 +1588,58 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'promptPresets',
+    summary: 'Store of the user\'s prompt presets, and the prompt registry\'s final override.',
+    description: 'Store of the user\'s prompt presets, and the prompt registry\'s final override.\n\nIt owns one data set with create, read, update, delete, and selection; it neither arbitrates providers nor executes work, so `Store` is the honest role. The override it installs is global and unscoped: per-session behavior comes from reading each assembly\'s own session, which covers agents created before this plugin loaded and needs no per-agent bookkeeping.',
+    methods: [
+      {
+        signature: '@Remote(\'list\') list(): PromptPresetRoster',
+        description: 'Every stored preset plus the effective default and this deployment\'s bounds.',
+        parameters: [],
+        returns: 'the roster one editor or picker reads in a single call.',
+      },
+      {
+        signature: '@Remote(\'create\') async create(promptPreset: string, document: PromptPresetInput): Promise<PromptPresetRow>',
+        description: 'Store a new preset under an unused id.',
+        parameters: [{ name: 'promptPreset', description: 'the id to create, matching {@link PRESET_ID}.' }, { name: 'document', description: 'the preset\'s writable half.' }],
+        returns: 'the stored row.',
+        throws: ['{RemoteError} `prompt-preset/invalid`, `prompt-preset/exists`, or `prompt-preset/conflict`.'],
+      },
+      {
+        signature: '@Remote(\'update\') async update( promptPreset: string, document: PromptPresetInput, expectedRevision?: number, ): Promise<PromptPresetRow>',
+        description: 'Replace one stored preset\'s document wholesale.',
+        parameters: [{ name: 'promptPreset', description: 'the id to update.' }, { name: 'document', description: 'the preset\'s writable half.' }, { name: 'expectedRevision', description: 'the roster `revision` the caller read, when fencing.' }],
+        returns: 'the stored row.',
+        throws: ['{RemoteError} `prompt-preset/not-found`, `prompt-preset/invalid`, or `prompt-preset/conflict`.'],
+      },
+      {
+        signature: '@Remote(\'deletePreset\') async deletePreset(promptPreset: string): Promise<void>',
+        description: 'Delete one locally stored preset, clearing a default that named it.',
+        parameters: [{ name: 'promptPreset', description: 'the id to delete.' }],
+        throws: ['{RemoteError} `prompt-preset/not-found`, `prompt-preset/read-only`, or `prompt-preset/conflict`.'],
+      },
+      {
+        signature: '@Remote(\'setDefault\') async setDefault(promptPreset: string): Promise<void>',
+        description: 'Choose the preset sessions that name none will use.',
+        parameters: [{ name: 'promptPreset', description: 'the id to make default; `\'\'` clears it.' }],
+        throws: ['{RemoteError} `prompt-preset/not-found` or `prompt-preset/conflict`.'],
+      },
+      {
+        signature: '@Remote(\'select\') async select(agent: Agent, promptPreset: string | null): Promise<string | null>',
+        description: 'Switch one session\'s prompt preset, at any point in that session.\n\nThere is no blank-session lock: an agent preset is locked because swapping tools would strand logged tool calls, while the system prompt is a replaceable surface node the next step re-renders.',
+        parameters: [{ name: 'agent', description: 'the session\'s live agent, resolved from the wire identity.' }, { name: 'promptPreset', description: 'the preset to run, or `null` to override nothing.' }],
+        returns: 'the preset recorded, or `null`.',
+        throws: ['{RemoteError} `prompt-preset/not-found` when the roster has no such id.'],
+      },
+      {
+        signature: '@Remote(\'preview\') async preview( agent: Agent, document: PromptPresetInput | null, signal: AbortSignal, ): Promise<PromptPresetPreview>',
+        description: 'What one candidate preset would produce for one live session.\n\nIt runs the real assembly for that agent\'s own scope, so the preview shows the same sections, tool guidance, and resolved variables a step would, and marks the assembly `preview` so no listener records a route from it. The candidate is a document rather than a stored id, so an editor previews the draft in front of the person instead of making them save first.',
+        parameters: [{ name: 'agent', description: 'the session whose composition to preview against.' }, { name: 'document', description: 'the candidate, or `null` for the untransformed prompt.' }, { name: 'signal', description: 'cancels between the candidate and baseline assemblies.' }],
+        returns: 'the rendered sections, the final prompt, and the baseline to compare.',
+      },
+    ],
+  },
+  {
     key: 'ptcRuntime',
     summary: 'Registers one `ctx.ptcRuntime` implementation.',
     description: 'Registers one `ctx.ptcRuntime` implementation. Program, budget, abort, and substrate failures resolve in PtcRunResult; only Service Definition contract misuse rejects. Implementations bridge structured-cloneable bindings, materialize each declared namespace rejection class, treat programs as hostile peers, isolate runs from one another, and terminate and await in-flight runs during disposal.',
@@ -2718,10 +2770,16 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the exact Cordis effect disposer.',
       },
       {
+        signature: 'finalize(finalizer: PromptFinalizer): () => void',
+        description: 'Register the final override for the calling context\'s scope. It runs last, after the assembly waterfall, after an effective complete section has been restored, and after runtime-context suppression, and what it returns is exactly what assemble returns — so nothing this registry admits can change the prompt after it. A scoped override shadows a global one, and a second registration in the same layer throws. Registration and disposal emit `system-prompt/change`.\n\nReserve it for a deployment-authored override that must have the last word. Ordinary contributions register a section, which composes with every other section instead of replacing the result of all of them.',
+        parameters: [{ name: 'finalizer', description: 'evaluated for each assembly of a participating scope.' }],
+        returns: 'the exact Cordis effect disposer.',
+      },
+      {
         signature: 'async assemble(context: AssembleContext = {}): Promise<PromptAssembly>',
-        description: 'Assemble global and scoped providers, detach tool parameters, apply canonical ordering, then run the assembly waterfall. Scoped sections and variables shadow globals. The returned waterfall value is authoritative except that an effective complete section is restored afterwards as the sole prompt section.',
+        description: 'Assemble global and scoped providers, detach tool parameters, apply canonical ordering, then run the assembly waterfall. Scoped sections and variables shadow globals. The returned waterfall value is authoritative except that an effective complete section is restored afterwards as the sole prompt section, and that a registered finalize override then has the last word over all of it.',
         parameters: [{ name: 'context', description: 'the optional scope and plugin-defined assembly fields.' }],
-        returns: 'the post-waterfall assembly with any complete prompt enforced.',
+        returns: 'the finalized assembly with any complete prompt enforced first.',
       },
     ],
   },
@@ -3761,6 +3819,22 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'progress', description: 'the installation\'s request id and phase.' }],
   },
   {
+    name: 'prompt-preset/changed',
+    mode: 'emit',
+    signature: '\'prompt-preset/changed\'(): void',
+    summary: 'The stored roster changed: a preset was created, edited, deleted, or the default moved.',
+    description: 'The stored roster changed: a preset was created, edited, deleted, or the default moved. Payload-free because every consumer re-reads the roster.',
+    parameters: [],
+  },
+  {
+    name: 'prompt-preset/selected',
+    mode: 'emit',
+    signature: '\'prompt-preset/selected\'(sessionId: SessionId, promptPreset: string | null): void',
+    summary: 'One session committed a different prompt preset to its durable log.',
+    description: 'One session committed a different prompt preset to its durable log. Consumers invalidate only state derived from that session\'s prompt.',
+    parameters: [{ name: 'sessionId', description: 'the session whose prompt override changed.' }, { name: 'promptPreset', description: 'the preset recorded by the committed selection, or null.' }],
+  },
+  {
     name: 'session-telemetry/record',
     mode: 'waterfall',
     signature: '\'session-telemetry/record\'(record: SessionTelemetryRecord, next: () => SessionTelemetryRecord): SessionTelemetryRecord',
@@ -3861,7 +3935,7 @@ export const EVENT_API: readonly EventApiEntry[] = [
     mode: 'waterfall',
     signature: '\'system-prompt/assemble\'(this: Scoped<SystemPrompt>, assembly: PromptAssembly, context: AssembleContext, next: () => Promise<PromptAssembly>): Promise<PromptAssembly>',
     summary: 'Expert waterfall over the assembled sections, contexts, tools, and variables.',
-    description: 'Expert waterfall over the assembled sections, contexts, tools, and variables. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): scoped listeners receive only that scope\'s assemblies. The returned value is authoritative. A supplied signal controls only this explicit assembly request and must not be retained to control later turns. A registered complete section is restored after this waterfall, so listeners cannot add to or replace that scope\'s system prompt.',
+    description: 'Expert waterfall over the assembled sections, contexts, tools, and variables. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): scoped listeners receive only that scope\'s assemblies. The returned value is authoritative. A supplied signal controls only this explicit assembly request and must not be retained to control later turns. A registered complete section is restored after this waterfall, so listeners cannot add to or replace that scope\'s system prompt; only the final override registered through SystemPrompt.finalize runs later than that restoration.',
     parameters: [{ name: 'assembly', description: 'the mutable assembly built from registered providers.' }, { name: 'context', description: 'the caller\'s per-assembly context.' }],
   },
   {
@@ -4118,7 +4192,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'AssembleContext',
-    declaration: 'export interface AssembleContext {\n    scope?: ScopeKey;\n    signal?: AbortSignal;\n}',
+    declaration: 'export interface AssembleContext {\n    scope?: ScopeKey;\n    signal?: AbortSignal;\n    preview?: boolean;\n}',
   },
   {
     name: 'AssembledContext',
@@ -5349,10 +5423,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type PrepareSessionOptions = (CreateSessionOptions & {\n    readonly eventState?: undefined;\n}) | RestoredSessionOptions;',
   },
   {
-    name: 'PresetOption',
-    declaration: 'export interface PresetOption {\n    value: string;\n    name: string;\n    description?: string;\n}',
-  },
-  {
     name: 'PresetSpec',
     declaration: 'export interface PresetSpec {\n    sandbox: SandboxMode;\n    approval: ApprovalPolicy;\n    name?: string;\n    description?: string;\n}',
   },
@@ -5407,6 +5477,74 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PromptFileBinding',
     declaration: 'export interface PromptFileBinding extends Disposable {\n    commit(): void;\n}',
+  },
+  {
+    name: 'PromptFinalizer',
+    declaration: 'export type PromptFinalizer = (assembly: PromptAssembly, context: AssembleContext) => PromptAssembly | Promise<PromptAssembly>;',
+  },
+  {
+    name: 'PromptPresetInput',
+    declaration: 'export interface PromptPresetInput {\n    readonly name: string;\n    readonly description?: string;\n    readonly rules: readonly PromptRule[];\n}',
+  },
+  {
+    name: 'PromptPresetLimits',
+    declaration: 'export interface PromptPresetLimits {\n    readonly maxPresets: number;\n    readonly maxRules: number;\n    readonly maxPatternLength: number;\n    readonly maxTextBytes: number;\n}',
+  },
+  {
+    name: 'PromptPresetPreview',
+    declaration: 'export interface PromptPresetPreview {\n    readonly sections: readonly PromptPresetPreviewSection[];\n    readonly prompt: string;\n    readonly baselineSections: readonly PromptPresetPreviewSection[];\n    readonly baselinePrompt: string;\n    readonly warnings: readonly PromptPresetWarning[];\n}',
+  },
+  {
+    name: 'PromptPresetPreviewSection',
+    declaration: 'export interface PromptPresetPreviewSection {\n    readonly name: string;\n    readonly text: string;\n    readonly fromRule?: number;\n    readonly protectedSection?: true;\n}',
+  },
+  {
+    name: 'PromptPresetRoster',
+    declaration: 'export interface PromptPresetRoster {\n    readonly presets: readonly PromptPresetRow[];\n    readonly default: string;\n    readonly revision: number;\n    readonly writable: boolean;\n    readonly limits: PromptPresetLimits;\n    readonly protectedSections: readonly string[];\n}',
+  },
+  {
+    name: 'PromptPresetRow',
+    declaration: 'export interface PromptPresetRow {\n    readonly promptPreset: string;\n    readonly name: string;\n    readonly description?: string;\n    readonly rules: readonly PromptRule[];\n    readonly source: PromptPresetSource;\n    readonly isDefault: boolean;\n}',
+  },
+  {
+    name: 'PromptPresetSource',
+    declaration: 'export type PromptPresetSource = \'deployment\' | \'user\';',
+  },
+  {
+    name: 'PromptPresetWarning',
+    declaration: 'export interface PromptPresetWarning {\n    readonly code: PromptPresetWarningCode;\n    readonly rule?: number;\n    readonly section?: string;\n    readonly detail?: string;\n}',
+  },
+  {
+    name: 'PromptPresetWarningCode',
+    declaration: 'export type PromptPresetWarningCode = \'invalid-pattern\' | \'pattern-too-long\' | \'unknown-section\' | \'no-match\' | \'protected-section-kept\' | \'complete-section-overridden\' | \'render-failed\' | \'unknown-preset\' | \'empty-prompt\';',
+  },
+  {
+    name: 'PromptRule',
+    declaration: 'export type PromptRule = PromptRulePrepend | PromptRuleAppend | PromptRuleInsert | PromptRuleReplace | PromptRuleRemove | PromptRuleSubstitute;',
+  },
+  {
+    name: 'PromptRuleAppend',
+    declaration: 'export interface PromptRuleAppend extends PromptRuleCommon {\n    readonly kind: \'append\';\n    readonly text: string;\n    readonly interpolate?: boolean;\n}',
+  },
+  {
+    name: 'PromptRuleInsert',
+    declaration: 'export interface PromptRuleInsert extends PromptRuleCommon {\n    readonly kind: \'insert\';\n    readonly after: string;\n    readonly text: string;\n    readonly interpolate?: boolean;\n}',
+  },
+  {
+    name: 'PromptRulePrepend',
+    declaration: 'export interface PromptRulePrepend extends PromptRuleCommon {\n    readonly kind: \'prepend\';\n    readonly text: string;\n    readonly interpolate?: boolean;\n}',
+  },
+  {
+    name: 'PromptRuleRemove',
+    declaration: 'export interface PromptRuleRemove extends PromptRuleCommon {\n    readonly kind: \'remove\';\n    readonly sections: readonly string[];\n}',
+  },
+  {
+    name: 'PromptRuleReplace',
+    declaration: 'export interface PromptRuleReplace extends PromptRuleCommon {\n    readonly kind: \'replace\';\n    readonly text: string;\n    readonly interpolate?: boolean;\n}',
+  },
+  {
+    name: 'PromptRuleSubstitute',
+    declaration: 'export interface PromptRuleSubstitute extends PromptRuleCommon {\n    readonly kind: \'substitute\';\n    readonly pattern: string;\n    readonly flags?: string;\n    readonly replacement: string;\n    readonly sections?: readonly string[];\n}',
   },
   {
     name: 'PromptSection',
@@ -6518,7 +6656,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SystemPrompt',
-    declaration: 'export class SystemPrompt extends Service {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    section(section: PromptSection): () => void;\n    getSectionOrder(name: PromptSectionOrderName): number;\n    getContextOrder(name: PromptContextOrderName): number;\n    context(context: PromptContext): () => void;\n    suppressRuntimeContext(): () => void;\n    tools(provider: (context: AssembleContext) => ToolProviderResult): () => void;\n    variable(name: string, provider: (context: AssembleContext) => string | undefined): () => void;\n    async assemble(context: AssembleContext = {}): Promise<PromptAssembly>;\n}',
+    declaration: 'export class SystemPrompt extends Service {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    section(section: PromptSection): () => void;\n    getSectionOrder(name: PromptSectionOrderName): number;\n    getContextOrder(name: PromptContextOrderName): number;\n    context(context: PromptContext): () => void;\n    suppressRuntimeContext(): () => void;\n    tools(provider: (context: AssembleContext) => ToolProviderResult): () => void;\n    variable(name: string, provider: (context: AssembleContext) => string | undefined): () => void;\n    finalize(finalizer: PromptFinalizer): () => void;\n    async assemble(context: AssembleContext = {}): Promise<PromptAssembly>;\n}',
   },
   {
     name: 'SystemPromptUpdate',

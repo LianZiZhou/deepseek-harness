@@ -6300,6 +6300,87 @@
       }
     },
     {
+      "key": "event:prompt-preset/selected",
+      "kind": "event",
+      "event": "prompt-preset/selected",
+      "surface": false,
+      "digest": "de386d52c32c993646e6bedaa4f0a6d817ef74e7fdc0dce4288df95257041f67",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 7,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "promptPreset",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              3,
+              4
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "prompt-preset/selected"
+          }
+        ]
+      }
+    },
+    {
       "key": "event:request/context",
       "kind": "event",
       "event": "request/context",
@@ -28841,7 +28922,7 @@
         "packages/core/tools/src/index.ts#ToolRestriction"
       ],
       "sources": [
-        "packages/core/tools/src/index.ts:682"
+        "packages/core/tools/src/index.ts:691"
       ]
     },
     {
@@ -35076,9 +35157,9 @@
         ]
       },
       "names": [
-        "SessionEventEnvelope[39].sourceEventSeqs",
-        "SessionEventEnvelope[52].sourceEventSeqs",
-        "SessionEventEnvelope[55].sourceEventSeqs",
+        "SessionEventEnvelope[40].sourceEventSeqs",
+        "SessionEventEnvelope[53].sourceEventSeqs",
+        "SessionEventEnvelope[56].sourceEventSeqs",
         "event:assistant/attempt.data.stream[0][0].dt",
         "event:assistant/attempt.data.stream[0][1].dt",
         "event:assistant/attempt.data.stream[0][2].dt",
@@ -40140,6 +40221,33 @@
       ]
     },
     {
+      "digest": "799231ac91869a6695666505343003905638e1b4d11349bff953d4dbfe3191ba",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "union",
+            "types": [
+              1,
+              2
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          }
+        ]
+      },
+      "names": [
+        "event:prompt-preset/selected.data.promptPreset"
+      ],
+      "sources": []
+    },
+    {
       "digest": "79ddc907312f97cf9553d4841e8b3fc937097bd8d97900a790efad3c05255e99",
       "schema": {
         "root": 0,
@@ -44559,9 +44667,9 @@
         ]
       },
       "names": [
-        "SessionEventEnvelope[39]",
-        "SessionEventEnvelope[52]",
-        "SessionEventEnvelope[55]"
+        "SessionEventEnvelope[40]",
+        "SessionEventEnvelope[53]",
+        "SessionEventEnvelope[56]"
       ],
       "sources": []
     },
@@ -51727,6 +51835,46 @@
       "sources": []
     },
     {
+      "digest": "baf92f10a5bc567b063c368d60cca09f2f68951a5299fac582405e2499a795bc",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "promptPreset",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              3
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          }
+        ]
+      },
+      "names": [
+        "event:prompt-preset/selected.data"
+      ],
+      "sources": [
+        "packages/preset/prompt-presets/src/session.ts:27"
+      ]
+    },
+    {
       "digest": "bb1ab3d08f49a9f3b265f844cd78d5c49813062a7b34b54904b426f85d0ff6e3",
       "schema": {
         "root": 0,
@@ -52641,6 +52789,20 @@
           {
             "kind": "literal",
             "value": "paused"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "c4bc935c13a332e2661bb24a8ff09d0c85b18a8751bee397beee5429ca983c3c",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "prompt-preset/selected"
           }
         ]
       },
@@ -56775,6 +56937,87 @@
       "sources": []
     },
     {
+      "digest": "de386d52c32c993646e6bedaa4f0a6d817ef74e7fdc0dce4288df95257041f67",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 6,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 7,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "promptPreset",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              3,
+              4
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "prompt-preset/selected"
+          }
+        ]
+      },
+      "names": [
+        "event:prompt-preset/selected"
+      ],
+      "sources": []
+    },
+    {
       "digest": "df5d9709b7db2a72510dc52052a23f0c38f39730af1504bab8bccabc14fae528",
       "schema": {
         "root": 0,
@@ -58587,8 +58830,8 @@
         "SessionEventEnvelope[36]",
         "SessionEventEnvelope[37]",
         "SessionEventEnvelope[38]",
+        "SessionEventEnvelope[39]",
         "SessionEventEnvelope[3]",
-        "SessionEventEnvelope[40]",
         "SessionEventEnvelope[41]",
         "SessionEventEnvelope[42]",
         "SessionEventEnvelope[43]",
@@ -58601,10 +58844,11 @@
         "SessionEventEnvelope[4]",
         "SessionEventEnvelope[50]",
         "SessionEventEnvelope[51]",
-        "SessionEventEnvelope[53]",
+        "SessionEventEnvelope[52]",
         "SessionEventEnvelope[54]",
-        "SessionEventEnvelope[56]",
+        "SessionEventEnvelope[55]",
         "SessionEventEnvelope[57]",
+        "SessionEventEnvelope[58]",
         "SessionEventEnvelope[5]",
         "SessionEventEnvelope[7]",
         "SessionEventEnvelope[8]",

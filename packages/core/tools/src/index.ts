@@ -458,9 +458,18 @@ export interface ToolRuntimeScheduler {
 
 /**
  * Scheduler entry point omitted from the generated named service API.
+ *
+ * Registered through `Symbol.for`, not `Symbol`: this is a protocol key that
+ * one package writes onto the registry and two others read back, so it has to
+ * survive this module being loaded twice in one process. A development run
+ * does exactly that — the Loader resolves plugin packages by name through the
+ * profile, reaching the built `lib/` entry, while source imports reach `src/`
+ * through the path mapping. Two `Symbol()` instances share a description but
+ * not an identity, so the reader's lookup would return undefined and the first
+ * tool call of the turn would crash.
  * @internal
  */
-export const TOOL_RUNTIME_SCHEDULER: unique symbol = Symbol('@deepseek-ai/dsh-tools.scheduler')
+export const TOOL_RUNTIME_SCHEDULER: unique symbol = Symbol.for('@deepseek-ai/dsh-tools.scheduler')
 
 /** Canonical error code for cancellation after a tool body was invoked. */
 export const TOOL_ABORTED = 'ABORTED'

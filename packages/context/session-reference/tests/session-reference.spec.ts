@@ -550,6 +550,21 @@ describe('model-relative reference budgets', () => {
     expect(resolve).toHaveBeenLastCalledWith('selected', 'small', signal)
   })
 
+  it('ignores a preview assembly, so a drawn preview cannot change the prepared route', async () => {
+    const { ctx, agent, resolve, prepare } = await setup()
+    const selection: ModelSelectionRef = { current: { provider: 'selected', model: 'large' }, assembled: undefined }
+    installModelSelection(ctx, selection)
+
+    await ctx.systemPrompt.assemble({ agent, scope: agent, preview: true })
+    await prepare()
+    // The agent's own route, not the preview's assembled one.
+    expect(resolve).toHaveBeenLastCalledWith('seed', 'seed', undefined)
+
+    await ctx.systemPrompt.assemble({ agent, scope: agent })
+    await prepare()
+    expect(resolve).toHaveBeenLastCalledWith('selected', 'large', undefined)
+  })
+
   it('uses the floor for absent metadata, service, or assembled route and ignores diagnostic assemblies', async () => {
     const { ctx, agent, resolve, prepare, llmFiber } = await setup()
     await ctx.systemPrompt.assemble()

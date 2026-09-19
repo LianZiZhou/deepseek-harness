@@ -1,0 +1,8 @@
+- id: model-capability
+  disabled: true
+- id: model-switch
+  disabled: true
+- id: model-switch-subagent-runtime
+  disabled: true
+- id: infinite-gen-2
+  disabled: true

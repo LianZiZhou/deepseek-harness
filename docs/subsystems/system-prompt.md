@@ -8,7 +8,7 @@ Source: [`packages/core/system-prompt/src/index.ts`](../../packages/core/system-
 
 ## Assembly context
 
-`AssembleContext` identifies the scope layer one assembly resolves and may carry the explicit control signal for that request. It is merge-extensible: `dsh-agent` adds the optional live `agent` field, and `assembleContextFor(agent, signal)` sets the explicit fields together. A bare assembly has neither scope nor signal.
+`AssembleContext` identifies the scope layer one assembly resolves and may carry the explicit control signal for that request. It is merge-extensible: `dsh-agent` adds the optional live `agent` field, and `assembleContextFor(agent, signal)` sets the explicit fields together. A bare assembly has neither scope nor signal. `preview` marks a what-if assembly that no request will use; a listener that records per-agent state from its `system-prompt/assemble` position skips that write when it is set, so drawing a preview cannot reroute a concurrent step.
 
 ```ts type-equiv
 /** Merge-extensible context for one prompt assembly. */
@@ -20,6 +20,14 @@ interface AssembleContext {
   scope?: ScopeKey
   /** Explicit control signal for the turn that requested this assembly, when any. */
   signal?: AbortSignal
+  /**
+   * Marks a what-if assembly that no live request will use. Listeners that
+   * record per-agent state from their `system-prompt/assemble` position skip
+   * that write when it is true, so previewing cannot disturb a concurrent
+   * step; they still return their normal transformed assembly, so the preview
+   * sees the same sections, tools, and variables a real step would.
+   */
+  preview?: boolean
 }
 ```
 
@@ -41,7 +49,7 @@ interface ToolProviderResult {
 
 The exported `PERSONA_PREFIX_SECTION` (`deployment:persona-prefix`) and `PERSONA_SUFFIX_SECTION` (`deployment:persona-suffix`) name the slots shared by global configuration and scoped contributions. Their `PromptSectionOrderName` entries are `DEPLOYMENT_PERSONA_PREFIX` and `DEPLOYMENT_PERSONA_SUFFIX`; the [package README](../../packages/core/system-prompt/README.md#configure-the-prompt) owns their placement and template configuration.
 
-`PromptSection` is a readonly same-process registration contract. Its text may be static or resolved from the current assembly context. Sections sort by ascending order and then code-unit name; repository contributors resolve the service-owned named allocation through `getSectionOrder()`. Runtime-context contributors resolve their independent allocation through `getContextOrder()`. One effective `complete` section becomes the sole prompt section after cooperative assembly. agent-loop renders the assembled sections with `renderPrompt` and commits the text as a `system/message` surface node — appended as surface node 0 on the first step, then replaced in place when the rendered text changes or, when the prepared call declares `systemPromptUpdate: 'in-history'`, appended after the cached history for non-empty updates in a continuing series — so the prompt reaches the model as a message of derived history rather than as a request field ([decision](../../.agents/notes/implemented/architecture/2026-09-02-system-prompt-as-surface-node.md); [decision rule](../../packages/core/agent-loop/README.md#understand-the-implementation)).
+`PromptSection` is a readonly same-process registration contract. Its text may be static or resolved from the current assembly context. Sections sort by ascending order and then code-unit name; repository contributors resolve the service-owned named allocation through `getSectionOrder()`. Runtime-context contributors resolve their independent allocation through `getContextOrder()`. One effective `complete` section becomes the sole prompt section after cooperative assembly, and a registered `PromptFinalizer` then has the last word over that result. agent-loop renders the assembled sections with `renderPrompt` and commits the text as a `system/message` surface node — appended as surface node 0 on the first step, then replaced in place when the rendered text changes or, when the prepared call declares `systemPromptUpdate: 'in-history'`, appended after the cached history for non-empty updates in a continuing series — so the prompt reaches the model as a message of derived history rather than as a request field ([decision](../../.agents/notes/implemented/architecture/2026-09-02-system-prompt-as-surface-node.md); [decision rule](../../packages/core/agent-loop/README.md#understand-the-implementation)).
 
 ```ts type-equiv
 /** One contributed section of the system prompt (registry input). */
@@ -85,6 +93,29 @@ interface PromptContext {
   /** Static text or a provider evaluated for each assembly. Empty text contributes nothing. */
   readonly text: string | ((context: AssembleContext) => string)
 }
+```
+
+<a id="final-override"></a>
+
+## Final override
+
+`PromptFinalizer` is the one contribution that runs after everything else: the assembly waterfall, the restoration of an effective complete section, and runtime-context suppression have all already happened when it is called, and what it returns is what `assemble()` returns. At most one may be registered per layer, and a scoped one shadows a global one. It is for a deployment-authored override that must have the last word — a user-controlled prompt override is the current consumer — and not for ordinary contributions, which register a `PromptSection` and compose with everything else. The finalizer owns preserving `tools`, `contexts`, and `variables`: the loop reads all three, and the PTC and structured-output protocol contributions live in `sections`. The invariant companion validates the waterfall's result, which the finalizer runs after, so a finalizer owns the validity of what it emits.
+
+```ts type-equiv
+/**
+ * The last word on one assembly's content.
+ *
+ * It receives the assembly every other input has already produced — the
+ * waterfall's result with any complete section restored and any runtime-context
+ * suppression applied — and what it returns is what {@link SystemPrompt.assemble}
+ * returns. Preserving `tools`, `contexts`, and `variables` is the provider's
+ * obligation: the loop reads all three, and the PTC and structured-output
+ * contributions live in `sections`.
+ */
+type PromptFinalizer = (
+  assembly: PromptAssembly,
+  context: AssembleContext,
+) => PromptAssembly | Promise<PromptAssembly>
 ```
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
@@ -162,13 +193,31 @@ tools(provider: (context: AssembleContext) => ToolProviderResult): () => void
 variable(name: string, provider: (context: AssembleContext) => string | undefined): () => void
 
 /**
+ * Register the final override for the calling context's scope. It runs last,
+ * after the assembly waterfall, after an effective complete section has been
+ * restored, and after runtime-context suppression, and what it returns is
+ * exactly what {@link assemble} returns — so nothing this registry admits can
+ * change the prompt after it. A scoped override shadows a global one, and a
+ * second registration in the same layer throws. Registration and disposal
+ * emit `system-prompt/change`.
+ *
+ * Reserve it for a deployment-authored override that must have the last word.
+ * Ordinary contributions register a {@link section}, which composes with
+ * every other section instead of replacing the result of all of them.
+ * @param finalizer - evaluated for each assembly of a participating scope.
+ * @returns the exact Cordis effect disposer.
+ */
+finalize(finalizer: PromptFinalizer): () => void
+
+/**
  * Assemble global and scoped providers, detach tool parameters, apply
  * canonical ordering, then run the assembly waterfall. Scoped sections and
  * variables shadow globals. The returned waterfall value is authoritative
  * except that an effective complete section is restored afterwards as the
- * sole prompt section.
+ * sole prompt section, and that a registered {@link finalize} override then
+ * has the last word over all of it.
  * @param context - the optional scope and plugin-defined assembly fields.
- * @returns the post-waterfall assembly with any complete prompt enforced.
+ * @returns the finalized assembly with any complete prompt enforced first.
  */
 async assemble(context: AssembleContext = {}): Promise<PromptAssembly>
 ```
@@ -183,7 +232,7 @@ Source: [`packages/core/system-prompt/src/index.ts`](../../packages/core/system-
 
 #### `system-prompt/assemble` — waterfall
 
-Expert waterfall over the assembled sections, contexts, tools, and variables. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): scoped listeners receive only that scope's assemblies. The returned value is authoritative. A supplied signal controls only this explicit assembly request and must not be retained to control later turns. A registered complete section is restored after this waterfall, so listeners cannot add to or replace that scope's system prompt.
+Expert waterfall over the assembled sections, contexts, tools, and variables. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): scoped listeners receive only that scope's assemblies. The returned value is authoritative. A supplied signal controls only this explicit assembly request and must not be retained to control later turns. A registered complete section is restored after this waterfall, so listeners cannot add to or replace that scope's system prompt; only the final override registered through SystemPrompt.finalize runs later than that restoration.
 
 ```ts cordis-catalog
 /**
@@ -193,7 +242,8 @@ Expert waterfall over the assembled sections, contexts, tools, and variables. Sc
  * A supplied signal controls only this explicit assembly request and must not
  * be retained to control later turns. A registered complete section is
  * restored after this waterfall, so listeners cannot add to or replace
- * that scope's system prompt.
+ * that scope's system prompt; only the final override registered through
+ * {@link SystemPrompt.finalize} runs later than that restoration.
  * @param assembly - the mutable assembly built from registered providers.
  * @param context - the caller's per-assembly context.
  * @mode waterfall

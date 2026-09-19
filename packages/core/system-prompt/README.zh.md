@@ -81,6 +81,19 @@ ctx.systemPrompt.variable('cwd', ({ agent }) => agent?.session.header.cwd)
 
 `suppressRuntimeContext()` 移除调用作用域的所有动态运行时上下文贡献，但不禁用拥有底层事实的服务；多个抑制器独立组合，当不再存在抑制器时该 effect 会恢复上下文。
 
+### 取得最终决定权
+
+`finalize()` 注册在其余一切之后运行的那一份贡献。调用它时，组装 waterfall（瀑布流）已经跑完，生效的 `complete` 段已被恢复为唯一段落，运行时上下文抑制也已应用；它的返回值就是 `assemble()` 的返回值，因此本注册表接纳的任何东西都无法在它之后改变提示词。每一层至多注册一个——同一层内的第二个会抛错——且作用域内的会遮蔽全局的。
+
+它面向必须拥有最终决定权的部署方自有覆盖，例如用户可控的提示词覆盖；普通贡献应注册段落，与其余一切组合，而不是替换掉全部结果。finalizer（最终覆盖方）负责保留 `tools`、`contexts` 与 `variables`，并对自己产出的段落的有效性负责：invariant（不变式）伴生包校验的是 waterfall 的结果，而 finalizer 在其之后运行。
+
+```text
+ctx.systemPrompt.finalize(assembly => ({
+  ...assembly,
+  sections: assembly.sections.filter(section => section.name !== 'tool:bash'),
+}))
+```
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -93,7 +106,7 @@ ctx.systemPrompt.variable('cwd', ({ agent }) => agent?.session.header.cwd)
 
 ### 设计理念
 
-该包是一个注册表加一条协作式组装流水线。一次 `assemble()` 调用把全局层与所请求作用域的层合并，分离工具参数，先按数值再按名称规范化段顺序，运行按作用域筛选的 `system-prompt/assemble` waterfall，把有效的 complete 段恢复为唯一的提示词段，并实施任何当前生效的运行时上下文抑制器。段与动态上下文是独立的输入：段成为提示词文本，而上下文在循环下成为模型历史中带来源的 user 角色快照。工具 schema 按设计属于组装结果——「模型获知自己能做什么」是一个连贯整体，尽管适配器把 schema 作为独立 wire 字段传输。
+该包是一个注册表加一条协作式组装流水线。一次 `assemble()` 调用把全局层与所请求作用域的层合并，分离工具参数，先按数值再按名称规范化段顺序，运行按作用域筛选的 `system-prompt/assemble` waterfall，把有效的 complete 段恢复为唯一的提示词段，实施任何当前生效的运行时上下文抑制器，并在注册了最终覆盖时把结果交给解析出的那一个。段与动态上下文是独立的输入：段成为提示词文本，而上下文在循环下成为模型历史中带来源的 user 角色快照。工具 schema 按设计属于组装结果——「模型获知自己能做什么」是一个连贯整体，尽管适配器把 schema 作为独立 wire 字段传输。
 
 ### 源码地图
 
@@ -122,6 +135,7 @@ ctx.systemPrompt.variable('cwd', ({ agent }) => agent?.session.header.cwd)
 - [系统提示词子系统](../../../docs/subsystems/system-prompt.zh.md)——确切的跨包类型与生成的服务 API。
 - [tools 包](../tools/README.zh.md)——其 schema 流入组装的工具注册表。
 - [提示词变量 Agent Note](../../../.agents/notes/implemented/architecture/2026-07-05-prompt-variables-and-tool-guidance-ownership.zh.md)——哪些提示词事实归谁所有。
+- [最终覆盖 Agent Note](../../../.agents/notes/implemented/architecture/2026-09-18-prompt-final-override.zh.md)——为什么允许一份贡献拥有最终决定权，以及为什么它是单一所有者。
 - [第一方提示词顺序 Agent Note](../../../.agents/notes/archived/architecture/2026-08-25-sparse-first-party-prompt-section-orders.md)——稀疏具名顺序分配。
 - [core 分组地图](../README.zh.md)——core 各包如何组合。
 
@@ -134,7 +148,7 @@ ctx.systemPrompt.variable('cwd', ({ agent }) => agent?.session.header.cwd)
 
 #### 模型看到什么
 
-第一方段落依次渲染 harness 身份、部署 persona 前缀（含模型名称介绍）、可复用指令（包括生成的工具 SDK 和结构化输出指导），最后是携带环境信息的后缀：harness 源码（`10000`）、Web 表层（`10100`）和部署 persona 后缀（`10200`）。外部段落的顺序与组装监听器仍决定其最终结果。`includeHarnessIdentity: false` 仅省略这个固定开场白。空段会消失；带作用域的段与变量可以为一个 agent 遮蔽全局项。`system-prompt/assemble` waterfall 决定交付的提示词与工具 schema，除非一个有效段声明自身为 complete——此时该确切段会成为完整的系统提示词，而 waterfall 得到的上下文、工具与变量保持不变。渲染后的提示词作为派生历史中的 system 角色消息——surface 第 0 号节点，或历史内更新之后最新的系统节点——到达模型；循环请求与 `request/header` 均不含单独的 `system` 字段。完整渲染结果为空时，循环通过有日志记录的空内容替换清除所有生效的系统节点，模型历史不再保留任何旧提示词。有序动态上下文与段分离，只在存在时才会成为带来源的 user 角色快照；`includeRuntimeContext: false` 或带作用域的抑制器会移除全部这类上下文。
+第一方段落依次渲染 harness 身份、部署 persona 前缀（含模型名称介绍）、可复用指令（包括生成的工具 SDK 和结构化输出指导），最后是携带环境信息的后缀：harness 源码（`10000`）、Web 表层（`10100`）和部署 persona 后缀（`10200`）。外部段落的顺序与组装监听器仍决定其最终结果。`includeHarnessIdentity: false` 仅省略这个固定开场白。空段会消失；带作用域的段与变量可以为一个 agent 遮蔽全局项。`system-prompt/assemble` waterfall 决定交付的提示词与工具 schema，除非一个有效段声明自身为 complete——此时该确切段会成为完整的系统提示词，而 waterfall 得到的上下文、工具与变量保持不变。已注册的最终覆盖在这一切之后运行，直接决定交付的提示词。渲染后的提示词作为派生历史中的 system 角色消息——surface 第 0 号节点，或历史内更新之后最新的系统节点——到达模型；循环请求与 `request/header` 均不含单独的 `system` 字段。完整渲染结果为空时，循环通过有日志记录的空内容替换清除所有生效的系统节点，模型历史不再保留任何旧提示词。有序动态上下文与段分离，只在存在时才会成为带来源的 user 角色快照；`includeRuntimeContext: false` 或带作用域的抑制器会移除全部这类上下文。
 
 ##### harness 身份
 

@@ -389,6 +389,11 @@
     },
     {
       "doc": "docs/subsystems/system-prompt.md",
+      "symbol": "PromptFinalizer",
+      "source": "packages/core/system-prompt/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/system-prompt.md",
       "symbol": "PromptSection",
       "source": "packages/core/system-prompt/src/index.ts"
     },
@@ -2191,6 +2196,46 @@
       "doc": "docs/subsystems/deliverables.md",
       "symbol": "WorkspaceChanges",
       "source": "packages/deliverables/workspace-changes/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/prompt-presets.md",
+      "symbol": "PromptPreset",
+      "source": "packages/preset/prompt-presets/src/rules.ts"
+    },
+    {
+      "doc": "docs/subsystems/prompt-presets.md",
+      "symbol": "PromptRule",
+      "source": "packages/preset/prompt-presets/src/rules.ts"
+    },
+    {
+      "doc": "docs/subsystems/prompt-presets.md",
+      "symbol": "PromptPresetWarning",
+      "source": "packages/preset/prompt-presets/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/prompt-presets.md",
+      "symbol": "PromptPresetRoster",
+      "source": "packages/preset/prompt-presets/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/prompt-presets.md",
+      "symbol": "PromptPresetRow",
+      "source": "packages/preset/prompt-presets/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/prompt-presets.md",
+      "symbol": "PromptPresetInput",
+      "source": "packages/preset/prompt-presets/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/prompt-presets.md",
+      "symbol": "PromptPresetPreview",
+      "source": "packages/preset/prompt-presets/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/prompt-presets.md",
+      "symbol": "PromptPresetPreviewSection",
+      "source": "packages/preset/prompt-presets/src/types.ts"
     }
   ]
 }

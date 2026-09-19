@@ -1,0 +1,35 @@
+{
+  "name": "dsh-profile-web",
+  "private": true,
+  "dependencies": {
+    "@dsh-external/dsh-client-ui-skin-deep-whale-manager": "github:Small-tailqwq/dsh-deep-whale#b693d2c224a0a6fb5b621e7cc1284f20d9849c1c&path:/skin-manager",
+    "@dsh-external/dsh-client-ui-skin-denia": "github:Ewnscat-ya/dsh-client-ui-skin-denia#9d445e4823af05d67504bdf4b5bef60f74d8cf07",
+    "@dsh-external/dsh-client-ui-skin-orca-link": "github:Small-tailqwq/dsh-deep-whale#b693d2c224a0a6fb5b621e7cc1284f20d9849c1c&path:/orca-link",
+    "@liustack/modlens": "^3.25.0",
+    "@liustack/modsearch": "^5.9.1",
+    "dsh-aemeath": "github:hachimi-ai/dsh-aemeath#f58eef75dcadb5aeaee9e78542e7e1d9ba43f821",
+    "dsh-better-sidebar": "^0.19.1",
+    "dsh-infinite-gen-2": "github:Minglink/dsh-infinite-gen-2#3a701c334dd15e59c6ac663d93d313489385bbc5",
+    "dsh-model-switch": "github:NOirBRight/dsh-model-switch",
+    "dsh-plugin-model-capability": "^1.1.3",
+    "dsh-skin-market": "^0.1.46",
+    "dshmarket": "^1.48.0"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "dshmarket",
+        "dsh-better-sidebar",
+        "@liustack/modlens",
+        "@liustack/modsearch",
+        "dsh-skin-market",
+        "dsh-infinite-gen-2",
+        "dsh-plugin-model-capability",
+        "@dsh-external/dsh-client-ui-skin-denia"
+      ],
+      "patchReload": "live"
+    }
+  }
+}

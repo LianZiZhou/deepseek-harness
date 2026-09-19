@@ -72,6 +72,24 @@ async function preStep(
 }
 
 describe('installModelSelection()', () => {
+  it('renders a preview assembly without recording the route it snapshots', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    const selection: ModelSelectionRef = { current: { provider: 'alpha', model: 'a1' }, assembled: undefined }
+    const dispose = installModelSelection(ctx, selection)
+
+    // A preview still resolves the route into its variables, so the prompt it
+    // shows matches a real step's.
+    const preview = await ctx.systemPrompt.assemble({ preview: true })
+    expect(preview.variables).toMatchObject({ provider: 'alpha', model: 'a1' })
+    // But it leaves the snapshot `agent/request` reads untouched.
+    expect(selection.assembled).toBeUndefined()
+
+    await ctx.systemPrompt.assemble()
+    expect(selection.assembled).toEqual({ provider: 'alpha', model: 'a1' })
+    dispose()
+  })
+
   it('snapshots prompt variables and request routing together, then disposes its listeners', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)

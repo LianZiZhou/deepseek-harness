@@ -69,15 +69,21 @@ function modelSwitchNotice(previous: ModelSelection, selected: ModelSelection) {
  * notice. Failure before header persistence repeats the notice on the next
  * request.
  *
+ * A preview assembly (`AssembleContext.preview`) still renders the selected
+ * route into its variables but records no snapshot, so drawing a preview
+ * cannot reroute a concurrent step.
+ *
  * @param agentCtx - The selected Agent's scoped context.
  * @param selection - Mutable selection owned by the calling entry point.
  * @returns Disposer for all scoped waterfall listeners.
  */
 export function installModelSelection(agentCtx: Context, selection: ModelSelectionRef): () => void {
-  const disposeAssembly = agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
+  const disposeAssembly = agentCtx.on('system-prompt/assemble', async (_assembly, context, next) => {
     const selected = selection.current
     const assembled = await next()
-    selection.assembled = selected
+    // A preview assembly belongs to no request, so recording it here would
+    // hand the next `agent/request` a snapshot no step ever rendered under.
+    if (context.preview !== true) selection.assembled = selected
     if (selected === undefined) return assembled
     return {
       ...assembled,

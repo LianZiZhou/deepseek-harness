@@ -81,6 +81,19 @@ Tool-schema providers are evaluated per assembly and contribute the model-visibl
 
 `suppressRuntimeContext()` removes every dynamic runtime-context contribution for the calling scope without disabling the services that own the underlying facts; multiple suppressors compose and the effect restores context when none remains.
 
+### Take the last word
+
+`finalize()` registers the one contribution that runs after all the others. By the time it is called the assembly waterfall has run, an effective `complete` section has been restored as the sole section, and runtime-context suppression has been applied; what it returns is exactly what `assemble()` returns, so nothing this registry admits can change the prompt after it. At most one is registered per layer — a second in the same layer throws — and a scoped one shadows a global one.
+
+Reserve it for a deployment-authored override that must have the last word, such as a user-controlled prompt override. Ordinary contributions register a section, which composes with every other section instead of replacing the result of all of them. A finalizer owns preserving `tools`, `contexts`, and `variables`, and owns the validity of the sections it emits: the invariant companion validates the waterfall's result, which the finalizer runs after.
+
+```text
+ctx.systemPrompt.finalize(assembly => ({
+  ...assembly,
+  sections: assembly.sections.filter(section => section.name !== 'tool:bash'),
+}))
+```
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -93,7 +106,7 @@ This section explains how the package realizes the behavior above; the observabl
 
 ### Design concept
 
-The package is a registry plus a cooperative assembly pipeline. One `assemble()` call merges the global layer with the requested scope's layer, detaches tool parameters, canonicalizes section order by number and then name, runs the scope-filtered `system-prompt/assemble` waterfall, restores an effective complete section as the sole prompt section, and applies any active runtime-context suppressor. Sections and dynamic contexts are separate inputs: sections become prompt text, while contexts become sourced user-role snapshots in model history under the loop. Tool schemas are part of the assembly by design — "what the model is told it can do" is one coherent thing, even though adapters transmit schemas as a separate wire field.
+The package is a registry plus a cooperative assembly pipeline. One `assemble()` call merges the global layer with the requested scope's layer, detaches tool parameters, canonicalizes section order by number and then name, runs the scope-filtered `system-prompt/assemble` waterfall, restores an effective complete section as the sole prompt section, applies any active runtime-context suppressor, and hands the result to the resolved final override when one is registered. Sections and dynamic contexts are separate inputs: sections become prompt text, while contexts become sourced user-role snapshots in model history under the loop. Tool schemas are part of the assembly by design — "what the model is told it can do" is one coherent thing, even though adapters transmit schemas as a separate wire field.
 
 ### Source map
 
@@ -122,6 +135,7 @@ The package-level contract is enough for most consumers; read these when you nee
 - [System-prompt subsystem](../../../docs/subsystems/system-prompt.md) — the exact cross-package types and generated service API.
 - [tools package](../tools/README.md) — the tool registry whose schemas flow into assembly.
 - [Prompt variables Agent Note](../../../.agents/notes/implemented/architecture/2026-07-05-prompt-variables-and-tool-guidance-ownership.md) — who owns which prompt facts.
+- [Final override Agent Note](../../../.agents/notes/implemented/architecture/2026-09-18-prompt-final-override.md) — why one contribution may have the last word, and why it is single-owner.
 - [First-party prompt order Agent Note](../../../.agents/notes/archived/architecture/2026-08-25-sparse-first-party-prompt-section-orders.md) — the sparse named order allocation.
 - [Core group map](../README.md) — how the core packages compose.
 
@@ -134,7 +148,7 @@ The package-level contract is enough for most consumers; read these when you nee
 
 #### What the model sees
 
-First-party sections render the harness identity, deployment persona prefix (including the model-name introduction), reusable instructions (including the generated tools SDK and structured-output guidance), then the environment-bearing suffix: harness source (`10000`), Web surface (`10100`), and deployment persona suffix (`10200`). External section orders and assembly listeners remain authoritative. `includeHarnessIdentity: false` omits only that fixed opener. Empty sections disappear; scoped sections and variables can shadow globals for one agent. The `system-prompt/assemble` waterfall determines the delivered prompt and tool schemas unless one effective section declares itself complete — that exact section then becomes the whole system prompt while the waterfall's contexts, tools, and variables remain. The rendered prompt reaches the model as a system-role message of derived history — surface node 0, or the latest system node after an in-history update — neither the loop request nor `request/header` carries a separate `system` field. If the complete rendering is empty, the loop clears every active system node through logged empty replacements, so no older prompt remains in model history. Ordered dynamic contexts are separate from sections and become sourced user-role snapshots only when present; `includeRuntimeContext: false` or a scoped suppressor removes them all.
+First-party sections render the harness identity, deployment persona prefix (including the model-name introduction), reusable instructions (including the generated tools SDK and structured-output guidance), then the environment-bearing suffix: harness source (`10000`), Web surface (`10100`), and deployment persona suffix (`10200`). External section orders and assembly listeners remain authoritative. `includeHarnessIdentity: false` omits only that fixed opener. Empty sections disappear; scoped sections and variables can shadow globals for one agent. The `system-prompt/assemble` waterfall determines the delivered prompt and tool schemas unless one effective section declares itself complete — that exact section then becomes the whole system prompt while the waterfall's contexts, tools, and variables remain. A registered final override runs after all of it and decides the delivered prompt outright. The rendered prompt reaches the model as a system-role message of derived history — surface node 0, or the latest system node after an in-history update — neither the loop request nor `request/header` carries a separate `system` field. If the complete rendering is empty, the loop clears every active system node through logged empty replacements, so no older prompt remains in model history. Ordered dynamic contexts are separate from sections and become sourced user-role snapshots only when present; `includeRuntimeContext: false` or a scoped suppressor removes them all.
 
 ##### Harness identity
 

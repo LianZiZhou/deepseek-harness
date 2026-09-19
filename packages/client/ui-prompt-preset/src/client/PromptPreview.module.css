@@ -1,0 +1,102 @@
+/* The Host's answer about the open draft: warnings, sections, final prompt. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.heading {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.warnings,
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.warning {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--dsw-alias-fill-tsp-secondary);
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.status,
+.empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sectionName {
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.text,
+.removedText,
+.prompt {
+  margin: 0;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-primary);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.removedText {
+  color: var(--dsw-alias-label-tertiary);
+  text-decoration: line-through;
+}
+
+.prompt {
+  max-height: 420px;
+  padding: 8px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-2);
+}

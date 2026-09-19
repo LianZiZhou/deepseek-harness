@@ -14,8 +14,8 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import clsx from 'clsx'
 import {
   ConnectionIndicator,
-  IconAgentPresetOutline16, IconArchiveOutline20, IconCloseOutline16, IconDataOutline16,
-  IconPersonalizationOutline16, IconSettingsOutline16,
+  IconAgentPresetOutline16, IconArchiveOutline20, IconCloseOutline16, IconContextInjectionOutline16,
+  IconDataOutline16, IconPersonalizationOutline16, IconSettingsOutline16,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConnectionIndicatorState } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SettingsRootComponentProps, SettingsSectionRow } from './shell-contract.ts'
@@ -31,6 +31,7 @@ const CONNECTING_MIN_VISIBLE_MS = 800
 function navIcon(id: string) {
   if (id === 'models') return <IconDataOutline16 className={css.navIcon} size={16} />
   if (id === 'agent-presets') return <IconAgentPresetOutline16 className={css.navIcon} size={16} />
+  if (id === 'prompt-presets') return <IconContextInjectionOutline16 className={css.navIcon} size={16} />
   if (id === 'plugins') return <IconPersonalizationOutline16 className={css.navIcon} size={16} />
   // 20-native glyph in the rail's 16px icon slot, as on the Session row menu.
   if (id === 'archived-sessions') return <IconArchiveOutline20 className={css.navIcon} size={16} />

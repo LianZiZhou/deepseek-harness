@@ -47,3 +47,7 @@ worktrees/
 .agents/worktrees/
 .typert-*/
 native/system/test/bin/
+
+# A runtime DSH_HOME that lands beside the checkout: session logs and
+# attachments, never repository content.
+.dsh/

@@ -1,0 +1,12 @@
+{
+  "profiles": [
+    "web"
+  ],
+  "files": [
+    "profiles/web/package.json",
+    "profiles/web/cordis.patch.yml",
+    "profiles/web/pnpm-workspace.yaml",
+    "settings.yaml"
+  ],
+  "takenAt": "2026-09-19T22:48:02.408Z"
+}

@@ -39,6 +39,9 @@
       "path": "../../preset/agent-presets"
     },
     {
+      "path": "../../preset/prompt-presets"
+    },
+    {
       "path": "../../extensions/cordis-host-runner"
     },
     {

@@ -110,6 +110,7 @@ Every product feature maps to a listener on a documented extension point — the
 | Queued + steering messages | core `Agent.followup()` / `Agent.steer()` |
 | Context compaction (auto + manual) | the `ctx.compaction` seam + `dsh-compaction-basic`; automatic pressure runs on serial `agent/pre-step`, canonical overflow recovery runs on `agent/request-error`, and manual callers use the same compact service ([compaction Agent Note](../../.agents/notes/implemented/feature/2026-06-18-compaction-capability-seam.md)) |
 | System prompt configurability | `ctx.systemPrompt.section()` with ordering and scope-local shadowing |
+| User-controlled system-prompt overrides | `dsh-prompt-presets` stores named rule stacks and installs `ctx.systemPrompt.finalize()`, the one contribution that runs after the complete-section restore |
 | AGENTS.md (root) | a section provider reading the file |
 | AGENTS.md (subdir, on-touch) + file-change notices | `agent.inject()` from a watcher / tool-result listener |
 | Built-in tools | `ctx.tools.register()`; schemas flow into the assembly automatically — the `dsh-tool-*` families (bash, fs, web, subagent, todo) are the shipped examples |

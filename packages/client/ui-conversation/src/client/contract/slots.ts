@@ -184,6 +184,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.hero.brand.mark': { kind: 'single'; scope: 'root'; owner: HeroBrandMarkOwnerProps }
     /** Agent-preset control staged for a New Session. */
     'conversation.hero.agentPreset': { kind: 'single'; scope: 'session-maybe'; owner: HeroAgentPresetOwnerProps }
+    /**
+     * Further controls beside the agent-preset chip on the blank-session Hero,
+     * for what a task will run under before it starts. A list, so the chip
+     * beside it is not itself a contract change.
+     */
+    'conversation.hero.controls': { kind: 'list'; scope: 'session-maybe' }
     /** Full-width entries above the composer card. */
     'conversation.input.dock': { kind: 'list'; scope: 'session'; owner: InputZone }
     /** Floating entries rendered inside the resident composer card. */
@@ -223,6 +229,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
         'conversation.hero.brand.mark': { kind: 'single'; scope: 'root' }
         'conversation.hero.workspace': { kind: 'single'; scope: 'root' }
         'conversation.hero.agentPreset': { kind: 'single'; scope: 'session-maybe' }
+        'conversation.hero.controls': { kind: 'list'; scope: 'session-maybe' }
       }
       inject: ConversationInjected
       locale: 'conversation'

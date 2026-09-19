@@ -26,6 +26,7 @@
 | [session-title.md](session-title.zh.md) | 持久标题快照、被引用的来源消息 seq 与异步提供方约定 |
 | [session-reference.md](session-reference.zh.md) | 结构化跨会话引用：`SessionReferenceInput`/`Candidate`、prepared 消息上下文、稳定错误分类 |
 | [system-prompt.md](system-prompt.zh.md) | 逐次组装的上下文、工具提供方结果、提示词段落与协作式组装 |
+| [prompt-presets.md](prompt-presets.zh.md) | 用户自有的提示词规则栈：规则类型、警告编码、名册与预览载荷 |
 | [tools.md](tools.zh.md) | `ToolDefinition` 完整字段、schema DSL、`ToolExecution`/`ToolResult`、工具展示 UI 类型，以及受保护的执行流水线 |
 | [mcp.md](mcp.zh.md) | 外部 MCP 连接、作用域工具与资源、服务器指令、协议结果与配置归属 |
 | [user-questions.md](user-questions.zh.md) | UI 支持的人工问答 seam：`AskUserQuestionRequest`、answer/options 词汇、提供方 API、错误分类体系 |

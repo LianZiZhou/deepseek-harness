@@ -43,7 +43,7 @@ await scope.dispose()   // unwinds every registration made through scope.ctx
 
 ### Build a scoped registry layer
 
-Registry authors use `ScopedLayers`, `NamedEntries`, and `AnonymousEntries` to hold one eager global layer plus lazily created exact-scope layers: reads never create layers, `merge()` materializes insertion-ordered named shadows along the scope chain, and `effect()` derives visibility and ownership from the same context. A scoped layer is reclaimed only when its whole aggregate is empty.
+Registry authors use `ScopedLayers`, `NamedEntries`, `AnonymousEntries`, and `SoleEntry` to hold one eager global layer plus lazily created exact-scope layers: reads never create layers, `merge()` materializes insertion-ordered named shadows along the scope chain, and `effect()` derives visibility and ownership from the same context. A scoped layer is reclaimed only when its whole aggregate is empty.
 
 -----
 
@@ -64,7 +64,7 @@ The registration context determines both visibility and ownership: a registratio
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `createScope`, `scopeOf`, `scopeTarget`, `bindScopeParent`/`scopeParentOf`/`scopeChainOf`, carrier marks |
-| [`src/store.ts`](src/store.ts) | `ScopedLayers`, `NamedEntries`, `AnonymousEntries`, `ScopeLayer` |
+| [`src/store.ts`](src/store.ts) | `ScopedLayers`, `NamedEntries`, `AnonymousEntries`, `SoleEntry`, `ScopeLayer` |
 | [`src/invariant.ts`](src/invariant.ts) | Invariant companion over the generated scoped-event map |
 | [`src/scoped-events.generated.ts`](src/scoped-events.generated.ts) | Generated resolver map of declared scoped events |
 

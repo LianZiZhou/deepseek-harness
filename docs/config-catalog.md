@@ -1914,6 +1914,146 @@ export interface Config {
 
 Source: [`packages/llm/plugin-package-inventory-deepseek/src/index.ts:32`](../packages/llm/plugin-package-inventory-deepseek/src/index.ts)
 
+<a id="deepseek-aidsh-prompt-presets"></a>
+
+## `@deepseek-ai/dsh-prompt-presets`
+
+Requires: `systemPrompt` · `sessionProjections` · `settings` · `sessions`
+
+```ts config-catalog
+/**
+ * Deployment configuration for the prompt-preset roster.
+ *
+ * Every field is required and defaulted by {@link PromptPresetStore.Config}, so
+ * the resolved entry is the one place a default is decided and no read below
+ * restates one.
+ */
+export interface Config {
+  /** Presets the deployment ships; the user layer unions with them by id. */
+  presets: Record<string, PromptPreset>
+  /** Preset stamped into blank sessions; `''` means none. */
+  default: string
+  /** Sections a `replace` keeps and a `remove` may not name. */
+  protectedSections: string[]
+  /** Most presets one deployment stores. */
+  maxPresets: number
+  /** Most rules one preset carries. */
+  maxRules: number
+  /** Longest accepted regular-expression source. */
+  maxPatternLength: number
+  /** Largest accepted rule text, in UTF-8 bytes. */
+  maxTextBytes: number
+}
+
+/** An ordered transform stack a session applies to its assembled prompt. */
+export interface PromptPreset {
+  /** Display name. */
+  readonly name: string
+  /** One sentence on what this preset is for. */
+  readonly description?: string
+  /** Applied in array order, each over the previous rule's result. */
+  readonly rules: readonly PromptRule[]
+}
+
+/** One transform in a preset's ordered stack. */
+export type PromptRule =
+  | PromptRulePrepend
+  | PromptRuleAppend
+  | PromptRuleInsert
+  | PromptRuleReplace
+  | PromptRuleRemove
+  | PromptRuleSubstitute
+
+/** Put text ahead of every section the assembly produced. */
+export interface PromptRulePrepend extends PromptRuleCommon {
+  /** Discriminant selecting this rule kind. */
+  readonly kind: 'prepend'
+  /** The text, used verbatim. */
+  readonly text: string
+  /**
+   * Interpolate `{{variable}}` references in this text. Defaults to FALSE,
+   * inverting the registry default: an unknown reference makes rendering throw,
+   * and pasted prose must never be able to fail a turn.
+   */
+  readonly interpolate?: boolean
+}
+
+/** Put text after every section the assembly produced. */
+export interface PromptRuleAppend extends PromptRuleCommon {
+  /** Discriminant selecting this rule kind. */
+  readonly kind: 'append'
+  /** The text, used verbatim. */
+  readonly text: string
+  /** Interpolate `{{variable}}` references in this text. Defaults to false. */
+  readonly interpolate?: boolean
+}
+
+/** Put text immediately after one named section. */
+export interface PromptRuleInsert extends PromptRuleCommon {
+  /** Discriminant selecting this rule kind. */
+  readonly kind: 'insert'
+  /**
+   * The exact {@link AssembledSection} name to sit behind. A name nothing
+   * carries is a warning and the text lands at the end, because a preset whose
+   * anchor a composition stopped producing should still say what it says.
+   */
+  readonly after: string
+  /** The text, used verbatim. */
+  readonly text: string
+  /** Interpolate `{{variable}}` references in this text. Defaults to false. */
+  readonly interpolate?: boolean
+}
+
+/** Use this text as the whole prompt, keeping only protected sections. */
+export interface PromptRuleReplace extends PromptRuleCommon {
+  /** Discriminant selecting this rule kind. */
+  readonly kind: 'replace'
+  /** The text, used verbatim. */
+  readonly text: string
+  /** Interpolate `{{variable}}` references in this text. Defaults to false. */
+  readonly interpolate?: boolean
+}
+
+/** Drop sections by exact name. */
+export interface PromptRuleRemove extends PromptRuleCommon {
+  /** Discriminant selecting this rule kind. */
+  readonly kind: 'remove'
+  /** Exact {@link AssembledSection} names; a name nothing carries is a warning. */
+  readonly sections: readonly string[]
+}
+
+/** Rewrite matching text inside the sections that remain. */
+export interface PromptRuleSubstitute extends PromptRuleCommon {
+  /** Discriminant selecting this rule kind. */
+  readonly kind: 'substitute'
+  /** Regular-expression source, compiled fresh for each section it touches. */
+  readonly pattern: string
+  /** Flags drawn from {@link SUBSTITUTE_FLAGS}; sticky and indices flags are refused. */
+  readonly flags?: string
+  /** `String.prototype.replace` replacement, so capture references work. */
+  readonly replacement: string
+  /**
+   * Restrict to these section names. Absent or empty means every section: a
+   * substitution restricted to no section could only ever be a no-op, so there
+   * is nothing to distinguish, and a stored document that lost an omitted list
+   * to a schema default still means what its author wrote.
+   */
+  readonly sections?: readonly string[]
+}
+
+/** Fields every rule carries. */
+interface PromptRuleCommon {
+  /**
+   * Whether this rule participates. Absent means it does — a preset written by
+   * hand needs no bookkeeping — while an editor turns a rule off without
+   * deleting text its author is still working on.
+   */
+  readonly enabled?: boolean
+}
+```
+
+Source: [`packages/preset/prompt-presets/src/index.ts:82`](../packages/preset/prompt-presets/src/index.ts)
+
 <a id="deepseek-aidsh-ptc-runtime-node"></a>
 
 ## `@deepseek-ai/dsh-ptc-runtime-node`
@@ -2913,7 +3053,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:248`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:257`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -3496,7 +3636,7 @@ export interface Config {
 export type ToolPresentationMode = 'native' | 'ptc' | 'both'
 ```
 
-Source: [`packages/core/tools/src/index.ts:656`](../packages/core/tools/src/index.ts)
+Source: [`packages/core/tools/src/index.ts:665`](../packages/core/tools/src/index.ts)
 
 <a id="deepseek-aidsh-typert-loader"></a>
 
@@ -3801,6 +3941,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-permission-presets` ([`packages/client/ui-permission-presets/src/index.ts`](../packages/client/ui-permission-presets/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-plan` ([`packages/client/ui-plan/src/index.ts`](../packages/client/ui-plan/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-plugin-manager` ([`packages/client/ui-plugin-manager/src/index.ts`](../packages/client/ui-plugin-manager/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-prompt-preset` ([`packages/client/ui-prompt-preset/src/index.ts`](../packages/client/ui-prompt-preset/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-reference` ([`packages/client/ui-reference/src/index.ts`](../packages/client/ui-reference/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-renderer` ([`packages/client/ui-renderer/src/index.ts`](../packages/client/ui-renderer/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-schedule` ([`packages/client/ui-schedule/src/index.ts`](../packages/client/ui-schedule/src/index.ts))

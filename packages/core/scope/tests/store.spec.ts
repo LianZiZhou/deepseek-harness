@@ -5,6 +5,7 @@ import {
   createScope,
   NamedEntries,
   ScopedLayers,
+  SoleEntry,
   type Scope,
   type ScopeKey,
   type ScopeLayer,
@@ -71,6 +72,32 @@ describe('NamedEntries', () => {
 
     expect(values.next().done).toBe(true)
     expect([...entries.values()]).toEqual([2])
+  })
+})
+
+describe('SoleEntry', () => {
+  it('retains one value, refuses a second, and clears on an idempotent undo', () => {
+    const duplicateError = vi.fn(() => new Error('already registered'))
+    const entries = new SoleEntry<number>(duplicateError)
+    expect(entries.isEmpty()).toBe(true)
+    expect(entries.get()).toBeUndefined()
+
+    const undo = entries.set(1)
+    expect(entries.get()).toBe(1)
+    expect(entries.isEmpty()).toBe(false)
+    expect(() => entries.set(2)).toThrow('already registered')
+    expect(duplicateError).toHaveBeenCalledOnce()
+    // The refused registration left the retained value alone.
+    expect(entries.get()).toBe(1)
+
+    undo()
+    expect(entries.isEmpty()).toBe(true)
+    const next = entries.set(2)
+    // A spent undo never clears the registration that replaced it.
+    undo()
+    expect(entries.get()).toBe(2)
+    next()
+    expect(entries.isEmpty()).toBe(true)
   })
 })
 

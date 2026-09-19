@@ -1,0 +1,35 @@
+/* Package-local multi-line field for rule bodies. */
+
+.field {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  resize: none;
+  overflow-y: auto;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.field:focus {
+  outline: none;
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.field:disabled {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.invalid {
+  border-color: var(--dsw-alias-state-error-primary);
+}

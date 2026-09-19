@@ -57,6 +57,9 @@
       "path": "../../preset/agent-presets"
     },
     {
+      "path": "../../preset/prompt-presets"
+    },
+    {
       "path": "../../settings/settings"
     },
     {

@@ -1,0 +1,18 @@
+/* The per-session prompt-preset control in the task header. */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.error {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--dsw-alias-state-error-primary);
+  cursor: pointer;
+}

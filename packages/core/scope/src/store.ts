@@ -150,6 +150,54 @@ export class AnonymousEntries<V> implements EntryValues<V> {
 }
 
 /**
+ * At most one borrowed value, with the duplicate diagnostic its owner supplies.
+ *
+ * The other two tables admit many entries because many plugins legitimately
+ * contribute one each. Use this one where a second registration could decide
+ * nothing — a final override cannot have the last word if two of them are live
+ * — so registering while another is retained throws instead of shadowing it.
+ */
+export class SoleEntry<V> {
+  private value: V | undefined
+
+  constructor(
+    private readonly duplicateError: () => Error,
+  ) {}
+
+  /**
+   * Retain the one value this table holds.
+   * @param value - borrowed value to retain.
+   * @returns an idempotent undo that clears only this registration.
+   */
+  set(value: V): () => void {
+    if (this.value !== undefined) throw this.duplicateError()
+    this.value = value
+    let active = true
+    return () => {
+      if (!active) return
+      active = false
+      this.value = undefined
+    }
+  }
+
+  /**
+   * Read the retained value.
+   * @returns the retained value, or `undefined` when none is registered.
+   */
+  get(): V | undefined {
+    return this.value
+  }
+
+  /**
+   * Test whether this table retains a value.
+   * @returns whether no value is retained.
+   */
+  isEmpty(): boolean {
+    return this.value === undefined
+  }
+}
+
+/**
  * Own the global and exact-scope layers for one registry.
  *
  * Reads never create scoped layers. Registrations derive both visibility and

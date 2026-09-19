@@ -43,7 +43,7 @@ await scope.dispose()   // unwinds every registration made through scope.ctx
 
 ### 构建带作用域的注册表层
 
-注册表作者使用 `ScopedLayers`、`NamedEntries` 与 `AnonymousEntries` 持有一个立即构造的全局层加惰性创建的精确作用域层：读取从不创建层，`merge()` 沿作用域链物化按插入序的具名遮蔽，`effect()` 从同一上下文推导可见性与所有权。只有当整个聚合为空时才回收作用域层。
+注册表作者使用 `ScopedLayers`、`NamedEntries`、`AnonymousEntries` 与 `SoleEntry` 持有一个立即构造的全局层加惰性创建的精确作用域层：读取从不创建层，`merge()` 沿作用域链物化按插入序的具名遮蔽，`effect()` 从同一上下文推导可见性与所有权。只有当整个聚合为空时才回收作用域层。
 
 -----
 
@@ -64,7 +64,7 @@ await scope.dispose()   // unwinds every registration made through scope.ctx
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `createScope`、`scopeOf`、`scopeTarget`、`bindScopeParent`/`scopeParentOf`/`scopeChainOf`、载体标记 |
-| [`src/store.ts`](src/store.ts) | `ScopedLayers`、`NamedEntries`、`AnonymousEntries`、`ScopeLayer` |
+| [`src/store.ts`](src/store.ts) | `ScopedLayers`、`NamedEntries`、`AnonymousEntries`、`SoleEntry`、`ScopeLayer` |
 | [`src/invariant.ts`](src/invariant.ts) | 基于生成的作用域事件映射的不变式配套 |
 | [`src/scoped-events.generated.ts`](src/scoped-events.generated.ts) | 已声明带作用域事件的生成解析器映射 |
 

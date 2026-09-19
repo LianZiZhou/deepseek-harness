@@ -124,10 +124,12 @@ export class SessionReferenceResolver extends TypertRemoteService {
         'SESSION_REFERENCE_INVALID_CONFIG',
       )
     }
-    // Prepend observes model-selection overrides after downstream assembly completes.
+    // Prepend observes model-selection overrides after downstream assembly
+    // completes. A preview assembly belongs to no request, so recording its
+    // route would key reference preparation to a route no step will use.
     ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
       const assembly = await next()
-      if (context.agent !== undefined) {
+      if (context.agent !== undefined && context.preview !== true) {
         const { provider, model } = assembly.variables
         this.assembledRoutes.set(context.agent, { provider, model })
       }

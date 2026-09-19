@@ -492,6 +492,20 @@
       config:
         personaPrefix: ''
 
+    # User-owned system-prompt overrides, beside the registry they override.
+    # Presets live in the user settings document; a session picks one at any
+    # point and the next step renders under it. The shipped `default` is empty,
+    # so nothing changes for anyone until a person stores a preset and picks it.
+    - id: prompt-presets
+      name: '@deepseek-ai/dsh-prompt-presets'
+      config:
+        default: ''
+        # A replacement prompt is prose, and prose in a CJK script costs three
+        # UTF-8 bytes per character, so the package default of 16384 stops at
+        # roughly 5000 characters of it. This is the bound on how much text one
+        # rule may carry, not a cost the harness pays per step.
+        maxTextBytes: 65536
+
     # Agents created at startup. The base stays empty; raw overlays may create
     # agents, while Web creates sessions on client request.
     - id: agent-loop

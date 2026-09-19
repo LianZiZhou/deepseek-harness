@@ -479,6 +479,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Discovers preset directories over trusted and user-authored roots and mounts one preset cordis.yml under an agent scope during creation, rejecting a row that never activates or that publishes into the root service realm.',
   },
   {
+    key: 'promptPresets',
+    pkg: 'prompt-presets',
+    title: 'User-owned system-prompt overrides',
+    mode: 'core',
+    note: 'Stores named rule stacks in user settings and installs the single final override of the prompt registry, so the preset a session selected decides the prompt after every other contribution and after a complete section is restored.',
+  },
+  {
     key: 'commands',
     pkg: 'commands',
     title: 'Human command registry',

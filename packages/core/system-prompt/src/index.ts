@@ -6,7 +6,7 @@
 
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { AnonymousEntries, NamedEntries, ScopedLayers, scopeTarget } from '@deepseek-ai/dsh-scope'
+import { AnonymousEntries, NamedEntries, ScopedLayers, SoleEntry, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer, Scoped } from '@deepseek-ai/dsh-scope'
 import type { ContextSnapshotSection, ToolSchema } from '@deepseek-ai/dsh-llm'
 
@@ -23,7 +23,8 @@ declare module '@deepseek-ai/cordis' {
      * A supplied signal controls only this explicit assembly request and must not
      * be retained to control later turns. A registered complete section is
      * restored after this waterfall, so listeners cannot add to or replace
-     * that scope's system prompt.
+     * that scope's system prompt; only the final override registered through
+     * {@link SystemPrompt.finalize} runs later than that restoration.
      * @param assembly - the mutable assembly built from registered providers.
      * @param context - the caller's per-assembly context.
      * @mode waterfall
@@ -47,6 +48,14 @@ export interface AssembleContext {
   scope?: ScopeKey
   /** Explicit control signal for the turn that requested this assembly, when any. */
   signal?: AbortSignal
+  /**
+   * Marks a what-if assembly that no live request will use. Listeners that
+   * record per-agent state from their `system-prompt/assemble` position skip
+   * that write when it is true, so previewing cannot disturb a concurrent
+   * step; they still return their normal transformed assembly, so the preview
+   * sees the same sections, tools, and variables a real step would.
+   */
+  preview?: boolean
 }
 
 /** One contributed section of the system prompt (registry input). */
@@ -368,6 +377,21 @@ type ToolProvider = (context: AssembleContext) => ToolProviderResult
 /** One prompt-variable provider stored in a prompt layer. */
 type VariableProvider = (context: AssembleContext) => string | undefined
 
+/**
+ * The last word on one assembly's content.
+ *
+ * It receives the assembly every other input has already produced — the
+ * waterfall's result with any complete section restored and any runtime-context
+ * suppression applied — and what it returns is what {@link SystemPrompt.assemble}
+ * returns. Preserving `tools`, `contexts`, and `variables` is the provider's
+ * obligation: the loop reads all three, and the PTC and structured-output
+ * contributions live in `sections`.
+ */
+export type PromptFinalizer = (
+  assembly: PromptAssembly,
+  context: AssembleContext,
+) => PromptAssembly | Promise<PromptAssembly>
+
 /** All prompt registrations owned by one global or scoped layer. */
 class PromptLayer implements ScopeLayer {
   readonly sections: NamedEntries<PromptSection>
@@ -375,6 +399,7 @@ class PromptLayer implements ScopeLayer {
   readonly runtimeContextSuppressors = new AnonymousEntries<true>()
   readonly toolProviders = new AnonymousEntries<ToolProvider>()
   readonly variables: NamedEntries<VariableProvider>
+  readonly finalizer: SoleEntry<PromptFinalizer>
 
   /**
    * Create one prompt layer with diagnostics specific to its ownership scope.
@@ -390,6 +415,9 @@ class PromptLayer implements ScopeLayer {
     this.variables = new NamedEntries(name => new Error(scope === undefined
       ? `prompt variable "${name}" is already registered (for a per-agent value, register through that agent's \`agent.ctx\` instead)`
       : `prompt variable "${name}" is already registered in this scope`))
+    this.finalizer = new SoleEntry(() => new Error(scope === undefined
+      ? 'a global prompt finalizer is already registered (only one contribution can have the last word; for a per-agent override, register through that agent context, `agent.ctx`, instead)'
+      : 'a prompt finalizer is already registered in this scope'))
   }
 
   /** @returns whether this layer owns no prompt registrations. */
@@ -399,6 +427,7 @@ class PromptLayer implements ScopeLayer {
       && this.runtimeContextSuppressors.isEmpty()
       && this.toolProviders.isEmpty()
       && this.variables.isEmpty()
+      && this.finalizer.isEmpty()
   }
 }
 
@@ -547,13 +576,37 @@ export class SystemPrompt extends Service {
   }
 
   /**
+   * Register the final override for the calling context's scope. It runs last,
+   * after the assembly waterfall, after an effective complete section has been
+   * restored, and after runtime-context suppression, and what it returns is
+   * exactly what {@link assemble} returns — so nothing this registry admits can
+   * change the prompt after it. A scoped override shadows a global one, and a
+   * second registration in the same layer throws. Registration and disposal
+   * emit `system-prompt/change`.
+   *
+   * Reserve it for a deployment-authored override that must have the last word.
+   * Ordinary contributions register a {@link section}, which composes with
+   * every other section instead of replacing the result of all of them.
+   * @param finalizer - evaluated for each assembly of a participating scope.
+   * @returns the exact Cordis effect disposer.
+   */
+  finalize(finalizer: PromptFinalizer): () => void {
+    return this.layers.effect(
+      this.ctx,
+      layer => layer.finalizer.set(finalizer),
+      { label: 'systemPrompt.finalize()' },
+    )
+  }
+
+  /**
    * Assemble global and scoped providers, detach tool parameters, apply
    * canonical ordering, then run the assembly waterfall. Scoped sections and
    * variables shadow globals. The returned waterfall value is authoritative
    * except that an effective complete section is restored afterwards as the
-   * sole prompt section.
+   * sole prompt section, and that a registered {@link finalize} override then
+   * has the last word over all of it.
    * @param context - the optional scope and plugin-defined assembly fields.
-   * @returns the post-waterfall assembly with any complete prompt enforced.
+   * @returns the finalized assembly with any complete prompt enforced first.
    */
   // Keep configuration failures on the declared asynchronous error path.
   async assemble(context: AssembleContext = {}): Promise<PromptAssembly> {
@@ -626,12 +679,21 @@ export class SystemPrompt extends Service {
       scopeTarget(this, scope), 'system-prompt/assemble', assembly, context,
       () => Promise.resolve(assembly),
     )
-    if (completeSection === undefined && !runtimeContextSuppressed) return transformed
-    return {
-      ...transformed,
-      sections: completeSection === undefined ? transformed.sections : [completeSection],
-      contexts: runtimeContextSuppressed ? [] : transformed.contexts,
+    const resolved = completeSection === undefined && !runtimeContextSuppressed
+      ? transformed
+      : {
+        ...transformed,
+        sections: completeSection === undefined ? transformed.sections : [completeSection],
+        contexts: runtimeContextSuppressed ? [] : transformed.contexts,
+      }
+    // Nearest scope wins, and the chain is farthest-first, so the last hit is it.
+    let finalizer = this.layers.global.finalizer.get()
+    for (const layer of scopeLayers) {
+      const scoped = layer.finalizer.get()
+      if (scoped !== undefined) finalizer = scoped
     }
+    if (finalizer === undefined) return resolved
+    return await finalizer(resolved, context)
   }
 }
 
