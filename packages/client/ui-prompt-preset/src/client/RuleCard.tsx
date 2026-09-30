@@ -7,7 +7,7 @@
 
 import { Button, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
-  IconChevronDownOutline14, IconChevronUpOutline14, IconTrashOutline16, IconWarningOutline16,
+  IconChevronDownOutlineRegular, IconChevronUpOutlineRegular, IconTrashOutlineRegular, IconWarningOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PromptRule } from '@deepseek-ai/dsh-prompt-presets/types'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
@@ -66,14 +66,14 @@ export function RuleCard({
         <span className={css.order}>
           <Button
             size="sm"
-            icon={<IconChevronUpOutline14 />}
+            icon={<IconChevronUpOutlineRegular />}
             aria-label={t('rule.moveUp', { position: String(position), total: String(total) })}
             disabled={disabled || position === 1}
             onClick={() => { onMove(-1) }}
           />
           <Button
             size="sm"
-            icon={<IconChevronDownOutline14 />}
+            icon={<IconChevronDownOutlineRegular />}
             aria-label={t('rule.moveDown', { position: String(position), total: String(total) })}
             disabled={disabled || position === total}
             onClick={() => { onMove(1) }}
@@ -85,7 +85,7 @@ export function RuleCard({
         </span>
         {invalid && (
           <Tag tone="danger">
-            <IconWarningOutline16 size={12} />
+            <IconWarningOutlineRegular size={12} />
             {t('rule.badge.invalid')}
           </Tag>
         )}
@@ -100,7 +100,7 @@ export function RuleCard({
         />
         <Button
           size="sm"
-          icon={<IconTrashOutline16 />}
+          icon={<IconTrashOutlineRegular />}
           aria-label={t('rule.delete')}
           disabled={disabled}
           onClick={onDelete}

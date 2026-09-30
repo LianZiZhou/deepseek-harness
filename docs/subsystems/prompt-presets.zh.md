@@ -61,7 +61,7 @@ interface PromptPresetWarning {
 
 ## Wire 载荷
 
-`PromptPresetRoster` 是一个编辑器或选择器一次调用就读到的全部内容：每个已存储的预设、生效的默认值、用于为后续写入设防的命名空间 `revision`，以及本部署强制执行的边界与保护，从而让编辑器在一次往返之前就能拒绝。
+`PromptPresetRoster` 是一个编辑器或选择器一次调用就读到的全部内容：每个已存储的预设、生效的默认值、用于为后续写入设防的条目 `revision`，以及本部署强制执行的边界与保护，从而让编辑器在一次往返之前就能拒绝。
 
 ```ts type-equiv
 /** Everything a picker or editor needs in one read. */

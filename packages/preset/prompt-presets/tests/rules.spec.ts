@@ -163,6 +163,30 @@ describe('applyRules()', () => {
   })
 })
 
+describe('a remove naming a protected section', () => {
+  it('keeps that section and drops the rest of the list', () => {
+    // Stored by hand in the profile patch, past the editor's own refusal: the
+    // protocol section still has to reach the model.
+    const result = applyRules(
+      SECTIONS,
+      preset({ kind: 'remove', sections: ['tools:ptc-only', 'tool:bash'] }),
+      OPTIONS,
+    )
+    expect(result.sections.map(section => section.name)).toEqual(['harness:identity', 'tools:ptc-only'])
+    expect(result.warnings).toEqual([{ code: 'protected-section-kept', rule: 0, section: 'tools:ptc-only' }])
+  })
+
+  it('says nothing about a protected name the assembly never had', () => {
+    const result = applyRules(
+      SECTIONS.filter(section => section.name !== 'tools:ptc-only'),
+      preset({ kind: 'remove', sections: ['tools:ptc-only'] }),
+      OPTIONS,
+    )
+    // Absent is absent: it is reported as unknown, not as something kept.
+    expect(result.warnings).toEqual([{ code: 'unknown-section', rule: 0, section: 'tools:ptc-only' }])
+  })
+})
+
 describe('the insert rule', () => {
   it('puts its text directly behind the section it names', () => {
     expect(names({ kind: 'insert', after: 'harness:identity', text: 'RIGHT HERE.' })).toEqual([

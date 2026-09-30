@@ -44,15 +44,19 @@ Mount this row wherever agents run and a settings provider is composed; it provi
 
 | Field | Default | Meaning |
 |---|---|---|
-| `presets` | `{}` | Presets the deployment ships; the user's own layer unions with them by id |
-| `default` | `''` | Preset stamped into a blank session; `''` stamps none |
+| `presets` | `{}` | Every stored preset, keyed by id. Volatile: an edit reaches the running store without a remount |
+| `default` | `''` | Preset stamped into a blank session; `''` stamps none. Volatile, as above |
 | `protectedSections` | `['tools:ptc-only', 'tool:structured_output']` | Sections a `replace` keeps and a `remove` may not name |
 | `maxPresets` | `64` | Most presets one deployment stores |
 | `maxRules` | `32` | Most rules one preset carries |
 | `maxPatternLength` | `512` | Longest accepted regular-expression source |
-| `maxTextBytes` | `16384` | Largest accepted rule text, in UTF-8 bytes |
+| `maxTextBytes` | `16384` | Largest accepted rule text, in UTF-8 bytes. The shipped base bundle raises it to `65536` |
 
-The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-prompt-presets) is the exhaustive source for every accepted field. Deployment presets survive a user's writes and cannot be deleted through the store; a user may shadow one by storing their own preset under the same id.
+The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-prompt-presets) is the exhaustive source for every accepted field.
+
+Presets are this entry's own Config, not a separate settings document. The editor writes them into the active profile's `cordis.patch.yml` through the settings forms, and the Loader commits the two volatile fields into the running store without remounting it. A deployment that composes no settings service still reads and applies presets; the roster reports `writable: false` and every write is refused with `prompt-preset/read-only`. Presets a bundle ships cannot be deleted through the store.
+
+A `prompt-presets` section of the removed `$DSH_HOME/settings.yaml` is imported into this entry on the first boot after the upgrade, as every other section is.
 
 ### Write a rule stack
 
@@ -101,7 +105,7 @@ One registration covers every session: the override is global and unscoped, and 
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Service entry: `Config`, settings namespace, the final override, blank-session stamping, the `@Remote` face |
+| [`src/index.ts`](src/index.ts) | Service entry: `Config` with its two volatile fields, the final override, blank-session stamping, the `@Remote` face |
 | [`src/rules.ts`](src/rules.ts) | The rule vocabulary and `applyRules`, a pure transform over assembled sections |
 | [`src/schema.ts`](src/schema.ts) | Runtime schemas plus the bounds and protections a schema cannot express |
 | [`src/session.ts`](src/session.ts) | The `prompt-preset/selected` event and the `promptPreset` projection |
@@ -132,7 +136,7 @@ Apply-time and preview warnings travel as a discriminant plus the rule or sectio
 Read these when the package-level contract is not enough.
 
 - [System-prompt subsystem](../../../docs/subsystems/system-prompt.md) — the assembly this package overrides, and the `PromptFinalizer` seam it occupies.
-- [agent-presets package](../agent-presets/README.md) — the other per-session choice, and why that one locks after the first turn.
+- [agent-preset-registry package](../agent-preset-registry/README.md) — the other per-session choice, and why that one locks after the first turn.
 - [persona package](../persona/README.md) — the composition-authored persona a preset can override.
 - [Final override Agent Note](../../../.agents/notes/implemented/architecture/2026-09-18-prompt-final-override.md) — why one contribution may have the last word.
 - [Prompt-presets Agent Note](../../../.agents/notes/implemented/architecture/2026-09-19-user-owned-prompt-presets.md) — why a rule stack, why selection is free, and why writes fail loud while assembly does not.
@@ -167,7 +171,7 @@ These limits define when a prompt preset is a poor fit. They are current package
 - **`remove` matches exact names only** — no prefix or glob, because the preview lists every name and a second pattern grammar would add the regular-expression safety surface again for no new reach.
 - **No preview without a live agent** — a preview assembles for the session's own scope, and a scope with no agent leaves `{{model}}` and `{{cwd}}` unregistered, so rendering would throw. A settings surface previews against a session the user picks.
 - **No execution budget on a pattern** — length, rule count, and text size are bounded, but Node cannot time out a regular expression, so a pathological pattern hangs the turn of the person who wrote it. That argument holds only while presets stay local to their author; importing or sharing them needs a real budget first.
-- **A deployment preset can be shadowed but not deleted** — the settings layers union by key, so a user stores their own preset under the same id rather than removing the composition's.
+- **A write pins the whole preset map into the profile** — a Cordis patch replaces a complete entry config, so after the first edit, presets a later bundle version adds do not reach this profile until the entry's override is reset. A bundle preset is still refused for deletion, read from the inherited layer rather than from the live value.
 - **Rules reach the prompt, never the tool schemas** — hiding a tool is `ctx.tools.restrict()`, which keeps presentation, lookup, and execution aligned; a preset that removed a tool's guidance section would leave the tool callable.
 
 <a id="dev-note"></a>

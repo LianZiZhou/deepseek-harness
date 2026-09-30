@@ -1,6 +1,28 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-18-prompt-preset-selected.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-09-18-prompt-preset-selected.md
-2026-09-18-prompt-preset-selected.md: aa674b987bc373f9520dbd303b4f3a16b8603128
-2026-09-18-prompt-preset-selected.zh.md: 44851f9661f869a7e8a810a64a592941366de42f
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-09-18-prompt-preset-selected:
+  en: a4254614e6017e81
+  zh: 24c44e07c7bb3836
+/2026-09-18-prompt-preset-selected/summary:
+  en: be93f38a4d3c9c30
+  zh: 0004894ced06e5ec
+/2026-09-18-prompt-preset-selected/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-09-18-prompt-preset-selected/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-09-18-prompt-preset-selected/compatibility:
+  en: 4685f93e11c9591d
+  zh: 8d18bb0671d933bb
+/2026-09-18-prompt-preset-selected/verification:
+  en: 74996aec6dd9c6cf
+  zh: 5b6369749995a92c
+/2026-09-18-prompt-preset-selected/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

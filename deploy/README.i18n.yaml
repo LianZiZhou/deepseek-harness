@@ -1,6 +1,25 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write deploy/README.md
-README.md: 92bd3ae880f5d82ef5515d628e95a4290d97175d
-README.zh.md: bdd2153a99357fad855cdca9e19c440690b4f13f
+/:
+  en: 077fc3ba61efc6a1
+  zh: 7637fbe310880177
+/redeploying-this-harness:
+  en: f1a7d85b774a1310
+  zh: 0ed322c91179d60b
+/redeploying-this-harness/table-of-contents:
+  en: ea1f09c1b3453438
+  zh: 416bed1772f8d5b0
+/redeploying-this-harness/what-the-snapshot-holds:
+  en: 913b8ca149282550
+  zh: 74dd1b30ac2cb0e1
+/redeploying-this-harness/redeploy:
+  en: 731c898c0712a1ee
+  zh: 7b3ba27b4d6be89c
+/redeploying-this-harness/refresh-the-snapshot:
+  en: 1f5521080be913fa
+  zh: 6867ccc81063a794
+/redeploying-this-harness/what-is-not-here:
+  en: 1ff3f9fe7bd833ad
+  zh: 76897731cf5e0ba8

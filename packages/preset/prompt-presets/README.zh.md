@@ -44,15 +44,19 @@ kind: "package-reference"
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `presets` | `{}` | 部署自带的预设；用户自己的层按 id 与其合并 |
-| `default` | `''` | 盖入空白会话的预设；`''` 表示不盖 |
+| `presets` | `{}` | 所有已存储的预设，以 id 为键。volatile：一次编辑无需重挂即可抵达运行中的 store |
+| `default` | `''` | 盖入空白会话的预设；`''` 表示不盖。同样是 volatile |
 | `protectedSections` | `['tools:ptc-only', 'tool:structured_output']` | `replace` 会保留、`remove` 不得指名的小节 |
 | `maxPresets` | `64` | 一个部署最多存储多少预设 |
 | `maxRules` | `32` | 一个预设最多携带多少规则 |
 | `maxPatternLength` | `512` | 可接受的最长正则表达式源串 |
-| `maxTextBytes` | `16384` | 可接受的最大规则文本，按 UTF-8 字节计 |
+| `maxTextBytes` | `16384` | 可接受的最大规则文本，按 UTF-8 字节计。发布的 base bundle 将其调高到 `65536` |
 
-生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-prompt-presets)是每个受支持字段的穷尽式真源。部署预设在用户写入后依然存在，且不能通过 store 删除；用户可以用相同 id 存储自己的预设来遮蔽它。
+生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-prompt-presets)是每个受支持字段的穷尽式真源。
+
+预设就是本条目自己的 Config，不是另一份独立的设置文档。编辑器通过 settings 表单把它们写进当前 profile 的 `cordis.patch.yml`，Loader 再把这两个 volatile 字段提交进运行中的 store，无需重挂。未组合 settings 服务的部署仍会读取并应用预设；名册报告 `writable: false`，每次写入都以 `prompt-preset/read-only` 拒绝。bundle 自带的预设不能通过 store 删除。
+
+已移除的 `$DSH_HOME/settings.yaml` 中的 `prompt-presets` 一节，会在升级后的首次启动时导入本条目，与其他各节一样。
 
 ### 编写规则栈
 
@@ -101,7 +105,7 @@ kind: "package-reference"
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 服务入口：`Config`、settings 命名空间、最终覆盖、空白会话盖章、`@Remote` 面 |
+| [`src/index.ts`](src/index.ts) | 服务入口：带两个 volatile 字段的 `Config`、最终覆盖、空白会话盖章、`@Remote` 面 |
 | [`src/rules.ts`](src/rules.ts) | 规则词汇与 `applyRules`——对组装后小节的纯变换 |
 | [`src/schema.ts`](src/schema.ts) | 运行时 schema，以及 schema 表达不了的边界与保护 |
 | [`src/session.ts`](src/session.ts) | `prompt-preset/selected` 事件与 `promptPreset` projection |
@@ -134,7 +138,7 @@ kind: "package-reference"
 包级约定不够用时再读这些页面。
 
 - [系统提示词子系统](../../../docs/subsystems/system-prompt.zh.md)——本包所覆盖的组装，以及它占据的 `PromptFinalizer` 接缝。
-- [agent-presets 包](../agent-presets/README.zh.md)——另一种按会话的选择，以及那一种为什么在首轮之后锁定。
+- [agent-preset-registry 包](../agent-preset-registry/README.zh.md)——另一种按会话的选择，以及那一种为什么在首轮之后锁定。
 - [persona 包](../persona/README.zh.md)——预设可以覆盖掉的、由组合编写的 persona。
 - [最终覆盖 Agent Note](../../../.agents/notes/implemented/architecture/2026-09-18-prompt-final-override.zh.md)——为什么允许一份贡献拥有最终决定权。
 - [提示词预设 Agent Note](../../../.agents/notes/implemented/architecture/2026-09-19-user-owned-prompt-presets.zh.md)——为什么用规则栈、为什么切换是自由的，以及为什么写入要响而组装不响。
@@ -169,7 +173,7 @@ kind: "package-reference"
 - **`remove` 只匹配精确名称**——不支持前缀或通配，因为预览会列出每个名称，而第二套模式语法只会再次引入正则表达式的安全面，却带不来新的触达范围。
 - **没有实时 agent 就无法预览**——预览针对会话自己的作用域组装，而没有 agent 的作用域会让 `{{model}}` 与 `{{cwd}}` 无从注册，渲染将抛出。设置界面针对用户挑选的会话来预览。
 - **模式没有执行预算**——长度、规则数与文本大小都有界，但 Node 无法为正则表达式设置超时，因此病态模式会拖住其作者自己那一轮。该论据只在预设仍属其作者本地时成立；导入或分享预设之前必须先有真正的预算。
-- **部署预设可被遮蔽但不可删除**——settings 各层按键合并，因此用户是用相同 id 存自己的预设，而不是移除组合里的那个。
+- **一次写入会把整张预设表钉进 profile**——Cordis 补丁替换的是完整的条目配置，因此首次编辑之后，后续 bundle 版本新增的预设不会抵达本 profile，直到重置该条目的覆盖。bundle 自带的预设仍拒绝删除，这一判断读取的是继承层而非实时值。
 - **规则触达的是提示词，绝非工具 schema**——隐藏工具用 `ctx.tools.restrict()`，它让呈现、查找与执行保持一致；删掉某工具指导小节的预设只会让该工具仍可被调用。
 
 <a id="dev-note"></a>

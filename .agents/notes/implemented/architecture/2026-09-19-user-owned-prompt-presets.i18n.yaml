@@ -1,6 +1,34 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-19-user-owned-prompt-presets.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-19-user-owned-prompt-presets.md
-2026-09-19-user-owned-prompt-presets.md: 0f5c06666486192a28e77867e8b01736100bdd0a
-2026-09-19-user-owned-prompt-presets.zh.md: 72b7b70c1653a4be6aeee9b75463293178187648
+/agent-note-a-person-owns-the-system-prompt-their-session-runs-under:
+  en: 03852220377dadeb
+  zh: a194b7e0c2281a05
+/agent-note-a-person-owns-the-system-prompt-their-session-runs-under/problem:
+  en: 14c72799bb64f288
+  zh: 6887c8694e0d4eed
+/agent-note-a-person-owns-the-system-prompt-their-session-runs-under/decision:
+  en: 9712e13578e24056
+  zh: c51572a8629d9662
+/agent-note-a-person-owns-the-system-prompt-their-session-runs-under/decision/the-rule-stack:
+  en: ae1c61eefed98c3e
+  zh: 771dada49e90219d
+/agent-note-a-person-owns-the-system-prompt-their-session-runs-under/decision/selection-is-per-session-and-free:
+  en: 575ba8a43e880979
+  zh: 16791edeff570507
+/agent-note-a-person-owns-the-system-prompt-their-session-runs-under/decision/loud-on-write-contained-on-apply:
+  en: af30c883d24774cb
+  zh: cf43102b7f7f9bfd
+/agent-note-a-person-owns-the-system-prompt-their-session-runs-under/decision/protected-sections:
+  en: 4cbcdcc73a642d11
+  zh: a080991dda51938a
+/agent-note-a-person-owns-the-system-prompt-their-session-runs-under/alternatives-considered:
+  en: 7f56d00ca4285cf4
+  zh: a977df29ab1de65c
+/agent-note-a-person-owns-the-system-prompt-their-session-runs-under/consequences:
+  en: 16f2f3f55c99de2d
+  zh: 69271cc01de7efc2
+/agent-note-a-person-owns-the-system-prompt-their-session-runs-under/testing:
+  en: 375d697a13d96627
+  zh: 2280f29f86f232b4

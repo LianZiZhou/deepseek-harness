@@ -53,13 +53,16 @@ agent preset 在首轮之后锁定，因为更换工具会让已记录的工具�
 - 空白会话的默认值以一次已记录的选择被盖上，而不是在组装时读取，因此恢复后的会话重建的是它运行过的预设，而不是默认值后来变成了什么。
 - 规则触达提示词，绝不触达工具 schema。隐藏工具仍然是 `ctx.tools.restrict()`，它让呈现、查找与执行保持一致；删掉某工具指导的预设只会让该工具仍可被调用。
 - 病态的正则表达式会拖住其作者自己那一轮。模式长度、规则数与文本大小都有界，但 Node 无法为正则表达式设置超时，而那条信任论据——预设是用户自己的设置文档，本就承载着 `cordis.yml` 的信任——只在预设仍属本地时成立。
+- **存储随 harness 一起迁移。** 上游移除了独立的设置文档，改用[profile 自有的实时配置](2026-09-19-profile-owned-live-configuration.zh.md)，因此 `presets` 与 `default` 现在是本条目自身 Config 的 volatile 字段，写入 profile 补丁并无需重挂即可提交。这取代了本决策中 settings 命名空间那一半，以及下文中的文件存储备选方案；规则栈、按会话选择、写时大声/应用时收敛均不变。迁移带来的一个后果：Loader 只校验已存储文档的形状，所以受保护小节的规则现在也在应用时守住——手工编辑出的 `remove` 会被保留并告警，而不是照办。
 
 ## 测试
 
 - `packages/preset/prompt-presets/tests/rules.spec.ts` 钉住每种规则类型、顺序组合（包括一条规则作用于更早规则所创建的小节）、`replace` 过程中受保护小节的保留，以及每一种被收敛的失败。
 - `packages/preset/prompt-presets/tests/override.spec.ts` 钉住按会话的应用与隔离、会话中途切换、对 `complete: true` 段的覆盖、渲染探针，以及每会话仅记录一次的警告。
-- `packages/preset/prompt-presets/tests/store.spec.ts` 与 `schema.spec.ts` 钉住名册、每一种写入拒绝、修订号设防，以及设置文档校验。
+- `packages/preset/prompt-presets/tests/store.spec.ts` 与 `schema.spec.ts` 钉住名册、每一种写入拒绝、修订号设防，以及已存储文档的校验。它们的 harness 启动一个真实 profile，因此每次写入都经过 settings 表单、profile 补丁与 Loader 的 volatile 提交。
+- `packages/preset/prompt-presets/tests/profile-config.spec.ts` 钉住未组合 settings 服务时的只读部署，以及手工编辑文档所引发的警告。
+- `packages/preset/prompt-presets/tests/legacy-import.spec.ts` 钉住升级路径：已移除 `settings.yaml` 中的 `prompt-presets` 一节落进本条目，默认值与最新的规则类型都在内，且只发生一次。
 - `packages/preset/prompt-presets/tests/session.spec.ts` 钉住 projection 折叠、每次变更一个事件，以及并发选择的串行化。
 - `packages/preset/prompt-presets/tests/preview.spec.ts` 钉住基线与候选项这一对、小节归属，以及每一种预览警告。
-- `packages/preset/prompt-presets/tests/disposal.spec.ts` 是 HMR 安全性证明：覆盖、settings 命名空间、projection 单元与事件镜像都随 fiber 一同消失。
+- `packages/preset/prompt-presets/tests/disposal.spec.ts` 是 HMR 安全性证明：覆盖、条目的 settings 表单、projection 单元与事件镜像都随 fiber 一同消失。
 - `packages/preset/prompt-presets/tests/loader-composition.spec.ts` 是 REAL-composition 证明：交付的行经由 Loader 启动，提交的提示词携带所选预设的变换，包括在一个声明了自身 persona 为 complete 的组合之上。

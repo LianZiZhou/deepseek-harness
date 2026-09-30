@@ -61,7 +61,7 @@ interface PromptPresetWarning {
 
 ## Wire payloads
 
-`PromptPresetRoster` is what one editor or picker reads in a single call: every stored preset, the effective default, the namespace `revision` to fence a later write with, and the bounds and protections this deployment enforces, so an editor can refuse before a round trip.
+`PromptPresetRoster` is what one editor or picker reads in a single call: every stored preset, the effective default, the entry `revision` to fence a later write with, and the bounds and protections this deployment enforces, so an editor can refuse before a round trip.
 
 ```ts type-equiv
 /** Everything a picker or editor needs in one read. */

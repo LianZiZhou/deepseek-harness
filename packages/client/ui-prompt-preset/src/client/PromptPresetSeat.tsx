@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
-import { IconContextInjectionOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconContextInjectionOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the ui-conversation SlotMap merge (the header actions).
@@ -74,7 +74,7 @@ export function PromptPresetSeat({
         anchor={(
           <Button
             size="sm"
-            icon={<IconContextInjectionOutline16 size={14} />}
+            icon={<IconContextInjectionOutlineRegular size={14} />}
             title={t('seat.hint')}
             aria-label={t('seat.label')}
             disabled={state.switching}

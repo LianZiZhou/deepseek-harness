@@ -1,6 +1,76 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/preset/prompt-presets/README.md
-README.md: a8a74312dc4da653ef182f54a11422d0228984d3
-README.zh.md: 45212c97005842a3f64705de16f268527f6cf619
+/:
+  en: 81fcc1e0e7b6a0a0
+  zh: 8f164f38d860bc99
+/deepseek-ai-dsh-prompt-presets:
+  en: c87b44de63f87c5d
+  zh: 261b3da127ccfeb6
+/deepseek-ai-dsh-prompt-presets/summary:
+  en: 7e26f3e06140d192
+  zh: d46008aa9ccad859
+/deepseek-ai-dsh-prompt-presets/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-prompt-presets/use-this-package:
+  en: 5140eacbb6e5464f
+  zh: 3f3200ec646e99a8
+/deepseek-ai-dsh-prompt-presets/use-this-package/configure-the-roster:
+  en: e7e035fc7158e71a
+  zh: f4d278053c47526b
+/deepseek-ai-dsh-prompt-presets/use-this-package/write-a-rule-stack:
+  en: e8b6bf5ef0caa696
+  zh: 238583e833d93c62
+/deepseek-ai-dsh-prompt-presets/use-this-package/choose-a-preset-for-a-session:
+  en: de4c69532a1f1607
+  zh: 389aa86d57ef5443
+/deepseek-ai-dsh-prompt-presets/use-this-package/preview-before-committing:
+  en: b51e68f51b134afe
+  zh: ead4d4a162f99076
+/deepseek-ai-dsh-prompt-presets/use-this-package/what-a-rule-cannot-do:
+  en: 53d3fdc5f13aeaf3
+  zh: 7cdcd71b7c1428f6
+/deepseek-ai-dsh-prompt-presets/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-prompt-presets/understand-the-implementation/design-concept:
+  en: 14cbbbfc0ed231c6
+  zh: 82d07e98b263f477
+/deepseek-ai-dsh-prompt-presets/understand-the-implementation/source-map:
+  en: 7f525814517ea777
+  zh: 0e59df43f5444904
+/deepseek-ai-dsh-prompt-presets/understand-the-implementation/the-committed-prompt-check:
+  en: d633643b5c0d2601
+  zh: e31d626f4074df3c
+/deepseek-ai-dsh-prompt-presets/understand-the-implementation/the-render-probe:
+  en: 99c085ff49b2fdec
+  zh: 762ffd8c5ea82dba
+/deepseek-ai-dsh-prompt-presets/understand-the-implementation/why-warnings-are-codes:
+  en: f6835eefaf3eff73
+  zh: 018a2e072723ad20
+/deepseek-ai-dsh-prompt-presets/further-exploration:
+  en: b3eb3413a6b9c51f
+  zh: 93c9f2daea9df23e
+/deepseek-ai-dsh-prompt-presets/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-prompt-presets/model-experience/the-prompt-transform:
+  en: 376cf6b08292ae4d
+  zh: be49c4920e960645
+/deepseek-ai-dsh-prompt-presets/model-experience/the-prompt-transform/what-the-model-sees:
+  en: ce9d021800ffc258
+  zh: d620b9d80dfbfab4
+/deepseek-ai-dsh-prompt-presets/model-experience/the-prompt-transform/token-effect:
+  en: 5098f1573e0c0d50
+  zh: 6f33124e5705cb0f
+/deepseek-ai-dsh-prompt-presets/model-experience/the-prompt-transform/kv-cache-effect:
+  en: 9581bdb7b895b4b5
+  zh: 2a6ed4ab6d469f51
+/deepseek-ai-dsh-prompt-presets/known-limitations-and-deferred-work:
+  en: c10659649b63d163
+  zh: 9b58acf26ab3befb
+/deepseek-ai-dsh-prompt-presets/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98

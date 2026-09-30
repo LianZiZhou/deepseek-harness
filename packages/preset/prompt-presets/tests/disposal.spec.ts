@@ -9,7 +9,7 @@ const IDENTITY = 'You are an AI agent powered by DeepSeek Harness.'
 const PRESETS = { shout: { name: 'Shout', rules: [{ kind: 'append' as const, text: 'BE LOUD.' }] } }
 
 describe('disposing the store', () => {
-  it('removes the override, the settings namespace, the projection unit, and the mirror', async () => {
+  it('removes the override, the settings form of the entry, the projection unit, and the mirror', async () => {
     const bench = await harness({ presets: PRESETS })
     const agent = bench.agent()
     await bench.store.select(agent, 'shout')

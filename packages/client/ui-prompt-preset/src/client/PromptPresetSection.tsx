@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react'
 import { Button, Input, Menu, Modal, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
-import { IconPlusOutline16, IconTrashOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconPlusOutlineRegular, IconTrashOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PromptRule, PromptRuleKind } from '@deepseek-ai/dsh-prompt-presets/types'
@@ -138,7 +138,7 @@ function Roster({ state, select, beginCreate, setDefault, confirmDelete, t }: Pa
               {row.source === 'user' && (
                 <Button
                   size="sm"
-                  icon={<IconTrashOutline16 />}
+                  icon={<IconTrashOutlineRegular />}
                   aria-label={t('deletePreset')}
                   onClick={() => { confirmDelete(row.promptPreset) }}
                 />
@@ -147,7 +147,7 @@ function Roster({ state, select, beginCreate, setDefault, confirmDelete, t }: Pa
           </li>
         ))}
       </ul>
-      <Button icon={<IconPlusOutline16 />} onClick={beginCreate}>{t('newPreset')}</Button>
+      <Button icon={<IconPlusOutlineRegular />} onClick={beginCreate}>{t('newPreset')}</Button>
     </div>
   )
 }
@@ -248,7 +248,7 @@ function AddRule({ kinds, onAdd, t }: {
     <Menu
       open={open}
       anchor={(
-        <Button icon={<IconPlusOutline16 />} onClick={() => { setOpen(true) }}>{t('addRule')}</Button>
+        <Button icon={<IconPlusOutlineRegular />} onClick={() => { setOpen(true) }}>{t('addRule')}</Button>
       )}
       items={kinds.map(kind => ({ id: kind, label: t(`rule.${kind}.name`) }))}
       onSelect={(id) => {

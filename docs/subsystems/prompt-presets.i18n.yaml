@@ -1,6 +1,19 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for prompt-presets.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/prompt-presets.md
-prompt-presets.md: 6edd9ded179f080d528e2b76b2878940acd76f1c
-prompt-presets.zh.md: e6b08531836dada929bfdf8c7f65655bf11c55c2
+/prompt-presets:
+  en: 05713186920474d2
+  zh: 0d6c2f518f993c74
+/prompt-presets/rules:
+  en: 9b67399948f50f3d
+  zh: 07bb18f40830a989
+/prompt-presets/warnings:
+  en: 97f48b9f6dbbb631
+  zh: 26bcc64f69f72353
+/prompt-presets/wire-payloads:
+  en: 843750eb35725da3
+  zh: a2e668970066876f
+/prompt-presets/preview:
+  en: 57aea7d74094e3c3
+  zh: f509f4e629d6b183

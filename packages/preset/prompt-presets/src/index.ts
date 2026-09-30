@@ -17,20 +17,22 @@
 
 import { createHash } from 'node:crypto'
 import { Context } from '@deepseek-ai/cordis'
+import type { Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent'
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type { AssembledSection, PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import { SettingsConflictError } from '@deepseek-ai/dsh-settings'
-import type { SettingsPathOp, SettingsScope } from '@deepseek-ai/dsh-settings'
+import type { SettingsDescriptor, SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-session-projection'
+// Type-only: the Loader's Fiber.entry and `loader/volatile-update` merges.
+import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { applyRules, errorText, ruleSectionName } from './rules.ts'
 import type { PromptPreset, PromptRule } from './rules.ts'
 import {
   PRESET_ID,
   PromptPresetSchema,
-  PromptPresetSettingsSchema,
   presetViolation,
   validatePresetSettings,
 } from './schema.ts'
@@ -66,7 +68,13 @@ function digest(text: string): string {
   return createHash('sha256').update(text).digest('base64')
 }
 
-/** The user-settings namespace this package owns. */
+/**
+ * The profile entry id this package is composed under in the shipped bundles.
+ *
+ * Stored presets are this entry's own Config, and a form write names the entry
+ * it edits; the running instance reads its real id from its Loader entry and
+ * falls back to this one only when it was mounted without a Loader.
+ */
 export const SETTINGS_NAMESPACE = 'prompt-presets'
 
 /** Sections that state a rule the executor enforces, not prose a user may drop. */
@@ -80,10 +88,14 @@ const PROTECTED_SECTIONS = ['tools:ptc-only', 'tool:structured_output']
  * restates one.
  */
 export interface Config {
-  /** Presets the deployment ships; the user layer unions with them by id. */
-  presets: Record<string, PromptPreset>
-  /** Preset stamped into blank sessions; `''` means none. */
-  default: string
+  /**
+   * Every stored preset, keyed by id. Volatile: an edit from the settings page
+   * lands in the profile patch and reaches this reference without a remount,
+   * so a session's next step renders under it.
+   */
+  presets: Volatile<Record<string, PromptPreset>>
+  /** Preset stamped into blank sessions; `''` means none. Volatile, as above. */
+  default: Volatile<string>
   /** Sections a `replace` keeps and a `remove` may not name. */
   protectedSections: string[]
   /** Most presets one deployment stores. */
@@ -112,11 +124,13 @@ interface ResolvedPreset {
  * before this plugin loaded and needs no per-agent bookkeeping.
  */
 export default class PromptPresetStore extends TypertRemoteService {
-  static inject = ['systemPrompt', 'sessionProjections', 'settings', 'sessions']
+  // `settings` is optional: without it presets still apply, they just cannot be edited here.
+  static inject = ['systemPrompt', 'sessionProjections', 'sessions']
 
-  static Config: z<Config> = z.object({
-    presets: z.dict(PromptPresetSchema).default({}),
-    default: z.string().default(''),
+  // Inline schema call: the config catalog walks `static Config` statically.
+  static Config = z.object({
+    presets: z.dict(PromptPresetSchema).default({}).volatile(),
+    default: z.string().default('').volatile(),
     protectedSections: z.array(z.string()).default(PROTECTED_SECTIONS),
     maxPresets: z.natural().default(64),
     maxRules: z.natural().default(32),
@@ -127,11 +141,8 @@ export default class PromptPresetStore extends TypertRemoteService {
   /** Bounds and protections every stored preset is judged against. */
   private readonly limits: PresetLimits
 
-  /** Ids the composition supplies; a user may shadow one but not delete it. */
-  private readonly deploymentIds: ReadonlySet<string>
-
-  /** The registered settings scope, live for this service's whole lifetime. */
-  private readonly settings: SettingsScope<PromptPresetSettings>
+  /** The Loader entry this instance's Config belongs to, and that writes name. */
+  private readonly entryId: string
 
   /**
    * The service's own untraced context. Methods reached through the traceable
@@ -166,14 +177,17 @@ export default class PromptPresetStore extends TypertRemoteService {
       maxRules: config.maxRules,
       maxTextBytes: config.maxTextBytes,
     }
-    this.deploymentIds = new Set(Object.keys(config.presets))
-    this.settings = ctx.settings.register(SETTINGS_NAMESPACE, PromptPresetSettingsSchema, {
-      base: { presets: config.presets, default: config.default },
-      applies: 'live',
-      validate: (value) => { validatePresetSettings(value, this.limits) },
+    // `options.id`, not `id`: the latter is qualified by the Include that owns
+    // the row, while the settings forms and the profile patch name the row itself.
+    this.entryId = ctx.fiber.entry?.options.id ?? SETTINGS_NAMESPACE
+    // This package renders its own editor, so the settings page must not also
+    // generate a raw form for the same two fields.
+    ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
+    ctx.on('loader/volatile-update', () => {
+      this.audit()
+      ctx.emit('prompt-preset/changed')
     })
-    ctx.effect(() => this.settings.watch(() => { ctx.emit('prompt-preset/changed') }),
-      'promptPresets.watch()')
+    this.audit()
 
     ctx.sessionProjections.register(promptPresetProjectionDefinition)
     ctx.systemPrompt.finalize((assembly, context) => this.finalize(assembly, context))
@@ -274,7 +288,7 @@ export default class PromptPresetStore extends TypertRemoteService {
     if (agent === undefined) return null
     const id = this.selfCtx.sessionProjections.stateOf(agent.session, 'promptPreset')
     if (id === undefined || id === null || id === '') return null
-    const preset = this.settings.get().presets[id]
+    const preset = this.stored().presets[id]
     if (preset === undefined) {
       this.warn(agent, id, { code: 'unknown-preset' })
       return null
@@ -313,8 +327,9 @@ export default class PromptPresetStore extends TypertRemoteService {
       if (current !== null && current !== undefined) return
       const boundary = this.selfCtx.sessionProjections.stateOf(agent.session, 'turnBoundary')
       if (boundary !== undefined && (boundary.openTurnStartSeq !== null || boundary.lastTurn > 0)) return
-      const wanted = this.inheritedPreset(agent) ?? this.settings.get().default
-      if (wanted === '' || !(wanted in this.settings.get().presets)) return
+      const stored = this.stored()
+      const wanted = this.inheritedPreset(agent) ?? stored.default
+      if (wanted === '' || !(wanted in stored.presets)) return
       agent.session.append('prompt-preset/selected', { promptPreset: wanted })
     } catch (error) {
       // A throw here would veto the agent's publication, and a session that
@@ -350,7 +365,8 @@ export default class PromptPresetStore extends TypertRemoteService {
 
   /** The roster as a client reads it. */
   private roster(): PromptPresetRoster {
-    const value = this.settings.get()
+    const value = this.stored()
+    const deployment = this.deploymentIds()
     const limits: PromptPresetLimits = {
       maxPresets: this.limits.maxPresets,
       maxRules: this.limits.maxRules,
@@ -358,37 +374,87 @@ export default class PromptPresetStore extends TypertRemoteService {
       maxTextBytes: this.limits.maxTextBytes,
     }
     const presets: PromptPresetRow[] = Object.entries(value.presets)
-      .map(([id, preset]) => this.rowFor(id, preset, value.default))
+      .map(([id, preset]) => this.rowFor(id, preset, value.default, deployment))
       .sort((a, b) => rosterRank(a) - rosterRank(b) || a.promptPreset.localeCompare(b.promptPreset))
     return {
       presets,
       default: value.default,
       revision: this.revision(),
-      writable: true,
+      writable: this.selfCtx.get('settings') !== undefined,
       limits,
       protectedSections: this.limits.protectedSections,
     }
   }
 
   /** One stored preset as a client reads it. */
-  private rowFor(id: string, preset: PromptPreset, defaultId: string): PromptPresetRow {
+  private rowFor(
+    id: string,
+    preset: PromptPreset,
+    defaultId: string,
+    deployment: ReadonlySet<string>,
+  ): PromptPresetRow {
     return {
       promptPreset: id,
       name: preset.name,
       ...preset.description === undefined ? {} : { description: preset.description },
       rules: preset.rules,
-      source: this.deploymentIds.has(id) ? 'deployment' : 'user',
+      source: deployment.has(id) ? 'deployment' : 'user',
       isDefault: defaultId === id,
     }
   }
 
-  /** The namespace revision a caller sends back as `expectedRevision`. */
+  /** The entry revision a caller sends back as `expectedRevision`. */
   private revision(): number {
-    const descriptor = this.selfCtx.settings.describe()
-      .find(entry => entry.ns === SETTINGS_NAMESPACE)
-    /* v8 ignore next -- the namespace is registered on this service's own fiber,
-       so a descriptor is present for as long as this method can be called. */
-    return descriptor?.revision ?? 0
+    return this.descriptor()?.revision ?? 0
+  }
+
+  /**
+   * This entry's settings form, when the deployment composes a settings service.
+   *
+   * Without one the store still reads and applies presets, it just cannot
+   * write them, which the roster reports as `writable: false`.
+   */
+  private descriptor(): SettingsDescriptor | undefined {
+    return this.selfCtx.get('settings')?.describe().find(entry => entry.ns === this.entryId)
+  }
+
+  /**
+   * Ids the bundles supply, as opposed to ones this profile stored.
+   *
+   * Read from the inherited layer rather than from the live value: a write
+   * pins the whole map into the profile, so after one edit every id is present
+   * there, and only the inherited layer still says which ones shipped.
+   */
+  private deploymentIds(): ReadonlySet<string> {
+    const base = this.descriptor()?.base as { presets?: Record<string, unknown> } | undefined
+    return new Set(Object.keys(base?.presets ?? {}))
+  }
+
+  /**
+   * The stored document, captured for one operation. Both fields are defaulted
+   * by the schema, so neither reference can hold an absent value.
+   */
+  private stored(): PromptPresetSettings {
+    return {
+      presets: this.config.presets.get(),
+      default: this.config.default.get(),
+    }
+  }
+
+  /**
+   * Report a stored document the write path would have refused.
+   *
+   * Writes from the editor are checked before they land, but the profile patch
+   * is also a file a person can edit by hand, and the Loader validates only its
+   * shape. Apply time already contains every rule that cannot run, so this is
+   * a warning rather than a refusal: the session keeps working either way.
+   */
+  private audit(): void {
+    try {
+      validatePresetSettings(this.stored(), this.limits)
+    } catch (error) {
+      this.selfCtx.logger.warn(`prompt-presets: the stored presets fail validation: ${errorText(error)}`)
+    }
   }
 
   /**
@@ -410,11 +476,11 @@ export default class PromptPresetStore extends TypertRemoteService {
   @Remote('create')
   async create(promptPreset: string, document: PromptPresetInput): Promise<PromptPresetRow> {
     this.checkId(promptPreset)
-    if (promptPreset in this.settings.get().presets) {
+    if (promptPreset in this.stored().presets) {
       throw new RemoteError('prompt-preset/exists', `prompt preset "${promptPreset}" already exists`, { promptPreset })
     }
     const stored = this.checkDocument(promptPreset, document)
-    const count = Object.keys(this.settings.get().presets).length
+    const count = Object.keys(this.stored().presets).length
     if (count >= this.limits.maxPresets) {
       throw new RemoteError(
         'prompt-preset/invalid',
@@ -456,7 +522,7 @@ export default class PromptPresetStore extends TypertRemoteService {
   async deletePreset(promptPreset: string): Promise<void> {
     this.checkId(promptPreset)
     this.checkExists(promptPreset)
-    if (this.deploymentIds.has(promptPreset)) {
+    if (this.deploymentIds().has(promptPreset)) {
       throw new RemoteError(
         'prompt-preset/read-only',
         `prompt preset "${promptPreset}" comes from this deployment's composition`,
@@ -466,7 +532,7 @@ export default class PromptPresetStore extends TypertRemoteService {
     // One write, so the roster is never momentarily pointing at a deleted id.
     const ops = [
       { op: 'unset' as const, path: ['presets', promptPreset] },
-      ...this.settings.get().default === promptPreset
+      ...this.stored().default === promptPreset
         ? [{ op: 'set' as const, path: ['default'], value: '' }]
         : [],
     ]
@@ -612,12 +678,12 @@ export default class PromptPresetStore extends TypertRemoteService {
 
   /** Resolve one stored preset, or refuse. */
   private requirePreset(promptPreset: string): PromptPreset {
-    const preset = this.settings.get().presets[promptPreset]
+    const preset = this.stored().presets[promptPreset]
     if (preset !== undefined) return preset
     throw new RemoteError(
       'prompt-preset/not-found',
       `no prompt preset "${promptPreset}" is stored`,
-      { promptPreset, available: Object.keys(this.settings.get().presets) },
+      { promptPreset, available: Object.keys(this.stored().presets) },
     )
   }
 
@@ -647,8 +713,16 @@ export default class PromptPresetStore extends TypertRemoteService {
     ops: readonly SettingsPathOp[],
     expectedRevision: number | undefined,
   ): Promise<void> {
+    const settings = this.selfCtx.get('settings')
+    if (settings === undefined) {
+      throw new RemoteError(
+        'prompt-preset/read-only',
+        'this deployment composes no settings service, so prompt presets cannot be edited here',
+        { promptPreset },
+      )
+    }
     try {
-      await this.selfCtx.settings.mutate(SETTINGS_NAMESPACE, ops, expectedRevision)
+      await settings.mutate(this.entryId, ops, expectedRevision)
     } catch (error) {
       if (error instanceof SettingsConflictError) {
         throw new RemoteError(
@@ -667,7 +741,7 @@ export default class PromptPresetStore extends TypertRemoteService {
    * @throws {RemoteError} `prompt-preset/not-found` if the write did not land.
    */
   private rowOf(promptPreset: string): PromptPresetRow {
-    return this.rowFor(promptPreset, this.requirePreset(promptPreset), this.settings.get().default)
+    return this.rowFor(promptPreset, this.requirePreset(promptPreset), this.stored().default, this.deploymentIds())
   }
 }
 

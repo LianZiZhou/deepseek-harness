@@ -1,6 +1,22 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for 2026-09-18-prompt-final-override.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-18-prompt-final-override.md
-2026-09-18-prompt-final-override.md: a95ccde38baef1b853ea7ab4ab45397c594b9630
-2026-09-18-prompt-final-override.zh.md: 4a3a8f93768121175c2e7c5f6612e72974dbd696
+/agent-note-one-contribution-has-the-last-word-on-the-system-prompt:
+  en: 16db5f2225d01177
+  zh: 9bbb108249e3b9c1
+/agent-note-one-contribution-has-the-last-word-on-the-system-prompt/problem:
+  en: 04bfb9be5ea43ee6
+  zh: 7242eb07b64217c6
+/agent-note-one-contribution-has-the-last-word-on-the-system-prompt/decision:
+  en: 1fa0fe15f9b4434e
+  zh: 9d8b7c8a3403db12
+/agent-note-one-contribution-has-the-last-word-on-the-system-prompt/alternatives-considered:
+  en: e4adb992bfb670b5
+  zh: 8081b92a335c7b0e
+/agent-note-one-contribution-has-the-last-word-on-the-system-prompt/consequences:
+  en: 6e0ef0d4e6dabe88
+  zh: e0c686bd372c9a0e
+/agent-note-one-contribution-has-the-last-word-on-the-system-prompt/testing:
+  en: 09a8ffc389d3adf6
+  zh: 4c8dc43d5a79b409

@@ -219,12 +219,21 @@ export function applyRules(
         return
       }
       case 'remove': {
+        // The editor refuses a protected name before it is stored, but the
+        // stored document is a profile patch a person can also edit by hand,
+        // so the protection has to hold here too, not only at write time.
+        const kept = rule.sections.filter(name => options.protectedSections.includes(name))
+        for (const name of kept) {
+          if (current.some(section => section.name === name)) {
+            warnings.push({ code: 'protected-section-kept', rule: index, section: name })
+          }
+        }
         for (const name of rule.sections) {
           if (!current.some(section => section.name === name)) {
             warnings.push({ code: 'unknown-section', rule: index, section: name })
           }
         }
-        current = current.filter(section => !rule.sections.includes(section.name))
+        current = current.filter(section => !rule.sections.includes(section.name) || kept.includes(section.name))
         return
       }
       case 'substitute':

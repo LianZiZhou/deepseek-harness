@@ -15,7 +15,6 @@ import Include from '@deepseek-ai/cordis-plugin-include'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
-import FileSettingsProvider from '@deepseek-ai/dsh-settings-file'
 import { assembleContextFor } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import PromptPresetStore from '@deepseek-ai/dsh-prompt-presets'
@@ -34,14 +33,12 @@ const MODULES = new Map<string, unknown>([
   ['@deepseek-ai/dsh-session', SessionStore],
   ['@deepseek-ai/dsh-session-projection', SessionProjectionRegistry],
   ['@deepseek-ai/dsh-system-prompt', SystemPrompt],
-  ['@deepseek-ai/dsh-settings-file', FileSettingsProvider],
   ['@deepseek-ai/dsh-prompt-presets', PromptPresetStore],
 ])
 
 /** Boot one composition whose rows mirror the shipped base bundle. */
 async function boot(composition: readonly string[]): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-prompt-presets-loader-'))
-  await writeFile(join(root, 'settings.yaml'), '{}\n')
   await writeFile(join(root, 'cordis.yml'), [...composition, ''].join('\n'))
   const ctx = new Context()
   ctx.baseUrl = `${pathToFileURL(root).href}/`
@@ -69,13 +66,11 @@ async function committedPrompt(ctx: Context, agent: Agent): Promise<string> {
   return renderPrompt(await ctx.systemPrompt.assemble(assembleContextFor(agent)))
 }
 
+// No settings service: presets are this entry's own Config now, so reading
+// and applying them needs none, and these cases never write.
 const ROWS = [
   "- name: '@deepseek-ai/dsh-session'",
   "- name: '@deepseek-ai/dsh-session-projection'",
-  "- name: '@deepseek-ai/dsh-settings-file'",
-  '  config:',
-  '    watch: false',
-  '    path: ./settings.yaml',
 ]
 
 describe('real Loader composition', () => {

@@ -1,6 +1,49 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-prompt-preset/README.md
-README.md: e6626033eace837decc6cb495f849172837a45eb
-README.zh.md: d76ca9efecd46f7ce90faa5aeb3fe3dc6eecbd64
+/:
+  en: 90b424bfcc2c3c1a
+  zh: 1404f96749875d52
+/deepseek-ai-dsh-client-ui-prompt-preset:
+  en: 2fc54fca5395a455
+  zh: 668761739b643142
+/deepseek-ai-dsh-client-ui-prompt-preset/summary:
+  en: ac668a5cd0218bc9
+  zh: e410b543c78c4315
+/deepseek-ai-dsh-client-ui-prompt-preset/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-client-ui-prompt-preset/use-this-package:
+  en: 7246ece039be6aec
+  zh: 959121d1ba03a04e
+/deepseek-ai-dsh-client-ui-prompt-preset/use-this-package/the-switcher-is-a-control-not-a-label:
+  en: f837eca5b52be6a7
+  zh: bc1cb35f5721a99b
+/deepseek-ai-dsh-client-ui-prompt-preset/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-client-ui-prompt-preset/understand-the-implementation/source-map:
+  en: 0150613731973ed5
+  zh: e7ebeee2edf16193
+/deepseek-ai-dsh-client-ui-prompt-preset/understand-the-implementation/why-the-preview-is-a-host-call:
+  en: d5a7f672eca5429f
+  zh: d25b706ee8dd3f43
+/deepseek-ai-dsh-client-ui-prompt-preset/understand-the-implementation/why-rule-text-renders-literally:
+  en: 686286af9c94e894
+  zh: 411c278e5d309eda
+/deepseek-ai-dsh-client-ui-prompt-preset/further-exploration:
+  en: f74b0118632cad35
+  zh: 281b10cc0312314a
+/deepseek-ai-dsh-client-ui-prompt-preset/model-experience:
+  en: fe5008fd14be032e
+  zh: 2dce806f9bd8611b
+/deepseek-ai-dsh-client-ui-prompt-preset/model-experience/kv-cache-effect:
+  en: 960fccf99e048d62
+  zh: bf9ff734d2ef5fc4
+/deepseek-ai-dsh-client-ui-prompt-preset/known-limitations-and-deferred-work:
+  en: 15bd2690b0e24bac
+  zh: 62a8baf7bd740b60
+/deepseek-ai-dsh-client-ui-prompt-preset/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 3bb0c20c93f16f98
