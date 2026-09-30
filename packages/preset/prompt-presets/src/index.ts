@@ -26,6 +26,10 @@ import type { AssembledSection, PromptAssembly } from '@deepseek-ai/dsh-system-p
 import { SettingsConflictError } from '@deepseek-ai/dsh-settings'
 import type { SettingsDescriptor, SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-session-projection'
+import { CommandDefinitionId } from '@deepseek-ai/dsh-commands/brand'
+import type { CommandResult } from '@deepseek-ai/dsh-commands/types'
+// Type-only: declaration-merges the optional `ctx.commands` child.
+import type {} from '@deepseek-ai/dsh-commands'
 // Type-only: the Loader's Fiber.entry and `loader/volatile-update` merges.
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { applyRules, errorText, ruleSectionName } from './rules.ts'
@@ -188,6 +192,20 @@ export default class PromptPresetStore extends TypertRemoteService {
       ctx.emit('prompt-preset/changed')
     })
     this.audit()
+    // The front-door-neutral control: every interactive surface that dispatches
+    // the command registry — the Web composer and terminal front doors alike —
+    // gets it without shipping its own picker. Not `/preset`: terminal front
+    // doors already use that name for agent presets, and a registry command
+    // would shadow theirs.
+    ctx.inject(['commands'], (child) => {
+      child.commands.register({
+        definitionId: CommandDefinitionId('@deepseek-ai/dsh-prompt-presets'),
+        name: 'prompt-preset',
+        description: 'Show or switch this session\'s prompt preset',
+        input: { hint: '[<preset> | off | default <preset|off>]' },
+        handler: ({ agent, rawInput }) => this.command(agent, rawInput),
+      })
+    })
 
     ctx.sessionProjections.register(promptPresetProjectionDefinition)
     ctx.systemPrompt.finalize((assembly, context) => this.finalize(assembly, context))
@@ -581,6 +599,52 @@ export default class PromptPresetStore extends TypertRemoteService {
     }
   }
 
+  /**
+   * Run one `/prompt-preset` line against the receiving session.
+   *
+   * Bare, it reports; `<preset>` and `off` switch the session exactly as
+   * {@link select} does; `default <preset|off>` changes the deployment default
+   * through the same write path as the editor, so it refuses the same way
+   * without a settings service. `off` and `default` are keywords here, so a
+   * preset stored under either id is reachable only through the Remote API.
+   * No text repeats the command's own name: surfaces render `name · text`.
+   * @param agent - the receiving agent.
+   * @param rawInput - everything after the command name.
+   * @returns the settled outcome.
+   */
+  private async command(agent: Agent, rawInput: string): Promise<CommandResult> {
+    const [verb, target, ...extra] = rawInput.trim().split(/\s+/).filter(word => word !== '')
+    const stored = this.stored()
+    const ids = Object.keys(stored.presets)
+    const roster = ids.length === 0 ? 'none stored' : `available: ${ids.join(', ')}`
+    const unknown = (id: string): CommandResult => ({ kind: 'error', text: `unknown preset "${id}" (${roster})` })
+    if (verb === undefined) {
+      const current = this.selfCtx.sessionProjections.stateOf(agent.session, 'promptPreset') ?? ''
+      return { kind: 'success', text: `current ${current || 'off'}, default ${stored.default || 'off'} (${roster})` }
+    }
+    if (verb === 'default') {
+      if (target === undefined || extra.length > 0) return usage()
+      const id = target === 'off' ? '' : target
+      if (id !== '' && !(id in stored.presets)) return unknown(id)
+      try {
+        await this.setDefault(id)
+      } catch (error) {
+        // A read-only deployment is an expected refusal, not a failed handler.
+        if (error instanceof RemoteError) return { kind: 'error', text: error.message }
+        throw error
+      }
+      return { kind: 'success', text: `default ${target}, for new sessions` }
+    }
+    if (target !== undefined) return usage()
+    if (verb === 'off') {
+      await this.select(agent, null)
+      return { kind: 'success', text: 'off, from the next step' }
+    }
+    if (!(verb in stored.presets)) return unknown(verb)
+    await this.select(agent, verb)
+    return { kind: 'success', text: `${verb}, from the next step` }
+  }
+
   /** One queued switch: re-check the roster, then record what the session runs. */
   private async swap(agent: Agent, promptPreset: string | null): Promise<string | null> {
     await Promise.resolve()
@@ -743,6 +807,11 @@ export default class PromptPresetStore extends TypertRemoteService {
   private rowOf(promptPreset: string): PromptPresetRow {
     return this.rowFor(promptPreset, this.requirePreset(promptPreset), this.stored().default, this.deploymentIds())
   }
+}
+
+/** The refusal for a `/prompt-preset` line its grammar does not accept. */
+function usage(): CommandResult {
+  return { kind: 'error', text: 'usage: [<preset> | off | default <preset|off>]' }
 }
 
 /** Deployment rows sort ahead of the user's own. */

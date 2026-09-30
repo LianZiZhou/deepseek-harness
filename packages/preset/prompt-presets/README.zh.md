@@ -79,6 +79,16 @@ kind: "package-reference"
 
 自身没有做过选择的空白会话，会在其 agent 创建时被盖上部署的 `default`，形式是一次普通的已记录选择，因此恢复或分叉后的会话重建的是它实际运行过的预设，而不是之后碰巧是什么的默认值。
 
+任何分发命令注册表的前门——Web 输入框与终端前门都一样——在组合了 [`dsh-commands`](../../interaction/commands/README.zh.md) 时也会得到 `/prompt-preset`：
+
+| 输入 | 效果 |
+|---|---|
+| `/prompt-preset` | 报告该会话的预设、默认值与已存储的 id。 |
+| `/prompt-preset <id>` / `/prompt-preset off` | 切换接收命令的会话，与 `select` 完全一致。 |
+| `/prompt-preset default <id>` / `/prompt-preset default off` | 经由设置表单更改新会话的默认值；没有设置服务时为只读。 |
+
+`off` 与 `default` 是关键字，因此以这两个 id 存储的预设只能通过 Remote API 选择。命令名不是 `/preset`，因为终端前门已用该名字表示 agent 预设，而注册表命令会遮蔽它们的同名命令。
+
 ### 提交前先预览
 
 `preview(agent, id, signal)` 针对该会话自己的作用域组装两次——一次不带预设，一次带候选项——并返回两份渲染后的提示词、候选项的各小节及创建每个小节的规则，以及候选项未能按原样完成的一切。这些组装被标记为预览，因此绘制预览不会打扰会话正在运行的步骤。
@@ -105,7 +115,7 @@ kind: "package-reference"
 
 | 文件 | 职责 |
 |---|---|
-| [`src/index.ts`](src/index.ts) | 服务入口：带两个 volatile 字段的 `Config`、最终覆盖、空白会话盖章、`@Remote` 面 |
+| [`src/index.ts`](src/index.ts) | 服务入口：带两个 volatile 字段的 `Config`、最终覆盖、空白会话盖章、`@Remote` 面、`/prompt-preset` 命令 |
 | [`src/rules.ts`](src/rules.ts) | 规则词汇与 `applyRules`——对组装后小节的纯变换 |
 | [`src/schema.ts`](src/schema.ts) | 运行时 schema，以及 schema 表达不了的边界与保护 |
 | [`src/session.ts`](src/session.ts) | `prompt-preset/selected` 事件与 `promptPreset` projection |

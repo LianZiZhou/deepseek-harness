@@ -15,6 +15,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { boot, initProfile, readProfilePatches, type ProfileContext } from '@deepseek-ai/dsh-app-boot'
 import ConfigEditor from '@deepseek-ai/dsh-config-editor'
 import Settings from '@deepseek-ai/dsh-settings'
+import CommandRuntime from '@deepseek-ai/dsh-commands'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
@@ -75,13 +76,14 @@ export const ENTRY = 'prompt-presets'
  * @param config - the bundle layer's config for the store's entry.
  * @param sections - prompt sections the assembly starts from.
  * @param options - `settings: false` composes no settings service, the read-only deployment;
- *   `legacy` seeds the removed `$DSH_HOME/settings.yaml` that the first boot imports.
+ *   `legacy` seeds the removed `$DSH_HOME/settings.yaml` that the first boot imports;
+ *   `commands` composes the slash-command registry the `/prompt-preset` command joins.
  * @returns the composed harness.
  */
 export async function harness(
   config: RawConfig = {},
   sections: readonly { name: string; order: number; text: string; complete?: boolean }[] = [],
-  options: { settings?: boolean; legacy?: string } = {},
+  options: { settings?: boolean; legacy?: string; commands?: boolean } = {},
 ): Promise<Harness> {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-prompt-presets-')))
   homes.push(home)
@@ -101,6 +103,7 @@ export async function harness(
       { id: 'config-editor', name: 'cordis:editor' },
       { id: 'settings', name: 'cordis:settings' },
     ],
+    ...options.commands === true ? [{ id: 'commands', name: 'cordis:commands' }] : [],
     { id: ENTRY, name: 'cordis:presets', config },
   ] }]))
   writeFileSync(join(dir, 'cordis.yml'), '[]\n')
@@ -120,6 +123,7 @@ export async function harness(
       editor: ConfigEditor,
       settings: Settings,
       presets: PromptPresetStore,
+      commands: CommandRuntime,
     })
   })
   roots.push(ctx)
