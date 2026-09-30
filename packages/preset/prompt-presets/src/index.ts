@@ -42,6 +42,14 @@ import {
 } from './schema.ts'
 import type { PresetLimits, PromptPresetSettings } from './schema.ts'
 import { promptPresetProjectionDefinition } from './session.ts'
+import {
+  COMMAND_DESCRIPTION,
+  COMMAND_DESCRIPTIONS,
+  COMMAND_NAME,
+  TERMINAL_COMMAND_TREES,
+  completions,
+  type TerminalCommandTrees,
+} from './completion.ts'
 import type {
   PromptPresetInput,
   PromptPresetLimits,
@@ -200,11 +208,20 @@ export default class PromptPresetStore extends TypertRemoteService {
     ctx.inject(['commands'], (child) => {
       child.commands.register({
         definitionId: CommandDefinitionId('@deepseek-ai/dsh-prompt-presets'),
-        name: 'prompt-preset',
-        description: 'Show or switch this session\'s prompt preset',
+        name: COMMAND_NAME,
+        description: COMMAND_DESCRIPTION,
         input: { hint: '<preset> | off | default <preset|off>' },
         handler: ({ agent, rawInput }) => this.command(agent, rawInput),
       })
+    })
+    // Tab completion of its arguments, where a terminal front door offers it.
+    ctx.inject([TERMINAL_COMMAND_TREES], (child) => {
+      const trees = child.get(TERMINAL_COMMAND_TREES) as TerminalCommandTrees
+      child.effect(() => trees.register({
+        root: COMMAND_NAME,
+        descriptions: COMMAND_DESCRIPTIONS,
+        children: path => completions(path, this.stored()),
+      }))
     })
 
     ctx.sessionProjections.register(promptPresetProjectionDefinition)

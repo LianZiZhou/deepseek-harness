@@ -87,6 +87,8 @@ kind: "package-reference"
 | `/prompt-preset <id>` / `/prompt-preset off` | 切换接收命令的会话，与 `select` 完全一致。 |
 | `/prompt-preset default <id>` / `/prompt-preset default off` | 经由设置表单更改新会话的默认值；没有设置服务时为只读。 |
 
+会补全命令参数的终端前门可以 Tab 补全这些词——带描述的预设 id、`off` 与 `default`——由 [`src/completion.ts`](src/completion.ts) 提供：它在 dsh-TUI 的可选 `tuiCommandTrees` 服务存在时向其注册，并在每次请求时读取实时名册。
+
 `off` 与 `default` 是关键字，因此以这两个 id 存储的预设只能通过 Remote API 选择。命令名不是 `/preset`，因为终端前门已用该名字表示 agent 预设，而注册表命令会遮蔽它们的同名命令。
 
 ### 提交前先预览
@@ -116,6 +118,7 @@ kind: "package-reference"
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 服务入口：带两个 volatile 字段的 `Config`、最终覆盖、空白会话盖章、`@Remote` 面、`/prompt-preset` 命令 |
+| [`src/completion.ts`](src/completion.ts) | 面向终端前门的 `/prompt-preset` 参数补全，按结构对接 dsh-TUI 的 `tuiCommandTrees` |
 | [`src/rules.ts`](src/rules.ts) | 规则词汇与 `applyRules`——对组装后小节的纯变换 |
 | [`src/schema.ts`](src/schema.ts) | 运行时 schema，以及 schema 表达不了的边界与保护 |
 | [`src/session.ts`](src/session.ts) | `prompt-preset/selected` 事件与 `promptPreset` projection |

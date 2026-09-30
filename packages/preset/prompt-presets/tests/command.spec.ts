@@ -9,6 +9,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent'
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
+import type { TerminalCommandTrees } from '../src/completion.ts'
 import { cleanup, harness, type Harness, type RawConfig } from './harness.ts'
 
 afterEach(cleanup)
@@ -137,5 +138,63 @@ describe('/prompt-preset', () => {
     const bench = await harness(ROSTER)
     expect(bench.ctx.get('commands')).toBeUndefined()
     expect(bench.store.list().presets).toHaveLength(2)
+  })
+})
+
+/** A stand-in for a terminal front door's completion registry. */
+function fakeTrees() {
+  const providers: Parameters<TerminalCommandTrees['register']>[0][] = []
+  const dispose = vi.fn()
+  const trees: TerminalCommandTrees = {
+    register(provider) {
+      providers.push(provider)
+      return dispose
+    },
+  }
+  return { trees, providers, dispose }
+}
+
+describe('/prompt-preset argument completion', () => {
+  it('offers presets, off, and default, then presets and off after default', async () => {
+    const bench = await harness({
+      ...ROSTER,
+      presets: { ...ROSTER.presets, described: { name: 'Described', description: 'Says why.', rules: [] } },
+      default: 'terse',
+    })
+    const { trees, providers } = fakeTrees()
+    bench.ctx.provide('tuiCommandTrees', trees)
+    await vi.waitFor(() => { expect(providers).toHaveLength(1) })
+    const [provider] = providers
+    expect(provider?.root).toBe('prompt-preset')
+    expect(provider?.descriptions).toEqual({
+      en: 'Show or switch this session\'s prompt preset',
+      zh: '查看或切换本会话的提示词预设',
+    })
+    const top = provider?.children(['prompt-preset']) ?? []
+    expect(top.map(node => [node.name, node.description, node.tag])).toEqual([
+      ['described', 'Says why.', undefined],
+      ['grok-break', 'Grok break', undefined],
+      ['terse', 'Terse', 'default'],
+      ['off', 'Run this session without a preset', undefined],
+      ['default', 'Choose the preset new sessions start with', undefined],
+    ])
+    expect(top.at(-1)?.descriptions?.zh).toBe('设置新会话的默认预设')
+    expect(provider?.children(['prompt-preset', 'default']).map(node => node.name))
+      .toEqual(['described', 'grok-break', 'terse', 'off'])
+    expect(provider?.children(['prompt-preset', 'default']).at(-1)?.description)
+      .toBe('New sessions start without a preset')
+    expect(provider?.children(['prompt-preset', 'terse'])).toEqual([])
+    expect(provider?.children(['prompt-preset', 'default', 'terse'])).toEqual([])
+  })
+
+  it('reads the live roster and unregisters when the store unloads', async () => {
+    const bench = await harness(ROSTER)
+    const { trees, providers, dispose } = fakeTrees()
+    bench.ctx.provide('tuiCommandTrees', trees)
+    await vi.waitFor(() => { expect(providers).toHaveLength(1) })
+    await bench.store.create('added', { name: 'Added', rules: [] })
+    expect(providers[0]?.children(['prompt-preset']).map(node => node.name)).toContain('added')
+    await bench.fiber.dispose()
+    expect(dispose).toHaveBeenCalledOnce()
   })
 })

@@ -87,6 +87,8 @@ Any front door that dispatches the command registry — the Web composer and ter
 | `/prompt-preset <id>` / `/prompt-preset off` | Switches the receiving session, exactly as `select` does. |
 | `/prompt-preset default <id>` / `/prompt-preset default off` | Changes the default for new sessions through the settings forms; read-only without a settings service. |
 
+Terminal front doors that complete command arguments get Tab completion of these words — preset ids with their descriptions, `off`, and `default` — from [`src/completion.ts`](src/completion.ts), which registers with dsh-TUI's optional `tuiCommandTrees` service when one is mounted and reads the live roster on every request.
+
 `off` and `default` are keywords, so a preset stored under either id is reachable only through the Remote API. The command is not `/preset`, because terminal front doors already use that name for agent presets and a registry command would shadow theirs.
 
 ### Preview before committing
@@ -116,6 +118,7 @@ One registration covers every session: the override is global and unscoped, and 
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Service entry: `Config` with its two volatile fields, the final override, blank-session stamping, the `@Remote` face, the `/prompt-preset` command |
+| [`src/completion.ts`](src/completion.ts) | `/prompt-preset` argument completion for terminal front doors, typed structurally against dsh-TUI's `tuiCommandTrees` |
 | [`src/rules.ts`](src/rules.ts) | The rule vocabulary and `applyRules`, a pure transform over assembled sections |
 | [`src/schema.ts`](src/schema.ts) | Runtime schemas plus the bounds and protections a schema cannot express |
 | [`src/session.ts`](src/session.ts) | The `prompt-preset/selected` event and the `promptPreset` projection |
