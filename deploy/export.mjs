@@ -4,11 +4,15 @@
  * it elsewhere.
  *
  * Only the composition is copied: which plugins the profile mounts, which rows
- * it disables, and the user settings document. Credentials are never read —
- * `.credentials.yaml` holds them, every provider in `settings.yaml` names its
- * key through `apiKeyEnv` rather than carrying one, and the restore side asks
- * for both by hand. Sessions, attachments, logs and market caches are private
+ * it disables, and every setting a person edited — since 0.2 those live in the
+ * profile's own `cordis.patch.yml`, so that file carries them. Credentials are
+ * never read — `.credentials.yaml` holds them, every provider names its key
+ * through `apiKeyEnv` rather than carrying one, and the restore side asks for
+ * both by hand. Sessions, attachments, logs and market caches are private
  * runtime state, not composition, so they stay where they are.
+ *
+ * A home that has not booted 0.2 yet still has the removed `settings.yaml`;
+ * that is snapshotted too, and a redeployed first boot imports it the same way.
  *
  * Run it again whenever the plugin chain changes; the output is meant to be
  * reviewed in `git diff` before it is committed.
@@ -89,8 +93,13 @@ for (const profile of wanted) {
   }
 }
 
+// The legacy document, only while the home still has one. Once 0.2 has
+// imported it, the settings are in the profile patch above, and a copy left
+// here would be imported again on a redeploy, over newer values.
 if (snapshot(join(HOME, 'settings.yaml'), join(HERE, 'settings.yaml'), 'settings.yaml')) {
   copied.push('settings.yaml')
+} else {
+  rmSync(join(HERE, 'settings.yaml'), { force: true })
 }
 
 writeFileSync(

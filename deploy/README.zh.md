@@ -4,7 +4,7 @@
 
 [English](README.md) | 中文
 
-本目录携带了在另一台机器上重建本 fork 所需的一切：检出的仓库构建 harness 本身，这里的快照重建运行它的 DSH home——组合哪个 profile、挂载哪些插件、以及用户设置文档。
+本目录携带了在另一台机器上重建本 fork 所需的一切：检出的仓库构建 harness 本身，这里的快照重建运行它的 DSH home——组合哪个 profile、挂载哪些插件、以及在产品里编辑过的设置。
 
 它刻意**不携带任何凭据**。快照的归宿是 git 远端，而推送之后才发现的密钥已经泄漏了。
 
@@ -22,12 +22,12 @@
 | 路径 | 职责 |
 |---|---|
 | `profile/<name>/package.json` | 插件链：profile 组合的 bundle，以及每个 npm 或 git 插件及其锁定版本 |
-| `profile/<name>/cordis.patch.yml` | 覆盖这些 bundle 的用户层——本机禁用或重配的那些行 |
+| `profile/<name>/cordis.patch.yml` | 覆盖这些 bundle 的用户层：本机禁用的那些行，以及在产品里编辑过的每一项设置——提示词预设、模型 provider、主题、语言 |
 | `profile/<name>/pnpm-workspace.yaml` | profile 自己的安装根 |
-| `settings.yaml` | 用户设置文档：提示词预设、模型路由、主题、语言 |
+| `settings.yaml` | 仅当源 home 尚未启动过 0.2 时存在：已移除的设置文档，首次启动会把它导入 profile |
 | `snapshot.json` | 快照覆盖了哪些 profile，以及采集时间 |
 
-`settings.yaml` 中每个 provider 的密钥都通过 `apiKeyEnv` 引用，因此它保存的是环境变量**名称**，从不是值。`deploy/export.mjs` 会拒绝快照任何看起来不是这样的文件。
+自 0.2 起不再有独立的设置文档，产品把每次编辑写进 profile 补丁。那里的每个 provider 都通过 `apiKeyEnv` 引用密钥，因此补丁保存的是环境变量**名称**，从不是值，而 `deploy/export.mjs` 会拒绝快照任何看起来不是这样的文件。`bootstrap.mjs` 会从快照里把这些名称读回来，列出新机器必须提供的内容。
 
 <a id="redeploy"></a>
 

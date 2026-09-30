@@ -4,7 +4,7 @@
 
 English | [中文](README.zh.md)
 
-This directory carries everything needed to stand the fork up on another machine: the checkout builds the harness itself, and the snapshot here rebuilds the DSH home that runs it — which profile is composed, which plugins it mounts, and the user settings document.
+This directory carries everything needed to stand the fork up on another machine: the checkout builds the harness itself, and the snapshot here rebuilds the DSH home that runs it — which profile is composed, which plugins it mounts, and the settings edited in the product.
 
 It deliberately carries **no credentials**. A snapshot is destined for a git remote, and a secret noticed after a push has already leaked.
 
@@ -20,12 +20,12 @@ It deliberately carries **no credentials**. A snapshot is destined for a git rem
 | Path | Role |
 |---|---|
 | `profile/<name>/package.json` | The plugin chain: bundles the profile composes, and every npm or git plugin with its pinned version |
-| `profile/<name>/cordis.patch.yml` | The user layer over those bundles — the rows this machine disables or reconfigures |
+| `profile/<name>/cordis.patch.yml` | The user layer over those bundles: the rows this machine disables, and every setting edited in the product — prompt presets, model providers, theme, locale |
 | `profile/<name>/pnpm-workspace.yaml` | The profile's own install root |
-| `settings.yaml` | The user settings document: prompt presets, model routing, theme, locale |
+| `settings.yaml` | Only while the source home has not booted 0.2: the removed settings document, which the first boot imports into the profile |
 | `snapshot.json` | Which profiles the snapshot covers, and when it was taken |
 
-`settings.yaml` names every provider key through `apiKeyEnv`, so it holds environment-variable *names*, never values. `deploy/export.mjs` refuses to snapshot a file that looks otherwise.
+Since 0.2 there is no separate settings document; the product writes each edit into the profile patch. Every provider there names its key through `apiKeyEnv`, so the patch holds environment-variable *names*, never values, and `deploy/export.mjs` refuses to snapshot a file that looks otherwise. `bootstrap.mjs` reads those names back out of the snapshot to list what a new machine must supply.
 
 ## Redeploy
 

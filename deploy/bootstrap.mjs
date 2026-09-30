@@ -23,15 +23,28 @@ const ROOT = join(HERE, '..')
 const HOME = process.env['DSH_HOME'] ?? join(homedir(), '.dsh')
 const force = process.argv.includes('--force')
 
-/** Credential records the snapshot cannot carry, named so a restore can ask for them. */
-const CREDENTIALS = [
-  ['$DSH_HOME/.credentials.yaml', 'llm-pi-ai/* provider keys and OAuth records, and the browser-session secret'],
-  ['OPENAI_API_KEY', 'referenced by settings.yaml as apiKeyEnv'],
-  ['DEEPSEEK_API_KEY', 'referenced by settings.yaml as apiKeyEnv'],
-  ['BAI_API_KEY', 'referenced by settings.yaml as apiKeyEnv'],
-  ['CURSOR_API_KEY', 'referenced by settings.yaml as apiKeyEnv'],
-  ['GROKBOT_API_KEY', 'referenced by settings.yaml as apiKeyEnv'],
-]
+/**
+ * Credentials the snapshot cannot carry, named so a restore can ask for them.
+ *
+ * The environment variables are read from the snapshot itself rather than
+ * listed here: a provider added on the source machine names a new variable,
+ * and a hand-kept list is exactly the thing that forgets it.
+ * @returns each credential to supply and why it is needed.
+ */
+function credentials() {
+  const names = new Set()
+  for (const profile of manifest.profiles) {
+    const patch = join(HERE, 'profile', profile, 'cordis.patch.yml')
+    if (!existsSync(patch)) continue
+    for (const match of readFileSync(patch, 'utf8').matchAll(/apiKeyEnv:\s*['"]?([A-Za-z_][A-Za-z0-9_]*)/g)) {
+      names.add(match[1])
+    }
+  }
+  return [
+    ['$DSH_HOME/.credentials.yaml', 'provider keys and OAuth records, and the browser-session secret'],
+    ...[...names].sort().map(name => [name, 'named as apiKeyEnv by a provider in the profile patch']),
+  ]
+}
 
 /**
  * Restore one snapshot file into the DSH home.
@@ -86,5 +99,5 @@ for (const profile of manifest.profiles) {
 }
 
 console.log('\nStill to supply by hand — the snapshot carries no credentials:')
-for (const [name, why] of CREDENTIALS) console.log(`  ${name}  (${why})`)
+for (const [name, why] of credentials()) console.log(`  ${name}  (${why})`)
 console.log(`\nThen: node apps/cli/lib/bin.js web   (DSH_HOME=${HOME})`)
