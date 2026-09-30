@@ -202,7 +202,7 @@ export default class PromptPresetStore extends TypertRemoteService {
         definitionId: CommandDefinitionId('@deepseek-ai/dsh-prompt-presets'),
         name: 'prompt-preset',
         description: 'Show or switch this session\'s prompt preset',
-        input: { hint: '[<preset> | off | default <preset|off>]' },
+        input: { hint: '<preset> | off | default <preset|off>' },
         handler: ({ agent, rawInput }) => this.command(agent, rawInput),
       })
     })

@@ -35,7 +35,9 @@ describe('/prompt-preset', () => {
   it('registers under its own name, clear of the agent-preset command', async () => {
     const bench = await harness(ROSTER, [], { commands: true })
     const agent = bench.agent()
-    expect(bench.ctx.commands.list(agent).map(command => command.name)).toContain('prompt-preset')
+    // No outer brackets: front doors wrap the hint themselves.
+    expect(bench.ctx.commands.list(agent).find(command => command.name === 'prompt-preset')?.input)
+      .toEqual({ hint: '<preset> | off | default <preset|off>' })
     expect(bench.ctx.commands.find(agent, 'preset')).toBeUndefined()
   })
 
