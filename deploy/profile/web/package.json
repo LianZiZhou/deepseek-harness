@@ -7,9 +7,7 @@
     "@dsh-external/dsh-client-ui-skin-orca-link": "github:Small-tailqwq/dsh-deep-whale#c3ba7ddcb89bb581663cbda4e889afdc01b1b231&path:/orca-link",
     "@liustack/modlens": "^3.26.5",
     "@liustack/modsearch": "^5.10.5",
-    "dsh-aemeath": "github:hachimi-ai/dsh-aemeath#f58eef75dcadb5aeaee9e78542e7e1d9ba43f821",
     "dsh-better-sidebar": "^0.24.1",
-    "dsh-infinite-gen-2": "git+https://github.com/Minglink/dsh-infinite-gen-2.git#3a701c334dd15e59c6ac663d93d313489385bbc5",
     "dsh-model-switch": "github:NOirBRight/dsh-model-switch#e4836acd5154db3d547e2b43669a79a792e03140",
     "dsh-plugin-model-capability": "^1.4.0",
     "dsh-skin-market": "^0.1.56",
@@ -25,7 +23,6 @@
         "@liustack/modlens",
         "@liustack/modsearch",
         "dsh-skin-market",
-        "dsh-infinite-gen-2",
         "dsh-plugin-model-capability",
         "@dsh-external/dsh-client-ui-skin-denia"
       ],
