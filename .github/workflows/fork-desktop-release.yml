@@ -1,0 +1,93 @@
+# Fork-only: build the Windows Desktop installer on every push to the default
+# branch and publish it as a GitHub release named after the commit's short hash.
+#
+# The build is unsigned (no EV token in CI) and carries no update feed, so
+# installed copies never auto-update; install a newer release by hand. macOS is
+# not built: upstream packaging requires Apple signing and notarization.
+#
+# The mandatory-update origin is required by packaging even for unsigned builds.
+# It points at a reserved `.invalid` host so the fork never polls upstream's
+# policy service, which could otherwise steer installs toward official builds.
+name: Fork desktop release
+
+on:
+  push:
+    branches: [merge/upstream-0.2.0]
+  workflow_dispatch:
+
+concurrency:
+  group: fork-desktop-release
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Enable pnpm
+        shell: bash
+        run: corepack enable && pnpm --version
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          short=$(git rev-parse --short=7 HEAD)
+          product=$(node -p "require('./apps/desktop/package.json').version")
+          # A prerelease field must not be all digits with a leading zero, hence the `g`.
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+          echo "build=$product.g$short" >> "$GITHUB_OUTPUT"
+          echo "Desktop $product.g$short from $short"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Write packaging settings
+        shell: bash
+        run: |
+          cat > apps/desktop/.env.windows <<'EOF'
+          DSH_DESKTOP_APP_ID=io.github.lianzizhou.dsh-desktop
+          DSH_DESKTOP_AUTO_UPDATE_ENV=production
+          DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN=https://update.invalid
+          EOF
+
+      - name: Package unsigned installer
+        run: pnpm run package:desktop:win:x64:unsigned -- --build-version ${{ steps.version.outputs.build }}
+
+      - name: Publish release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHORT: ${{ steps.version.outputs.short }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          shopt -s nullglob
+          files=(apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/*.exe)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "no installer under unsigned-artifacts" >&2
+            ls -R apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts || true
+            exit 1
+          fi
+          # Tag `desktop-<hash>` rather than the bare hash, which git would
+          # confuse with the abbreviated commit id.
+          # A re-run for the same commit replaces the assets of its release.
+          if gh release view "desktop-$SHORT" >/dev/null 2>&1; then
+            gh release upload "desktop-$SHORT" "${files[@]}" --clobber
+          else
+            gh release create "desktop-$SHORT" "${files[@]}" \
+              --target "$GITHUB_SHA" \
+              --title "$SHORT" \
+              --notes "Unsigned Windows x64 Desktop build $BUILD from $GITHUB_SHA. No auto-update; install newer releases by hand. Windows SmartScreen will warn because the installer is unsigned."
+          fi
