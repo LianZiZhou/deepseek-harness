@@ -38,6 +38,14 @@ const COLLAPSE_SETTLE_MS = 150
  */
 const SCROLLBAR_LINGER_MS = 2000
 
+/**
+ * This fork's edition ("Lynn Version"), shown beside whichever brand name
+ * occupies the slot so an official-profile build is never mistaken for an
+ * upstream release. Stacked in two lines: the default sidebar leaves too
+ * little width beside the wordmark for one.
+ */
+const EDITION = { name: 'Lynn', kind: 'Version' } as const
+
 /** Format complete-build metadata for the local brand badge. */
 function localBuildVersion(): string | undefined {
   const version = process.env.DSH_CLIENT_VERSION
@@ -235,6 +243,10 @@ export function SidebarRoot({
                       </span>
                     ),
                 })}
+              </span>
+              <span className={css.edition}>
+                <span className={css.editionName}>{EDITION.name}</span>
+                <span className={css.editionKind}>{EDITION.kind}</span>
               </span>
             </span>
           )

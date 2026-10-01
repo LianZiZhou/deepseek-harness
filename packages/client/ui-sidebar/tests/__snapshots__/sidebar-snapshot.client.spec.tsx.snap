@@ -153,6 +153,20 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
               </span>
             </div>
           </span>
+          <span
+            class="edition"
+          >
+            <span
+              class="editionName"
+            >
+              Lynn
+            </span>
+            <span
+              class="editionKind"
+            >
+              Version
+            </span>
+          </span>
         </span>
       </button>
       <button
@@ -405,6 +419,20 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
               </span>
             </div>
           </span>
+          <span
+            class="edition"
+          >
+            <span
+              class="editionName"
+            >
+              Lynn
+            </span>
+            <span
+              class="editionKind"
+            >
+              Version
+            </span>
+          </span>
         </span>
       </button>
       <button
@@ -547,6 +575,20 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
                 </span>
               </span>
             </div>
+          </span>
+          <span
+            class="edition"
+          >
+            <span
+              class="editionName"
+            >
+              Lynn
+            </span>
+            <span
+              class="editionKind"
+            >
+              Version
+            </span>
           </span>
         </span>
       </button>
