@@ -11,6 +11,10 @@
  * both by hand. Sessions, attachments, logs and market caches are private
  * runtime state, not composition, so they stay where they are.
  *
+ * Settings meant for every profile — the prompt-preset roster — live in the
+ * home-level `cordis.patch.yml` instead, which outranks each profile's patch,
+ * so that file is snapshotted beside them.
+ *
  * A home that has not booted 0.2 yet still has the removed `settings.yaml`;
  * that is snapshotted too, and a redeployed first boot imports it the same way.
  *
@@ -91,6 +95,14 @@ for (const profile of wanted) {
     const label = `profiles/${profile}/${file}`
     if (snapshot(join(source, file), join(HERE, 'profile', profile, file), label)) copied.push(label)
   }
+}
+
+// The home-level patch, applied to every profile after its own. Removed from
+// the snapshot when the home has none, so a redeploy does not resurrect it.
+if (snapshot(join(HOME, 'cordis.patch.yml'), join(HERE, 'cordis.patch.yml'), 'cordis.patch.yml')) {
+  copied.push('cordis.patch.yml')
+} else {
+  rmSync(join(HERE, 'cordis.patch.yml'), { force: true })
 }
 
 // The legacy document, only while the home still has one. Once 0.2 has

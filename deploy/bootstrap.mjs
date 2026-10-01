@@ -3,8 +3,8 @@
  * Rebuild this checkout's DSH home on a fresh machine from the snapshot in
  * `deploy/`.
  *
- * It restores composition only — the profile's plugin list, its disabled rows
- * and the user settings document — then installs the plugins and prints what
+ * It restores composition only — the profile's plugin list, its disabled rows,
+ * the home-level patch shared by every profile, and the user settings document — then installs the plugins and prints what
  * still has to be supplied by hand. Credentials are deliberately absent from
  * the snapshot, so the run ends with a checklist rather than a working login.
  *
@@ -33,8 +33,11 @@ const force = process.argv.includes('--force')
  */
 function credentials() {
   const names = new Set()
-  for (const profile of manifest.profiles) {
-    const patch = join(HERE, 'profile', profile, 'cordis.patch.yml')
+  const patches = [
+    ...manifest.profiles.map(profile => join(HERE, 'profile', profile, 'cordis.patch.yml')),
+    join(HERE, 'cordis.patch.yml'),
+  ]
+  for (const patch of patches) {
     if (!existsSync(patch)) continue
     for (const match of readFileSync(patch, 'utf8').matchAll(/apiKeyEnv:\s*['"]?([A-Za-z_][A-Za-z0-9_]*)/g)) {
       names.add(match[1])
@@ -77,6 +80,7 @@ for (const profile of manifest.profiles) {
     ))
   }
 }
+results.push(restore(join(HERE, 'cordis.patch.yml'), join(HOME, 'cordis.patch.yml'), 'cordis.patch.yml'))
 results.push(restore(join(HERE, 'settings.yaml'), join(HOME, 'settings.yaml'), 'settings.yaml'))
 
 for (const { label, state } of results) console.log(`  ${state.padEnd(7)} ${label}`)

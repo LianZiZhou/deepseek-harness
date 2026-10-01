@@ -89,6 +89,9 @@ function digest(text: string): string {
  */
 export const SETTINGS_NAMESPACE = 'prompt-presets'
 
+/** The config editor's refusal when a home patch or overlay outranks the profile. */
+const OVERRIDDEN = /is overridden by a home patch or command-line overlay/
+
 /** Sections that state a rule the executor enforces, not prose a user may drop. */
 const PROTECTED_SECTIONS = ['tools:ptc-only', 'tool:structured_output']
 
@@ -810,6 +813,17 @@ export default class PromptPresetStore extends TypertRemoteService {
           'prompt-preset/conflict',
           `prompt preset "${promptPreset}" changed since it was read`,
           { promptPreset, revision: this.revision() },
+          { cause: error },
+        )
+      }
+      // The editor writes only the profile patch, and refuses when a later
+      // layer sets this entry: the roster is then managed in that file. Its
+      // refusal is a plain Error, so the message is the only signal.
+      if (error instanceof Error && OVERRIDDEN.test(error.message)) {
+        throw new RemoteError(
+          'prompt-preset/read-only',
+          'prompt presets are set in the home patch ($DSH_HOME/cordis.patch.yml) or a --patch overlay; edit them there',
+          { promptPreset },
           { cause: error },
         )
       }

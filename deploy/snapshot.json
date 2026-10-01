@@ -5,7 +5,8 @@
   "files": [
     "profiles/web/package.json",
     "profiles/web/cordis.patch.yml",
-    "profiles/web/pnpm-workspace.yaml"
+    "profiles/web/pnpm-workspace.yaml",
+    "cordis.patch.yml"
   ],
-  "takenAt": "2026-09-30T03:34:15.376Z"
+  "takenAt": "2026-10-01T05:53:26.538Z"
 }

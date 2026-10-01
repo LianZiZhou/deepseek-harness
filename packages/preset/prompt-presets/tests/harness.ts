@@ -77,13 +77,14 @@ export const ENTRY = 'prompt-presets'
  * @param sections - prompt sections the assembly starts from.
  * @param options - `settings: false` composes no settings service, the read-only deployment;
  *   `legacy` seeds the removed `$DSH_HOME/settings.yaml` that the first boot imports;
- *   `commands` composes the slash-command registry the `/prompt-preset` command joins.
+ *   `commands` composes the slash-command registry the `/prompt-preset` command joins;
+ *   `homePatch` seeds `$DSH_HOME/cordis.patch.yml`, the layer that outranks the profile's own.
  * @returns the composed harness.
  */
 export async function harness(
   config: RawConfig = {},
   sections: readonly { name: string; order: number; text: string; complete?: boolean }[] = [],
-  options: { settings?: boolean; legacy?: string; commands?: boolean } = {},
+  options: { settings?: boolean; legacy?: string; commands?: boolean; homePatch?: string } = {},
 ): Promise<Harness> {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-prompt-presets-')))
   homes.push(home)
@@ -108,6 +109,7 @@ export async function harness(
   ] }]))
   writeFileSync(join(dir, 'cordis.yml'), '[]\n')
   if (options.legacy !== undefined) writeFileSync(join(home, 'settings.yaml'), options.legacy)
+  if (options.homePatch !== undefined) writeFileSync(join(home, 'cordis.patch.yml'), options.homePatch)
   const profile: ProfileContext = {
     name: 'test', startedBundles: ['test-bundle'], dir, patchPath: join(dir, 'cordis.patch.yml'),
     installAnchor: join(home, 'package.json'), cwd: home, home, overlays: [], telemetryDisabledEnv: undefined,

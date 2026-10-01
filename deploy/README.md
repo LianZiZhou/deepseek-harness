@@ -20,7 +20,8 @@ It deliberately carries **no credentials**. A snapshot is destined for a git rem
 | Path | Role |
 |---|---|
 | `profile/<name>/package.json` | The plugin chain: bundles the profile composes, and every npm or git plugin with its pinned version |
-| `profile/<name>/cordis.patch.yml` | The user layer over those bundles: the rows this machine disables, and every setting edited in the product — prompt presets, model providers, theme, locale |
+| `profile/<name>/cordis.patch.yml` | The user layer over those bundles: the rows this machine disables, and every setting edited in the product — model providers, theme, locale |
+| `cordis.patch.yml` | The home-level patch, applied to every profile after its own: the prompt-preset roster, kept here so the Web and terminal profiles share one copy. The settings editor cannot write it; edit the file |
 | `profile/<name>/pnpm-workspace.yaml` | The profile's own install root |
 | `settings.yaml` | Only while the source home has not booted 0.2: the removed settings document, which the first boot imports into the profile |
 | `snapshot.json` | Which profiles the snapshot covers, and when it was taken |
