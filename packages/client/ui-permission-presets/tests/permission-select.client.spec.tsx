@@ -119,23 +119,11 @@ describe('PermissionSelect', () => {
     expect(screen.queryByRole('menuitem')).toBeNull()
   })
 
-  it('requires and resets explicit acknowledgement for Full access', async () => {
+  it('switches to Full access directly, without a confirmation dialog', async () => {
     const { select } = setup()
-    const open = () => {
-      fireEvent.click(trigger())
-      fireEvent.click(screen.getByRole('menuitem', { name: '完全权限' }))
-    }
-    open()
-    const enable = screen.getByRole<HTMLButtonElement>('button', { name: '启用完全权限' })
-    expect(enable.disabled).toBe(true)
-    fireEvent.click(screen.getByRole('checkbox', { name: '我已了解风险，并愿意继续' }))
-    fireEvent.click(screen.getByRole('button', { name: '取消' }))
-    expect(select).not.toHaveBeenCalled()
-
-    open()
-    expect(screen.getByRole<HTMLInputElement>('checkbox').checked).toBe(false)
-    fireEvent.click(screen.getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: '启用完全权限' }))
+    fireEvent.click(trigger())
+    fireEvent.click(screen.getByRole('menuitem', { name: '完全权限' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(select).toHaveBeenCalledExactlyOnceWith('danger-full-access')
     await act(async () => {})
   })

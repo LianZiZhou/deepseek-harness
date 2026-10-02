@@ -10,8 +10,9 @@
  * session's `permissions` projection; a
  * pick submits the `/permission <preset>` command line, so both surfaces
  * write through one path and the pushed projection frame is the one
- * confirmation. The Full access row carries the same explicit risk gate as
- * the composer chip; the shared popup shell owns the modal mechanics.
+ * confirmation. The Auto review row carries the same explicit risk gate as
+ * the composer chip, and Full access applies directly; the shared popup
+ * shell owns the modal mechanics.
  * The General-settings row separately writes the default preset for sessions
  * created later through the host Settings API.
  */
@@ -44,7 +45,7 @@ import {
   accessEn, accessZh, en, PERMISSION_ACCESS_NS, zh,
 } from './locales.ts'
 import {
-  AUTO_REVIEW_PRESET, displayPermissionPreset, FULL_ACCESS_PRESET,
+  AUTO_REVIEW_PRESET, displayPermissionPreset,
 } from './presentation.ts'
 import { PermissionPresetSettingsController } from './settings-store.ts'
 
@@ -91,14 +92,14 @@ function optionsOf(
         ? { detail: t('auto.description') }
         : option.description !== undefined ? { detail: option.description } : {}),
       ...(option.value === currentValue ? { active: true } : {}),
-      ...(option.value === FULL_ACCESS_PRESET || option.value === AUTO_REVIEW_PRESET
+      ...(option.value === AUTO_REVIEW_PRESET
         ? {
           confirmation: {
-            title: t(option.value === AUTO_REVIEW_PRESET ? 'auto.confirm.title' : 'confirm.title'),
-            description: t(option.value === AUTO_REVIEW_PRESET ? 'auto.confirm.description' : 'confirm.description'),
-            acknowledgeLabel: t(option.value === AUTO_REVIEW_PRESET ? 'auto.confirm.acknowledge' : 'confirm.acknowledge'),
+            title: t('auto.confirm.title'),
+            description: t('auto.confirm.description'),
+            acknowledgeLabel: t('auto.confirm.acknowledge'),
             cancelLabel: t('confirm.cancel'),
-            confirmLabel: t(option.value === AUTO_REVIEW_PRESET ? 'auto.confirm.enable' : 'confirm.enable'),
+            confirmLabel: t('auto.confirm.enable'),
           },
         }
         : {}),

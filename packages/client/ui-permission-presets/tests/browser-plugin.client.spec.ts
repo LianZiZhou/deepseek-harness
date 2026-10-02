@@ -27,7 +27,7 @@ import {
 import { PermissionSelect } from '../src/client/PermissionSelect.tsx'
 import type { PermissionSelectInjected } from '../src/client/PermissionSelect.tsx'
 import { apply, inject } from '../src/client/index.ts'
-import { accessEn, accessZh } from '../src/client/locales.ts'
+import { accessEn } from '../src/client/locales.ts'
 
 const sid = (k: string): SessionId => k as SessionId
 
@@ -206,13 +206,8 @@ describe('ui-permission browser plugin', () => {
       .toBe('Run without a sandbox after an experimental same-model review of every native tool call and PTC inner call.')
     // English built-ins use product labels; other kebab-case names title-case.
     expect(again.map(option => option.label)).toEqual(['Read Only', 'Workspace Write', 'Full access', 'Auto review'])
-    expect(again.find(option => option.id === 'danger-full-access')?.confirmation).toEqual({
-      title: 'Enable Full access?',
-      description: accessEn['confirm.description'],
-      acknowledgeLabel: 'I understand the risks and want to continue',
-      cancelLabel: 'Cancel',
-      confirmLabel: 'Enable Full access',
-    })
+    // Full access applies directly; only Auto review keeps a risk gate.
+    expect(again.find(option => option.id === 'danger-full-access')).not.toHaveProperty('confirmation')
     expect(again.find(option => option.id === 'auto')).toMatchObject({
       badge: 'EXP',
       confirmation: {
@@ -226,13 +221,7 @@ describe('ui-permission browser plugin', () => {
     b.locale.setLocale('zh')
     const localized = await b.popup().options(proj, new AbortController().signal)
     expect(localized.map(option => option.label)).toEqual(['仅可查看', '工作区内修改', '完全权限', 'Auto review'])
-    expect(localized.find(option => option.id === 'danger-full-access')?.confirmation).toEqual({
-      title: '确认启用完全权限？',
-      description: accessZh['confirm.description'],
-      acknowledgeLabel: '我已了解风险，并愿意继续',
-      cancelLabel: '取消',
-      confirmLabel: '启用完全权限',
-    })
+    expect(localized.find(option => option.id === 'danger-full-access')).not.toHaveProperty('confirmation')
     b.setCatalog({ ...CATALOG, options: [
       { value: 'workspace-write', name: 'Project Files' },
       { value: 'danger-full-access', name: 'Operator Mode' },

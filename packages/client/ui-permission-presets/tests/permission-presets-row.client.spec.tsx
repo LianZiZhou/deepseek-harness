@@ -105,7 +105,7 @@ describe('PermissionRow', () => {
     expect(mutate).toHaveBeenCalledOnce()
   })
 
-  it('requires explicit acknowledgement before saving full access', async () => {
+  it('saves full access directly, without a confirmation dialog', async () => {
     const mutate = vi.fn(() => Promise.resolve(ok(view('danger-full-access', 1))))
     const controller = derivedController({
       settings: {
@@ -116,18 +116,8 @@ describe('PermissionRow', () => {
     mount(controller)
     fireEvent.click(await screen.findByRole('button', { name: '仅可查看' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '完全权限' }))
-    expect(mutate).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: '取消' }))
-    expect(screen.queryByRole('dialog', { name: '确认启用完全权限？' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: '仅可查看' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: '完全权限' }))
-    const dialog = screen.getByRole('dialog', { name: '确认启用完全权限？' })
-    const enable = screen.getByRole('button', { name: '启用完全权限' })
-    expect((enable as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(screen.getByRole('checkbox'))
-    fireEvent.click(enable)
+    expect(screen.queryByRole('dialog')).toBeNull()
     await waitFor(() => { expect(mutate).toHaveBeenCalledOnce() })
-    expect(dialog.isConnected).toBe(false)
   })
 
   it('hides an unavailable namespace and disables a read-only provider', async () => {

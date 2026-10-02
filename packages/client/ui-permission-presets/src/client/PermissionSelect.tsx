@@ -129,7 +129,9 @@ export function PermissionSelect({
   const choose = (id: string): void => {
     setOpen(false)
     if (id === selection.currentValue) return
-    if (id === FULL_ACCESS || id === AUTO_REVIEW) {
+    // Full access applies directly; only Auto review, which hands approvals to
+    // a model, keeps its explicit risk acknowledgement.
+    if (id === AUTO_REVIEW) {
       setAcknowledged(false)
       setConfirmation(id)
       return
@@ -147,18 +149,6 @@ export function PermissionSelect({
     submit(id)
   }
 
-  const confirmationTitle = confirmation === AUTO_REVIEW
-    ? t('auto.confirm.title')
-    : t('confirm.title')
-  const confirmationDescription = confirmation === AUTO_REVIEW
-    ? t('auto.confirm.description')
-    : t('confirm.description')
-  const confirmationAcknowledge = confirmation === AUTO_REVIEW
-    ? t('auto.confirm.acknowledge')
-    : t('confirm.acknowledge')
-  const confirmationEnable = confirmation === AUTO_REVIEW
-    ? t('auto.confirm.enable')
-    : t('confirm.enable')
   const currentBadge = optionBadge(currentValue, t)
   const currentAccessibleLabel = currentBadge === undefined ? currentLabel : `${currentLabel} ${currentBadge}`
 
@@ -197,12 +187,12 @@ export function PermissionSelect({
       {confirmation !== null && (
         <RiskConfirmation
           open
-          title={confirmationTitle}
-          description={confirmationDescription}
-          acknowledgeLabel={confirmationAcknowledge}
+          title={t('auto.confirm.title')}
+          description={t('auto.confirm.description')}
+          acknowledgeLabel={t('auto.confirm.acknowledge')}
           cancelLabel={t('confirm.cancel')}
           closeLabel={t('close')}
-          confirmLabel={confirmationEnable}
+          confirmLabel={t('auto.confirm.enable')}
           acknowledged={acknowledged}
           disabled={locked}
           onAcknowledgedChange={setAcknowledged}
