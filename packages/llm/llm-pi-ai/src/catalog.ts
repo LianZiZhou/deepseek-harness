@@ -205,6 +205,90 @@ export function catalogModels(provider: string): Map<string, Model<Api>> {
 }
 
 /**
+ * Each model maker's own route, most preferred first. Hundreds of catalog ids
+ * recur across resellers and gateways (`github-copilot`, `opencode`,
+ * `openrouter`, …) whose reasoning spellings disagree with the maker's, so a
+ * model borrowed by name takes its capability from the maker when it can.
+ */
+const ORIGIN_PROVIDERS: readonly string[] = [
+  'anthropic', 'openai', 'google', 'xai', 'deepseek', 'zai', 'moonshotai', 'minimax', 'mistral', 'meta', 'xiaomi',
+]
+
+/** One reasoning-capable catalog model and the route that ships it. */
+export interface CatalogReasoningSource {
+  /** The catalog route the capability is borrowed from. */
+  readonly provider: string
+  /** The catalog model whose `reasoning` and `thinkingLevelMap` are borrowed. */
+  readonly model: Model<Api>
+}
+
+/** Reasoning-capable catalog models by exact and by normalized id; built once, the catalog being static. */
+let reasoningIndex: {
+  readonly exact: Map<string, CatalogReasoningSource[]>
+  readonly normalized: Map<string, CatalogReasoningSource[]>
+} | undefined
+
+/**
+ * The spelling-insensitive form of a model id: case folded, a leading
+ * `vendor/` dropped, and `.` read as `-`, so a gateway's `claude-opus-4.8` or
+ * `anthropic/claude-opus-5` finds the maker's `claude-opus-4-8` and `claude-opus-5`.
+ * @param id - a model id as a route or catalog spells it.
+ * @returns the normalized id.
+ */
+export function normalizedModelId(id: string): string {
+  return id.toLowerCase().replace(/^[^/]+\//, '').replaceAll('.', '-')
+}
+
+/** The lazily built index {@link catalogReasoningFor} reads. */
+function reasoningCatalog(): NonNullable<typeof reasoningIndex> {
+  if (reasoningIndex !== undefined) return reasoningIndex
+  const exact = new Map<string, CatalogReasoningSource[]>()
+  const normalized = new Map<string, CatalogReasoningSource[]>()
+  const add = (index: Map<string, CatalogReasoningSource[]>, key: string, source: CatalogReasoningSource) => {
+    const list = index.get(key)
+    if (list === undefined) index.set(key, [source])
+    else list.push(source)
+  }
+  for (const provider of catalogProviderIds()) {
+    for (const model of catalogModels(provider).values()) {
+      if (!model.reasoning) continue
+      const source = { provider, model }
+      add(exact, model.id, source)
+      add(normalized, normalizedModelId(model.id), source)
+    }
+  }
+  reasoningIndex = { exact, normalized }
+  return reasoningIndex
+}
+
+/**
+ * The installed catalog model a route's model borrows its reasoning capability
+ * from when the route's own catalog does not describe it — a custom gateway
+ * serving `grok-4.7`, or a built-in route proxying another maker's model.
+ *
+ * An exact id wins over a normalized one. Among the routes shipping the id,
+ * the model maker's own route wins, then one speaking the requesting route's
+ * protocol, then the route id in code-unit order so the answer never depends
+ * on catalog iteration order. Only reasoning models are candidates: a name
+ * match that does not reason has nothing to lend.
+ * @param id - the model id the route serves.
+ * @param api - the wire protocol the requesting route speaks.
+ * @returns the source to borrow from, or undefined when no catalog model matches.
+ */
+export function catalogReasoningFor(id: string, api: string): CatalogReasoningSource | undefined {
+  const index = reasoningCatalog()
+  const candidates = index.exact.get(id) ?? index.normalized.get(normalizedModelId(id))
+  if (candidates === undefined) return undefined
+  const origin = (source: CatalogReasoningSource): number => {
+    const at = ORIGIN_PROVIDERS.indexOf(source.provider)
+    return at === -1 ? ORIGIN_PROVIDERS.length : at
+  }
+  const protocol = (source: CatalogReasoningSource): number => source.model.api === api ? 0 : 1
+  return [...candidates].sort((a, b) => origin(a) - origin(b) || protocol(a) - protocol(b)
+    || a.provider.localeCompare(b.provider, 'en'))[0]
+}
+
+/**
  * Selectable reasoning efforts for one model: each key is a level the model
  * offers (and selectors show), and its value is the wire spelling dispatch
  * sends for it. `off` alone may leave its value empty — "supported, send
@@ -612,7 +696,9 @@ export interface PiAiModelProfile {
   input?: PiAiModality[]
   /**
    * Selectable reasoning efforts. Absent inherits the installed catalog
-   * entry's capability (a hand-declared model has none and does not reason);
+   * entry's capability; a model this route's catalog does not describe borrows
+   * it from another catalog model of the same name (see
+   * {@link catalogReasoningFor}), and one matching none does not reason;
    * `false` declares a non-reasoning model, which is how a profile strips
    * reasoning from a catalog model its gateway cannot serve; a non-empty dict
    * declares the offered levels and their wire spellings.
@@ -698,21 +784,28 @@ interface ModelReasoning {
  * @param provider - provider route key, for diagnostics.
  * @param entry - the configured model entry.
  * @param base - the installed catalog entry of the same id, when one exists.
+ * @param borrowed - another catalog's model of the same name, consulted only without `base`.
  * @returns the reasoning fields the materialized model carries.
  */
 function resolveModelReasoning(
   provider: string,
   entry: PiAiModelProfile,
   base: Model<Api> | undefined,
+  borrowed?: Model<Api>,
 ): ModelReasoning {
   const efforts = entry.reasoningEfforts
   if (efforts === undefined) {
-    // Reasoning rides the installed entry or is absent: a bare capability flag
+    // Reasoning rides a catalog entry or is absent: a bare capability flag
     // would make pi-ai advertise effort levels with no `thinkingLevelMap` to
     // spell them, and no listing endpoint reports a model's reasoning
-    // protocol. The entry's map (when any) arrives through the `...base`
-    // spread in the model literal.
-    return { reasoning: base?.reasoning ?? false }
+    // protocol. The route's own entry's map arrives through the `...base`
+    // spread in the model literal; a borrowed one must be carried here.
+    if (base !== undefined) return { reasoning: base.reasoning }
+    if (borrowed === undefined) return { reasoning: false }
+    return {
+      reasoning: true,
+      ...borrowed.thinkingLevelMap === undefined ? {} : { thinkingLevelMap: borrowed.thinkingLevelMap },
+    }
   }
   // The installed entry's map may ride along through `...base`; pi-ai never
   // reads it on a non-reasoning model, so stripping it is not worth a field
@@ -919,6 +1012,11 @@ export function resolveRouteModels(
     if (!Number.isInteger(maxTokens) || maxTokens <= 0) {
       invalid(provider, `model "${entry.id}" maxTokens must be a positive integer`)
     }
+    // Only the capability is borrowed: compat, cost and capacities describe the
+    // source catalog's own endpoint, not this route's.
+    const borrowed = base === undefined && entry.reasoningEfforts === undefined
+      ? catalogReasoningFor(entry.id, api)?.model
+      : undefined
     // Only a value the profile named is a deployment choice; the catalog's is
     // the model's capability and stays out of request defaults.
     if (entry.maxTokens !== undefined) configuredMaxTokens.set(entry.id, entry.maxTokens)
@@ -938,7 +1036,7 @@ export function resolveRouteModels(
       cost: base?.cost ?? NO_COST,
       contextWindow,
       maxTokens,
-      ...resolveModelReasoning(provider, entry, base),
+      ...resolveModelReasoning(provider, entry, base, borrowed),
       ...resolveModelCompat(provider, entry, request.compat, base, api),
     }
   }

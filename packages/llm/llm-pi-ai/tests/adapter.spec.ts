@@ -638,6 +638,35 @@ describe('provider profile lifecycle', () => {
     expect(server.requests).toHaveLength(1)
   })
 
+  it('offers and sends the effort a custom gateway model borrows by name', async () => {
+    vi.stubEnv('PI_TEST_KEY', 'test-key')
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlmPiAi, {
+      providers: {
+        'grok-relay': {
+          apiKeyEnv: 'PI_TEST_KEY',
+          api: 'openai-completions',
+          baseURL: `${server.url}/v1`,
+          models: [{ id: 'grok-4.7' }],
+        },
+      },
+    })
+
+    // The picker sees the maker's levels, which the declared model never listed.
+    const info = await ctx.llm.resolveModelInfo('grok-relay', 'grok-4.7')
+    expect(info.reasoning?.efforts.map(effort => effort.id)).toEqual(['low', 'medium', 'high', 'xhigh'])
+
+    await assemble(ctx, {
+      provider: 'grok-relay',
+      model: 'grok-4.7',
+      reasoningEffort: ReasoningEffortId('high'),
+      messages: [],
+    })
+    expect(server.requests[0]).toMatchObject({ reasoning_effort: 'high' })
+  })
+
   it('dispatches the compat-switched dialect on a declared route', async () => {
     vi.stubEnv('PI_TEST_KEY', 'test-key')
     const server = await mockServer([{ events: textEvents }, { events: textEvents }])

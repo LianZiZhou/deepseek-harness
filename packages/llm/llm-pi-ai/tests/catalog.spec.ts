@@ -11,6 +11,7 @@ import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { AssistantMessageEventStream } from '@earendil-works/pi-ai/utils/event-stream'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
 import type { Api, Model, OpenAICompletionsCompat, Provider } from '@earendil-works/pi-ai'
+import { catalogReasoningFor, normalizedModelId } from '../src/catalog.ts'
 import { resolveProfiles } from '../src/config.ts'
 import { createModels, createProvider, getSupportedThinkingLevels } from '../src/models.ts'
 import { buildProvider, supportedProtocols } from '../src/provider.ts'
@@ -626,17 +627,17 @@ describe('catalog routes with per-model configuration', () => {
   })
 })
 
+/** The first materialized model of one route, or throw. */
+function modelOf(providers: Record<string, LlmPiAi.PiAiProviderProfile>, route = 'acme-gateway'): Model<Api> {
+  const [model] = resolveProfiles(providers).get(route)?.piProvider?.getModels() ?? []
+  if (model === undefined) throw new Error(`route "${route}" resolved no models`)
+  return model
+}
+
 describe('per-model reasoning efforts', () => {
   /** One hand-declared route holding exactly the given models. */
   function declared(models: LlmPiAi.PiAiModelProfile[]): Record<string, LlmPiAi.PiAiProviderProfile> {
     return { 'acme-gateway': { api: 'openai-completions', baseURL: 'https://acme.test', models } }
-  }
-
-  /** The first materialized model of one route, or throw. */
-  function modelOf(providers: Record<string, LlmPiAi.PiAiProviderProfile>, route = 'acme-gateway'): Model<Api> {
-    const [model] = resolveProfiles(providers).get(route)?.piProvider?.getModels() ?? []
-    if (model === undefined) throw new Error(`route "${route}" resolved no models`)
-    return model
   }
 
   it('declares selectable levels with their wire spellings on a hand-declared model', () => {
@@ -721,6 +722,77 @@ describe('per-model reasoning efforts', () => {
     expect(declare({ off: 'none' })).toThrow(/offers no level beyond "off"/)
     expect(declare({ high: null })).toThrow(/only "off" may leave it empty/)
     expect(declare({ high: '' })).toThrow(/must not be an empty string/)
+  })
+})
+
+describe('reasoning borrowed by model name', () => {
+  /** One hand-declared route holding exactly the given models. */
+  function declared(models: LlmPiAi.PiAiModelProfile[], api = 'openai-completions') {
+    return { 'acme-gateway': { api, baseURL: 'https://acme.test', models } }
+  }
+
+  /** The installed catalog model one route ships under one id, or throw. */
+  function shipped(provider: string, id: string): Model<Api> {
+    const model = (getBuiltinModels(provider as never) as Model<Api>[]).find(entry => entry.id === id)
+    if (model === undefined) throw new Error(`the installed catalog ships no ${provider}/${id}`)
+    return model
+  }
+
+  it('gives a custom gateway the maker\'s reasoning for a model it serves by name', () => {
+    const model = modelOf(declared([{ id: 'grok-4.7' }]))
+    expect(model.reasoning).toBe(true)
+    expect(model.thinkingLevelMap).toEqual(shipped('xai', 'grok-4.7').thinkingLevelMap)
+    // Only the capability is borrowed; the route keeps its own endpoint and protocol.
+    expect(model.provider).toBe('acme-gateway')
+    expect(model.api).toBe('openai-completions')
+    expect(model.baseUrl).toBe('https://acme.test')
+  })
+
+  it('prefers the model maker over resellers whose spellings differ', () => {
+    const maker = shipped('anthropic', 'claude-opus-5').thinkingLevelMap
+    expect(maker).not.toEqual(shipped('github-copilot', 'claude-opus-5').thinkingLevelMap)
+    expect(modelOf(declared([{ id: 'claude-opus-5' }])).thinkingLevelMap).toEqual(maker)
+  })
+
+  it('matches a dotted or vendor-prefixed spelling of the maker\'s id', () => {
+    const maker = shipped('anthropic', 'claude-opus-4-8').thinkingLevelMap
+    expect(modelOf(declared([{ id: 'claude-opus-4.8' }])).thinkingLevelMap).toEqual(maker)
+    expect(modelOf(declared([{ id: 'Anthropic/Claude-Opus-4.8' }])).thinkingLevelMap).toEqual(maker)
+    expect(normalizedModelId('anthropic/Claude-Opus-4.8')).toBe('claude-opus-4-8')
+  })
+
+  it('breaks a tie without a maker by the route\'s protocol, then by route id', () => {
+    const id = 'openai/gpt-oss-120b'
+    expect(catalogReasoningFor(id, 'anthropic-messages')?.provider).toBe('vercel-ai-gateway')
+    expect(catalogReasoningFor(id, 'openai-completions')?.provider).toBe('baseten')
+  })
+
+  it('borrows a reasoning model that spells no level map', () => {
+    expect(shipped('amazon-bedrock', 'amazon.nova-2-lite-v1:0').thinkingLevelMap).toBeUndefined()
+    const model = modelOf(declared([{ id: 'amazon.nova-2-lite-v1:0' }]))
+    expect(model.reasoning).toBe(true)
+    expect(model.thinkingLevelMap).toBeUndefined()
+  })
+
+  it('borrows nothing from a name match that does not reason, or from no match', () => {
+    expect(shipped('amazon-bedrock', 'amazon.nova-lite-v1:0').reasoning).toBe(false)
+    expect(modelOf(declared([{ id: 'amazon.nova-lite-v1:0' }])).reasoning).toBe(false)
+    expect(modelOf(declared([{ id: 'acme-house-model' }])).reasoning).toBe(false)
+  })
+
+  it('lets a declaration win: false opts out, a dict replaces the borrowed levels', () => {
+    expect(modelOf(declared([{ id: 'grok-4.7', reasoningEfforts: false }])).reasoning).toBe(false)
+    const declaredLevels = modelOf(declared([{ id: 'grok-4.7', reasoningEfforts: { high: 'deep' } }]))
+    expect(getSupportedThinkingLevels(declaredLevels)).toEqual(['high'])
+    expect(declaredLevels.thinkingLevelMap?.high).toBe('deep')
+  })
+
+  it('borrows on a built-in route proxying another maker\'s model', () => {
+    const model = modelOf({
+      openai: { api: 'openai-completions', baseURL: 'http://127.0.0.1:8787/v1', models: [{ id: 'claude-opus-5' }] },
+    }, 'openai')
+    expect(model.reasoning).toBe(true)
+    expect(model.thinkingLevelMap).toEqual(shipped('anthropic', 'claude-opus-5').thinkingLevelMap)
   })
 })
 
