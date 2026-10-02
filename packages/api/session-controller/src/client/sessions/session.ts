@@ -361,6 +361,20 @@ export class Session implements SessionFace {
   }
 
   /**
+   * Resume the last turn's unfinished work without a new message; failures
+   * land in promptError like send and stop.
+   * @returns the resume result.
+   */
+  async resume(): Promise<RemoteResult<{ accepted: true }>> {
+    const result = await this.remote.session.resume({ sessionId: this.sessionId })
+    if (!result.ok) {
+      this.promptError = { op: 'resume', error: result.error }
+      this.notifier.markDirty()
+    }
+    return result
+  }
+
+  /**
    * Rename: contract session.rename 1:1. On success settle the 'title'
    * projection cell from the response's `{title, seq}` under the store's
    * higher-seq-wins rule (the push frame arriving later is a no-op replay),

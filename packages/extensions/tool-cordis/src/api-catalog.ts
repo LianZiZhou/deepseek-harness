@@ -2070,6 +2070,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'acknowledgement that cancellation was requested.',
       },
       {
+        signature: '@Remote(\'resume\') resume(request: SessionResumeRequest): Promise<SessionResumeValue>',
+        description: 'Resume the work the last turn left unfinished — after an error, a stop, a crash, the output cap, or a mid-turn fork — without a new message: the model is asked again from the logged history as it stands.',
+        parameters: [{ name: 'request', description: 'Session whose unfinished turn resumes.' }],
+        returns: 'acknowledgement that the resumed turn was admitted.',
+      },
+      {
         signature: '@Remote(\'page\') page(request: SessionPageRequest, signal: AbortSignal): Promise<SessionPage>',
         description: 'Read one cold-safe, message-aligned Session history page.',
         parameters: [{ name: 'request', description: 'durable address, backward cursor, and page budget.' }, { name: 'signal', description: 'cancellation for persistence reads.' }],
@@ -5720,10 +5726,6 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface LocalAtInput {\n    readonly date: string;\n    readonly time: string;\n    readonly time_zone: string;\n}',
   },
   {
-    name: 'LocalizedText',
-    declaration: 'export type LocalizedText = string | {\n    readonly en: string;\n    readonly [locale: string]: string;\n};',
-  },
-  {
     name: 'LspHover',
     declaration: 'export interface LspHover {\n    readonly contents: string;\n    readonly range?: LspRange;\n}',
   },
@@ -6950,6 +6952,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionResultRange',
     declaration: 'export interface SessionResultRange {\n    from?: number;\n    to?: number;\n}',
+  },
+  {
+    name: 'SessionResumeRequest',
+    declaration: 'export interface SessionResumeRequest {\n    readonly sessionId: SessionId;\n}',
+  },
+  {
+    name: 'SessionResumeValue',
+    declaration: 'export interface SessionResumeValue {\n    readonly accepted: true;\n}',
   },
   {
     name: 'SessionSearchCursor',

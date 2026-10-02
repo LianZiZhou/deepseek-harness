@@ -35,6 +35,8 @@ import type {
   SessionAttachmentValue,
   SessionCancelRequest,
   SessionCancelValue,
+  SessionResumeRequest,
+  SessionResumeValue,
   SessionControlFrame,
   SessionCreateRequest,
   SessionCreateValue,
@@ -456,6 +458,18 @@ export class SessionController extends TypertRemoteService {
   @Remote('cancel')
   cancel(request: SessionCancelRequest): SessionCancelValue {
     return this.commands.cancel(request)
+  }
+
+  /**
+   * Resume the work the last turn left unfinished — after an error, a stop,
+   * a crash, the output cap, or a mid-turn fork — without a new message: the
+   * model is asked again from the logged history as it stands.
+   * @param request - Session whose unfinished turn resumes.
+   * @returns acknowledgement that the resumed turn was admitted.
+   */
+  @Remote('resume')
+  resume(request: SessionResumeRequest): Promise<SessionResumeValue> {
+    return this.commands.resume(request)
   }
 
   /**

@@ -470,6 +470,23 @@ describe('paging', () => {
   })
 })
 
+describe('resume', () => {
+  it('resumes through session/resume and surfaces a refusal in promptError', async ({ mock, start }) => {
+    const session = await sessionBench(mock, start, SID)
+    await session.open()
+    mock.remote.session.resume.mockResolvedValue(ok({ accepted: true }))
+    expect(await session.resume()).toEqual({ ok: true, value: { accepted: true } })
+    expect(mock.log.requests('session/resume')).toEqual([{ sessionId: SID }])
+    expect(session.getSnapshot().promptError).toBeNull()
+
+    mock.remote.session.resume.mockResolvedValue(err(new RemoteError(
+      'session/resume-unavailable', 'nothing unfinished', { sessionId: SID, reason: 'nothing unfinished' },
+    )))
+    expect(await session.resume()).toMatchObject({ ok: false, error: { code: 'session/resume-unavailable' } })
+    expect(session.getSnapshot().promptError).toMatchObject({ op: 'resume', error: { code: 'session/resume-unavailable' } })
+  })
+})
+
 describe('prompt and cancel errors', () => {
   const CHILD = { parentSessionId: PARENT, childSessionId: SID, mode: 'continuable' } as const
 

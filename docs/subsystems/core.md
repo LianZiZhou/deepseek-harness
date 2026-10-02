@@ -101,6 +101,18 @@ interface Agent {
   runMaintenance<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T>
 
   /**
+   * Resume work an earlier turn left unfinished without new input: open one
+   * turn whose first step may admit no message, so the model is asked again
+   * from the logged history as it stands — after the last tool results, or
+   * from a reply cut short. The pre-step waterfall still runs, so listeners
+   * may reject or extend that step; pending input is claimed as usual. Which
+   * earlier endings are worth resuming is the caller's decision. Optional:
+   * an Agent implementation without a turn driver of its own omits it.
+   * @throws synchronously when turn-driving or maintenance already owns the agent.
+   */
+  resume?(): void
+
+  /**
    * Route identified input to an inbox boundary and optionally wake the driver.
    * Waking input submitted after active cancellation is queued for the next
    * turn and runs when the aborted activity converges to idle; a `disposed`

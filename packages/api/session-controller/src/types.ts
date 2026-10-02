@@ -224,6 +224,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'session/steer-unavailable': { readonly itemId: MessageId }
     'session/title-invalid': { readonly sessionId: SessionId }
     'session/fork-unavailable': { readonly sessionId: SessionId }
+    'session/resume-unavailable': { readonly sessionId: SessionId; readonly reason: string }
     'subagent/not-found': {
       readonly parentSessionId: SessionId
       readonly childSessionId: SessionId
@@ -376,6 +377,16 @@ export interface SessionCancelRequest {
 
 /** Receipt after cancellation is admitted to the live Agent. */
 export interface SessionCancelValue {
+  readonly accepted: true
+}
+
+/** Request to resume the work a Session's last turn left unfinished. */
+export interface SessionResumeRequest {
+  readonly sessionId: SessionId
+}
+
+/** Receipt after the resumed turn is admitted to the Agent. */
+export interface SessionResumeValue {
   readonly accepted: true
 }
 

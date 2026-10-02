@@ -918,6 +918,15 @@ workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 
 @Remote('cancel') cancel(request: SessionCancelRequest): SessionCancelValue
 
 /**
+ * Resume the work the last turn left unfinished — after an error, a stop,
+ * a crash, the output cap, or a mid-turn fork — without a new message: the
+ * model is asked again from the logged history as it stands.
+ * @param request - Session whose unfinished turn resumes.
+ * @returns acknowledgement that the resumed turn was admitted.
+ */
+@Remote('resume') resume(request: SessionResumeRequest): Promise<SessionResumeValue>
+
+/**
  * Read one cold-safe, message-aligned Session history page.
  * @param request - durable address, backward cursor, and page budget.
  * @param signal - cancellation for persistence reads.

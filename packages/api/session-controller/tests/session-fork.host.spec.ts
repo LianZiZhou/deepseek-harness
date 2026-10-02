@@ -342,7 +342,7 @@ describe('sessions.fork', () => {
     try {
       const source = await liveAgent(ctx, 'session-queued', 0, 'open')
       const inherited = source.snapshotEvents()
-      const queued = createUserMessage([{ type: 'text', text: 'later' }])
+      const queued = createUserMessage({ content: [{ type: 'text', text: 'later' }], source: { kind: 'user' } })
       source.append('agent/inbox/spliced', { target: 'next-turn', start: 0, inserted: [queued] })
       const queuedOnly = await remote(ctx).fork({ sessionId: source.id })
       if (!queuedOnly.ok) throw queuedOnly.error

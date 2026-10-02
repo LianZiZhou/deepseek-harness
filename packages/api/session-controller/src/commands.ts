@@ -4,6 +4,7 @@ import { modelAvailable } from './catalog.ts'
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { brandString } from '@deepseek-ai/dsh-brand'
+import { resumeDecision } from '@deepseek-ai/dsh-agent'
 import type { Agent, ModelSelection as AgentModelSelection } from '@deepseek-ai/dsh-agent'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
 import type {
@@ -39,6 +40,8 @@ import type {
   SessionAttachmentValue,
   SessionCancelRequest,
   SessionCancelValue,
+  SessionResumeRequest,
+  SessionResumeValue,
   SessionCreateRequest,
   SessionCreateValue,
   SessionForkRequest,
@@ -542,6 +545,32 @@ export class SessionCommandController {
       throw apiSessionSubagentOwnershipError(request.sessionId)
     }
     agent.cancel({ kind: 'user' }, { keepInbox: true })
+    return { accepted: true }
+  }
+
+  /**
+   * Resume the work one Session's last turn left unfinished, without a new
+   * message. Only a turn that ended short of a reply is resumable: an error,
+   * a stop, a crash, the output cap, or a fork cut inside it. A cold Session
+   * is resumed first, and its crash repair is what closes a turn the process
+   * died inside as `interrupted`.
+   * @param request - Session whose unfinished turn resumes.
+   * @returns acknowledgement that the resumed turn was admitted.
+   */
+  async resume(request: SessionResumeRequest): Promise<SessionResumeValue> {
+    // Resolution refuses a Session its subagent parent owns, as prompt does.
+    const agent = await this.resolveAgent(request.sessionId)
+    const decision = resumeDecision(agent)
+    if (decision.kind === 'unavailable') {
+      throw new RemoteError('session/resume-unavailable', decision.reason, {
+        sessionId: request.sessionId, reason: decision.reason,
+      })
+    }
+    try {
+      decision.resume()
+    } catch (error) {
+      throw new RemoteError('session/agent-busy', 'resume rejected', { reason: String(error) })
+    }
     return { accepted: true }
   }
 

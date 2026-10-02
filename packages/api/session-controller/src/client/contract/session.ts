@@ -112,6 +112,12 @@ export interface ISession {
    */
   cancel(): Promise<RemoteResult<{ accepted: true }>>
   /**
+   * Resume the work the last turn left unfinished (error, stop, crash,
+   * output cap, mid-turn fork) without sending a new message.
+   * @returns acceptance, or the business error.
+   */
+  resume(): Promise<RemoteResult<{ accepted: true }>>
+  /**
    * Rename this session (explicit user title; pins it against automatic
    * regeneration).
    * @param title - raw title text (the host normalizes acceptance).

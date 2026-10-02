@@ -119,6 +119,9 @@ export class ReactLoopAgent implements Agent {
   /** Identities fully frozen by this loop; weak references do not retain replaced history. */
   private readonly frozenMessages = new WeakSet<Message>()
 
+  /** One-shot from {@link resume}: the next turn's first step may admit no new message. */
+  private resumeRequested = false
+
   constructor(
     private loopCtx: Context,
     public readonly id: SessionId,
@@ -178,6 +181,12 @@ export class ReactLoopAgent implements Agent {
       if (this.phase.kind !== 'idle') this.phase.wakeRequested = false
     }
     if (this.phase.kind !== 'idle') this.phase.abort.abort(cause)
+  }
+
+  resume(): void {
+    if (this.phase.kind !== 'idle') throw new Error(`agent "${this.id}" already has active work`)
+    this.resumeRequested = true
+    this.wakeDriver()
   }
 
   runMaintenance<T>(job: (signal: AbortSignal) => Promise<T>): Promise<T> {
@@ -299,6 +308,8 @@ export class ReactLoopAgent implements Agent {
     }
     const phase = this.phase
     const { signal } = phase.abort
+    const resuming = this.resumeRequested
+    this.resumeRequested = false
     signal.throwIfAborted()
     const turn = phase.turn + 1
     try {
@@ -320,8 +331,10 @@ export class ReactLoopAgent implements Agent {
         }
         if (turnEnds && decision.messages.length === 0) break
         // A removed waking message or an enter decision rewritten to empty
-        // still owns the initial turn boundary, but it spends no model call.
-        if (phase.step === 0 && decision.messages.length === 0) {
+        // still owns the initial turn boundary, but it spends no model call —
+        // unless the turn resumes unfinished work, whose request is the
+        // logged history itself.
+        if (phase.step === 0 && decision.messages.length === 0 && !resuming) {
           turnEnds = { kind: 'completed' }
           return false
         }

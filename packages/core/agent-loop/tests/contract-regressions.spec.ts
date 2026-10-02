@@ -61,6 +61,12 @@ function send(agent: Agent, text: string) {
   agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
 }
 
+/** Resume one loop Agent, which always implements the optional method. */
+function resume(agent: Agent): void {
+  if (agent.resume === undefined) throw new Error('loop agents implement resume')
+  agent.resume()
+}
+
 function inboxText(message: UserMessage): string {
   return message.content
     .flatMap(block => block.type === 'text' ? [block.text] : [])
@@ -212,6 +218,76 @@ describe('abort during tool execution ends the turn', () => {
     expect(agent.session.snapshotEvents().find(event => event.type === 'turn/end')?.data)
       .toEqual({ turn: 1, reason: { kind: 'completed' } })
     expect(agent.inbox.nextTurn).toHaveLength(0)
+  })
+
+  it('resumes an errored turn from the logged history without new input', async () => {
+    const adapter = new MockAdapter([() => { throw new Error('provider down') }, textResponse('recovered')])
+    const ctx = await harness(adapter)
+    const agent = await ctx.agentLoop.create(SessionId('a-resume-error'), { provider: 'mock', model: 'mock' })
+    send(agent, 'go')
+    await waitForIdle(ctx, agent)
+    expect(agent.session.snapshotEvents().findLast(event => event.type === 'turn/end')?.data.reason.kind).toBe('error')
+
+    resume(agent)
+    await waitForIdle(ctx, agent)
+    const events = agent.session.snapshotEvents()
+    const second = events.slice(events.findLastIndex(event => event.type === 'turn/start'))
+    // The resumed turn steps without logging any new user message…
+    expect(second.map(event => event.type)).toContain('step/start')
+    expect(second.some(event => event.type === 'user/message')).toBe(false)
+    expect(second.at(-1)).toMatchObject({ type: 'turn/end', data: { turn: 2, reason: { kind: 'completed' } } })
+    // …and asks again from the history as it stands, ending at the original prompt.
+    expect(adapter.requests).toHaveLength(2)
+    expect(adapter.requests[1]?.messages.at(-1)).toMatchObject({ role: 'user', content: [{ type: 'text', text: 'go' }] })
+  })
+
+  it('resumes a reply cut short by a stop, keeping its prefix in the request', async () => {
+    const adapter = new MockAdapter(['hang', textResponse(' and the rest')])
+    const ctx = await harness(adapter)
+    const agent = await ctx.agentLoop.create(SessionId('a-resume-stop'), { provider: 'mock', model: 'mock' })
+    const streaming = new Promise<void>((resolve) => {
+      const dispose = ctx.on('session/event', (session, event) => {
+        if (session === agent.session && event.type === 'step/start') { dispose(); setTimeout(resolve, 10) }
+      })
+    })
+    send(agent, 'go')
+    await streaming
+    agent.cancel({ kind: 'user' }, { keepInbox: true })
+    await waitForIdle(ctx, agent)
+
+    resume(agent)
+    await waitForIdle(ctx, agent)
+    expect(adapter.requests[1]?.messages.at(-1)).toMatchObject({ role: 'assistant' })
+    expect(agent.session.snapshotEvents().findLast(event => event.type === 'turn/end')?.data.reason.kind)
+      .toBe('completed')
+  })
+
+  it('refuses to resume over active work', async () => {
+    const adapter = new MockAdapter(['hang'])
+    const ctx = await harness(adapter)
+    const agent = await ctx.agentLoop.create(SessionId('a-resume-busy'), { provider: 'mock', model: 'mock' })
+    send(agent, 'go')
+    expect(() => { resume(agent) }).toThrow(/already has active work/)
+    agent.cancel({ kind: 'user' })
+    await waitForIdle(ctx, agent)
+  })
+
+  it('spends the resume on a single turn', async () => {
+    const adapter = new MockAdapter([() => { throw new Error('provider down') }, textResponse('recovered')])
+    const ctx = await harness(adapter)
+    const agent = await ctx.agentLoop.create(SessionId('a-resume-once'), { provider: 'mock', model: 'mock' })
+    send(agent, 'go')
+    await waitForIdle(ctx, agent)
+    resume(agent)
+    await waitForIdle(ctx, agent)
+    // A later ordinary wake left with nothing to say still spends no model call.
+    ctx.on('agent/pre-step', ({ agent: subject }, next) => {
+      if (subject !== agent) return next()
+      return Promise.resolve({ kind: 'enter', messages: [] })
+    })
+    send(agent, 'again')
+    await waitForIdle(ctx, agent)
+    expect(adapter.requests).toHaveLength(2)
   })
 
   it('parks result context finalized after disposal cancellation without opening another turn', async () => {

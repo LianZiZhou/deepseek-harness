@@ -59,9 +59,9 @@ export interface PendingSubmission {
 /** History-open lifecycle of a Session event window. */
 export type OpenState = 'cold' | 'loading' | 'open' | 'error'
 
-/** Send/stop failure surfaced by Session consumers. */
+/** Send/stop/resume failure surfaced by Session consumers. */
 export interface PromptError {
-  readonly op: 'send' | 'stop'
+  readonly op: 'send' | 'stop' | 'resume'
   readonly error: RemoteFailure
 }
 
