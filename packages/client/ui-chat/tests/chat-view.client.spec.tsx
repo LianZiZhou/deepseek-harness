@@ -130,6 +130,7 @@ function makeSessionSource(init: Partial<TestSessionSnapshot> = {}) {
 
 type ChatSlice = Partial<LegacyConversationSlice> & {
   readonly turnUsages?: NonNullable<Parameters<typeof chatSnapshotFixture>[0]>['turnUsages']
+  readonly resumableTurns?: NonNullable<Parameters<typeof chatSnapshotFixture>[0]>['resumableTurns']
 }
 type HarnessUpdate = ChatSlice & Partial<TestSessionSnapshot> & { readonly chat?: ChatSnapshot }
 
@@ -258,7 +259,7 @@ function makeHarness(
   chatSnapshot?: ChatSnapshot,
 ) {
   const {
-    chat: initialChat, nodes, partial, runningCalls, turnTimings, turnEnds, turnUsages,
+    chat: initialChat, nodes, partial, runningCalls, turnTimings, turnEnds, turnUsages, resumableTurns,
     ...sessionInit
   } = init
   const chatSlice: ChatSlice = {
@@ -268,6 +269,7 @@ function makeHarness(
     ...(turnTimings === undefined ? {} : { turnTimings }),
     ...(turnEnds === undefined ? {} : { turnEnds }),
     ...(turnUsages === undefined ? {} : { turnUsages }),
+    ...(resumableTurns === undefined ? {} : { resumableTurns }),
   }
   const session = makeSessionSource({ ...sessionInit, ...sessionOverrides })
   const useTestSession = bindSnapshotSelector(session.source)
@@ -304,6 +306,7 @@ function makeHarness(
     read: () => savedScroll,
   }
   const forkAt = vi.fn()
+  const resume = vi.fn()
   // Rows and the harness must observe the same chat-store instance.
   const chat = createChatStore().create()
   const transcriptView = createSnapshotStore<TranscriptViewMode>('compact')
@@ -453,6 +456,7 @@ function makeHarness(
     loadImage: vi.fn(() => Promise.reject(new Error('not used'))),
     chatScroll,
     forkAt,
+    resume,
     // Absent-service default; mention tests override with a real resolver.
     fileMentions: () => undefined,
     t,
@@ -479,7 +483,7 @@ function makeHarness(
     set, setSession: session.set, setChat: chatSource.set, ChatView, props,
     openFile, openSkill, loadOlder, loadThrough, openView,
     setOutline: (value: unknown) => { outlineValue = value },
-    chatScroll, forkAt, toolOwners,
+    chatScroll, forkAt, resume, toolOwners,
     setPerformanceUsage: (mode: 'compact' | 'detailed') => { performanceUsage.set(mode) },
     setGrouped: (value: ConversationGroupedView<ProcessGroupData> | undefined) => {
       grouped = value
@@ -3100,6 +3104,38 @@ describe('ChatView', () => {
     expect(buttons[0]!.getAttribute('aria-disabled')).toBeNull()
     fireEvent.click(buttons[0]!)
     expect(h.forkAt.mock.calls).toEqual([[3]])
+  })
+
+  it('offers Continue on the latest Turn that ended short of a reply, and only there', () => {
+    const h = makeHarness({
+      nodes: [user(1, 'first'), assistant(2, 'answer'), user(4, 'second'), assistant(5, 'cut sh')],
+      turnEnds: new Map([[1, 3], [2, 6]]),
+      resumableTurns: new Set([1, 2]),
+    })
+    const view = render(<h.ChatView {...h.props} />)
+    const buttons = view.getAllByRole('button', { name: '继续生成' })
+    // Turn 1 is resumable too, but only the latest Turn may resume.
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0]!.getAttribute('title')).toBe('从中断处继续，不发送新消息')
+    fireEvent.click(buttons[0]!)
+    expect(h.resume).toHaveBeenCalledOnce()
+  })
+
+  it('offers Continue on an errored Turn that produced no reply', () => {
+    const h = makeHarness({
+      nodes: [user(1, 'question')],
+      turnEnds: new Map([[1, 2]]),
+      resumableTurns: new Set([1]),
+    })
+    const view = render(<h.ChatView {...h.props} />)
+    fireEvent.click(view.getByRole('button', { name: '继续生成' }))
+    expect(h.resume).toHaveBeenCalledOnce()
+  })
+
+  it('does not offer Continue on a Turn that completed', () => {
+    const h = makeHarness({ nodes: [user(1, 'question'), assistant(2, 'answer')], turnEnds: new Map([[1, 3]]) })
+    const view = render(<h.ChatView {...h.props} />)
+    expect(view.queryByRole('button', { name: '继续生成' })).toBeNull()
   })
 
   it('branches at the Turn end even when a later steering Node follows the reply', () => {

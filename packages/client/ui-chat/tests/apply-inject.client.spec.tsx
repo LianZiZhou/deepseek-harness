@@ -48,6 +48,7 @@ function sessionFakeFor() {
     })),
     prompt: vi.fn<ISession['prompt']>(() => Promise.resolve({ ok: true, value: { accepted: true } })),
     cancel: vi.fn<ISession['cancel']>(() => Promise.resolve({ ok: true, value: { accepted: true } })),
+    resume: vi.fn<ISession['resume']>(() => Promise.resolve({ ok: true, value: { accepted: true } })),
   } satisfies SessionBehaviorOverrides
 }
 
@@ -167,6 +168,9 @@ describe('Chat inject API', () => {
     const { injected } = b.chatViewApi(b.rootReference)
     injected.loadOlder()
     expect(b.session.loadOlder).toHaveBeenCalledOnce()
+
+    injected.resume()
+    expect(b.session.resume).toHaveBeenCalledOnce()
 
     void injected.loadThrough(SessionSeq(42))
     expect(b.session.loadThrough).toHaveBeenCalledWith(42)

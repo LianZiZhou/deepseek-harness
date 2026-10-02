@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { Button, IconPlayOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ChatNodeViewProps, PerformanceUsageInjected, TurnTailOwnerProps } from '../contract/slots.ts'
 import { MessageIconActions } from './MessageIconActions.tsx'
@@ -25,10 +26,12 @@ function lastContent(snapshot: ChatSnapshot, turn: number): ChatNode | undefined
 
 /** Turn-local actions and feature tail over the Location index, independent of Assistant placement. */
 export const TurnTailNodeView = memo(function TurnTailNodeView({
-  node, openFile, forkAt, renderSlot, t, useChat, usePerformanceUsage,
+  node, openFile, forkAt, resume, renderSlot, t, useChat, usePerformanceUsage,
 }: TurnTailNodeViewProps) {
   const detailed = usePerformanceUsage(mode => mode) === 'detailed'
   const data = node.data
+  // Only the latest Turn resumes; a resumed Turn opens after it, which retires the action.
+  const isLatest = useChat(snapshot => snapshot.timeline.turnOrder.at(-1) === data.turn)
   const endsWithResponse = useChat((snapshot) => {
     if (snapshot.timeline.turnOrder.at(-1) !== data.turn) return false
     const last = lastContent(snapshot, data.turn)
@@ -43,7 +46,25 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
   const closing = data.closing
   const owner: TurnTailOwnerProps = { turn, seq: closing?.finalNode.seq ?? data.seq, openFile }
   const tail = renderSlot('conversation.chat.turnTail', owner)
-  if (closing === null) return tail === null ? null : <div className={css.root} data-turn-tail={data.turn}>{tail}</div>
+  const resumeAction = data.resumable && isLatest
+    ? (
+      <Button
+        className={css.resume}
+        size="sm"
+        variant="outline"
+        icon={<IconPlayOutlineRegular size={14} />}
+        title={t('turn.resumeHint')}
+        onClick={resume}
+      >
+        {t('turn.resume')}
+      </Button>
+    )
+    : null
+  if (closing === null) {
+    return tail === null && resumeAction === null
+      ? null
+      : <div className={css.root} data-turn-tail={data.turn}>{tail}{resumeAction}</div>
+  }
   // Interruption-frozen partials carry no messageId, so they address no
   // durable message and contribute no per-message actions.
   const messageId = closing.finalNode.messageId
@@ -72,6 +93,7 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
           : null}
         t={t}
       />
+      {resumeAction}
     </div>
   )
 })

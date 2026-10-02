@@ -55,6 +55,9 @@ function turnLocation(context: ConversationNodeContext<TurnTailState>): TurnLoca
   return location?.kind === 'turn' || location?.kind === 'step' ? location.turn : undefined
 }
 
+/** Turn endings the Host resumes without a new message; mirrors `session.resume`. */
+const RESUMABLE_ENDINGS: ReadonlySet<string> = new Set(['error', 'aborted', 'interrupted', 'max-tokens', 'forked'])
+
 function hasText(data: AssistantChatData): data is FinalAssistantChatData {
   return data.finalNode !== undefined
     && data.blocks.some(block => block.kind === 'text' && block.text.trim() !== '')
@@ -85,6 +88,7 @@ function tailData(context: ConversationNodeContext<TurnTailState>): TurnTailChat
     // Any closed Turn branches: the action sends this Turn's own turn/end seq,
     // and the Host cuts exactly there whatever came later in the Session.
     branchUnavailable: closing === null,
+    resumable: RESUMABLE_ENDINGS.has(end.event.data.reason.kind),
     ...tokenUsage === undefined ? {} : { tokenUsage },
   }
 }

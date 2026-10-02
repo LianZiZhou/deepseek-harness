@@ -282,6 +282,8 @@ export function chatSnapshotFixture(input: {
   readonly turnEnds?: LegacyConversationSlice['turnEnds']
   /** Per-turn usage buckets; production derives these from session events. */
   readonly turnUsages?: ReadonlyMap<number, TurnTokenUsage> | undefined
+  /** Turns whose ending the tail reports as resumable. */
+  readonly resumableTurns?: ReadonlySet<number> | undefined
 } = {}, previous?: ChatSnapshot): ChatSnapshot {
   const legacy: LegacyConversationSlice = {
     nodes: input.nodes ?? EMPTY,
@@ -470,6 +472,7 @@ export function chatSnapshotFixture(input: {
       time: turn.end?.time ?? 0,
       closing,
       branchUnavailable: closing === null,
+      resumable: input.resumableTurns?.has(turnNumber) ?? false,
       ...tokenUsage === undefined ? {} : { tokenUsage },
     }
     dataStore.set('turn-tail', tailData)

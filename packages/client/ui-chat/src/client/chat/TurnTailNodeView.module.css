@@ -4,6 +4,10 @@
   gap: 16px;
 }
 
+.resume {
+  align-self: flex-start;
+}
+
 .actions {
   /* With tail content, this adds to the root gap; without it, the Chat flow's
      preceding-item offset supplies the other 16px. */

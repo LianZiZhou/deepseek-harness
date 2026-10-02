@@ -307,6 +307,11 @@
     - id: commands
       name: '@deepseek-ai/dsh-commands'
 
+    # Human `/continue`: resume an interrupted turn without a new message. Global,
+    # so every agent of every front door that dispatches commands gets it.
+    - id: command-continue
+      name: '@deepseek-ai/dsh-command-continue'
+
     - id: command-feedback
       name: '@deepseek-ai/dsh-command-feedback'
 

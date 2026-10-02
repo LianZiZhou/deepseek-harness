@@ -22,6 +22,7 @@ function renderView(data: QuestionReplyData) {
     renderMessageImages: () => null,
     inspectCall: vi.fn(),
     forkAt: vi.fn(),
+    resume: vi.fn(),
     loadImage: vi.fn(() => Promise.reject(new Error('not used'))),
     fileMentions: vi.fn(),
     useDisclosure,

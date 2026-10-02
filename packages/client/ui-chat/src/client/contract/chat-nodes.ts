@@ -91,6 +91,8 @@ export interface TurnTailChatData {
   readonly closing: FinalAssistantChatData | null
   /** Whether the Turn has no closing reply to branch from. */
   readonly branchUnavailable: boolean
+  /** Whether the Turn ended short of a reply (error, stop, crash, output cap, fork), so it can be resumed. */
+  readonly resumable: boolean
   /** Exact per-Turn accounting; absent when the loaded evidence is incomplete. */
   readonly tokenUsage?: TurnTokenUsage
 }
