@@ -406,8 +406,8 @@ export class SessionController extends TypertRemoteService {
 
   /**
    * Fork one cold-readable exact event prefix into a new Session. An omitted
-   * boundary selects the latest completed-turn prefix; an open cut receives
-   * synthetic fork closers.
+   * boundary selects the latest completed-turn prefix, or the live tail of a
+   * Turn opened after it; an open cut receives synthetic fork closers.
    * @param request - source Session and optional exact inclusive event boundary.
    * @returns the new Session identity.
    */

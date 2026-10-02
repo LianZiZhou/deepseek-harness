@@ -3102,7 +3102,7 @@ describe('ChatView', () => {
     expect(h.forkAt.mock.calls).toEqual([[3]])
   })
 
-  it('disables fork when the indexed Turn has a later steering Node', () => {
+  it('branches at the Turn end even when a later steering Node follows the reply', () => {
     const base = chatSnapshotFixture({
       nodes: [user(1, 'question'), assistant(2, 'answer')],
       turnEnds: new Map([[1, 4]]),
@@ -3120,12 +3120,12 @@ describe('ChatView', () => {
     expect(view.getByText('change direction')).toBeTruthy()
     expect(chat.locations.getTurn(1)).toContain(later.key)
     const branch = view.getByRole('button', { name: '在新对话中分支' })
-    expect(branch.getAttribute('aria-disabled')).toBe('true')
+    expect(branch.getAttribute('aria-disabled')).toBeNull()
     fireEvent.click(branch)
-    expect(h.forkAt).not.toHaveBeenCalled()
+    expect(h.forkAt).toHaveBeenCalledExactlyOnceWith(4)
   })
 
-  it('keeps final content actions but disables branch when Tool and interrupted Think follow it', () => {
+  it('keeps final content actions and branches at the Turn end when Tool and interrupted Think follow it', () => {
     const interruptedThink: AssistantMessageNode = {
       kind: 'assistant', seq: 4.1, time: 4_100, turn: 1, step: 2,
       blocks: [{ kind: 'reasoning', text: 'bad path' }], interrupted: true,
@@ -3138,9 +3138,9 @@ describe('ChatView', () => {
     expect(view.getAllByRole('button', { name: '复制' })).toHaveLength(2)
     const buttons = view.getAllByRole('button', { name: '在新对话中分支' })
     expect(buttons).toHaveLength(1)
-    expect(buttons[0]!.getAttribute('aria-disabled')).toBe('true')
+    expect(buttons[0]!.getAttribute('aria-disabled')).toBeNull()
     fireEvent.click(buttons[0]!)
-    expect(h.forkAt).not.toHaveBeenCalled()
+    expect(h.forkAt).toHaveBeenCalledExactlyOnceWith(5)
   })
 
   it('renders assistant Markdown across history, streaming, final, and interrupted states while user text stays literal', () => {

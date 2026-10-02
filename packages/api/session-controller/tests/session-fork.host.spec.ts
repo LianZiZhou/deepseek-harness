@@ -292,19 +292,19 @@ describe('sessions.fork', () => {
     await ctx.fiber.dispose()
   })
 
-  it('uses the latest completed prefix only when atSeq is omitted', async () => {
+  it('forks a Turn opened after the last completed one as it stands when atSeq is omitted', async () => {
     const ctx = await composed()
     const source = await liveAgent(ctx, 'session-tail', 2, 'open')
     const proxy = remote(ctx)
     const omitted = await proxy.fork(request({ sessionId: source.id }))
     expect(omitted.ok).toBe(true)
     if (omitted.ok) {
-      expect(ctx.sessions.get(omitted.value.sessionId)?.snapshotEvents().map(event => event.type))
-        .toEqual([
-          'turn/start', 'user/message', 'turn/end',
-          'turn/start', 'user/message', 'turn/end',
-          'session/end-seed',
-        ])
+      const child = ctx.sessions.get(omitted.value.sessionId)!
+      expect(child.inheritedEventCount).toBe(source.snapshotEvents().length)
+      // The running Turn is copied and then closed in the child as forked.
+      expect(child.snapshotEvents().slice(child.inheritedEventCount).map(event => event.type))
+        .toEqual(['session/end-seed', 'turn/end'])
+      expect(child.snapshotEvents().at(-1)).toMatchObject({ type: 'turn/end', data: { reason: { kind: 'forked' } } })
     }
     const pastEnd = await proxy.fork(request({ sessionId: source.id, atSeq: 999 }))
     expect(pastEnd).toMatchObject({
@@ -315,16 +315,46 @@ describe('sessions.fork', () => {
     await ctx.fiber.dispose()
   })
 
-  it('rejects an omitted boundary when no turn has completed', async () => {
+  it('forks a first Turn that never finished when atSeq is omitted', async () => {
     const ctx = await composed()
     const source = await liveAgent(ctx, 'session-never-completed', 0, 'open')
+    const response = await remote(ctx).fork(request({ sessionId: source.id }))
+    if (!response.ok) throw response.error
+    const child = ctx.sessions.get(response.value.sessionId)!
+    expect(child.snapshotEvents().at(-1)).toMatchObject({ type: 'turn/end', data: { reason: { kind: 'forked' } } })
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects an omitted boundary when the Session has no Turn at all', async () => {
+    const ctx = await composed()
+    const source = await liveAgent(ctx, 'session-blank', 0)
     const response = await remote(ctx).fork(request({ sessionId: source.id }))
     expect(response).toMatchObject({
       ok: false,
       error: { code: 'session/fork-unavailable', details: { sessionId: source.id } },
     })
-    if (!response.ok) expect(response.error.message).toMatch(/no completed turn/)
+    if (!response.ok) expect(response.error.message).toMatch(/no turn to fork from/)
     await ctx.fiber.dispose()
+  })
+
+  it('leaves input queued at the tail of an open Turn behind, but keeps a trailing removal', async () => {
+    const ctx = await composed()
+    try {
+      const source = await liveAgent(ctx, 'session-queued', 0, 'open')
+      const inherited = source.snapshotEvents()
+      const queued = createUserMessage([{ type: 'text', text: 'later' }])
+      source.append('agent/inbox/spliced', { target: 'next-turn', start: 0, inserted: [queued] })
+      const queuedOnly = await remote(ctx).fork({ sessionId: source.id })
+      if (!queuedOnly.ok) throw queuedOnly.error
+      expect(ctx.sessions.get(queuedOnly.value.sessionId)!.inheritedEventCount).toBe(inherited.length)
+
+      source.append('agent/inbox/spliced', { target: 'next-turn', start: 0, removedCount: 1, inserted: [], outcome: 'canceled' })
+      const withRemoval = await remote(ctx).fork({ sessionId: source.id })
+      if (!withRemoval.ok) throw withRemoval.error
+      expect(ctx.sessions.get(withRemoval.value.sessionId)!.inheritedEventCount).toBe(source.snapshotEvents().length)
+    } finally {
+      await ctx.fiber.dispose()
+    }
   })
 
   it.each([false, true])('inherits standalone tail events with the next turn open: %s', async (openNextTurn) => {
@@ -332,8 +362,8 @@ describe('sessions.fork', () => {
     try {
       const source = await liveAgent(ctx, 'session-standalone-tail', 1)
       source.append('session/title', { title: 'After the turn', messageSeqs: [], source: { kind: 'user' } })
-      const inherited = source.snapshotEvents()
       if (openNextTurn) source.append('turn/start', { turn: 2 })
+      const inherited = source.snapshotEvents()
 
       const response = await remote(ctx).fork({ sessionId: source.id })
 
@@ -341,8 +371,9 @@ describe('sessions.fork', () => {
       const child = ctx.sessions.get(response.value.sessionId)!
       expect(child.inheritedEventCount).toBe(inherited.length)
       expect(child.snapshotEvents().slice(0, child.inheritedEventCount)).toEqual(inherited)
+      // An opened next Turn forks as it stands and is closed in the child.
       expect(child.snapshotEvents().slice(child.inheritedEventCount).map(event => event.type))
-        .toEqual(['session/end-seed'])
+        .toEqual(openNextTurn ? ['session/end-seed', 'turn/end'] : ['session/end-seed'])
     } finally {
       await ctx.fiber.dispose()
     }

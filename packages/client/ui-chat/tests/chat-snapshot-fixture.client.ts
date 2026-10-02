@@ -463,20 +463,13 @@ export function chatSnapshotFixture(input: {
         && candidate.blocks.some(block => block.kind === 'text' && block.text.trim() !== ''))
       .map(assistantData)
       .at(-1) ?? null
-    const preceding = nodes.findLast((candidate) => {
-      const location = candidate.location
-      return (location.kind === 'turn' || location.kind === 'step')
-        && location.turn.turn === turnNumber
-    })
     const tokenUsage = input.turnUsages?.get(turnNumber)
     const tailData = {
       turn: turnNumber,
       seq: endSeq,
       time: turn.end?.time ?? 0,
       closing,
-      branchUnavailable: closing === null
-        || preceding?.kind !== 'assistant-step'
-        || (preceding.data as ReturnType<typeof assistantData>).finalNode.seq !== closing.finalNode.seq,
+      branchUnavailable: closing === null,
       ...tokenUsage === undefined ? {} : { tokenUsage },
     }
     dataStore.set('turn-tail', tailData)

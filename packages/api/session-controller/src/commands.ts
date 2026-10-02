@@ -84,6 +84,26 @@ function latestCompletedPrefixBoundary(events: readonly SessionEvent[]): Session
   return boundary
 }
 
+/**
+ * Resolve the omitted-`atSeq` default: the latest completed-turn prefix while
+ * no later Turn has opened, otherwise the live tail of the open Turn — a
+ * running or never-finished Turn forks as it stands, and the child receives
+ * the same synthetic closers a crash would. Trailing splices that only queue
+ * input are left behind, so input still waiting to be claimed is not
+ * delivered twice; a trailing removal stays, so nothing claimed reappears.
+ */
+function defaultForkBoundary(events: readonly SessionEvent[]): SessionSeq | undefined {
+  const completed = latestCompletedPrefixBoundary(events)
+  const opened = events.findLast(event => event.type === 'turn/start')
+  if (opened === undefined || (completed !== undefined && opened.seq < completed)) return completed
+  return events.findLast(event => !isQueuedInput(event))?.seq
+}
+
+/** A splice that only queues input nobody has claimed yet. */
+function isQueuedInput(event: SessionEvent): boolean {
+  return event.type === 'agent/inbox/spliced' && event.data.removedCount === undefined
+}
+
 /** Implements Session business commands delegated by the Session Controller Remote service. */
 export class SessionCommandController {
   /**
@@ -214,7 +234,8 @@ export class SessionCommandController {
   /**
    * Create a new ordinary Session from an exact event prefix. An explicit
    * `atSeq` is the inclusive cut; an omitted value selects the latest
-   * completed-turn prefix. An open cut receives synthetic fork closers.
+   * completed-turn prefix, or the live tail of a Turn opened after it. An
+   * open cut receives synthetic fork closers.
    * @param request - source Session and optional exact event boundary.
    * @returns the new Session identity.
    */
@@ -242,12 +263,12 @@ export class SessionCommandController {
       )
     }
     using source = observed
-    const boundary = atSeq ?? latestCompletedPrefixBoundary(source.events)
+    const boundary = atSeq ?? defaultForkBoundary(source.events)
     if (boundary === undefined || source.events[boundary]?.seq !== boundary) {
       throw new RemoteError(
         'session/fork-unavailable',
         request.atSeq === undefined
-          ? `session "${request.sessionId}" has no completed turn to fork from`
+          ? `session "${request.sessionId}" has no turn to fork from`
           : `event ${String(request.atSeq)} does not exist in session "${request.sessionId}" (last seq: ${String(source.events.at(-1)?.seq ?? 'none')})`,
         { sessionId: request.sessionId },
       )

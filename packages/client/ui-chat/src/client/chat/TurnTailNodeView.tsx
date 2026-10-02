@@ -13,12 +13,11 @@ type TurnTailNodeViewProps = ChatNodeViewProps<'turn-tail'>
   & PropsRenderSlots<'conversation.chat.turnTail' | 'conversation.chat.assistant-actions'>
   & InjectFace<PerformanceUsageInjected>
 
-function lastContent(snapshot: ChatSnapshot, turn: number, skipWarning: boolean): ChatNode | undefined {
+function lastContent(snapshot: ChatSnapshot, turn: number): ChatNode | undefined {
   const keys = snapshot.locations.getTurn(turn)
   for (let index = keys.length - 1; index >= 0; index--) {
     const node = snapshot.nodes.get(keys[index] as string) as ChatNode | undefined
-    if (node === undefined || node.kind === 'turn-tail' || node.kind === 'turn-process'
-      || (skipWarning && node.kind === 'turn-max-tokens')) continue
+    if (node === undefined || node.kind === 'turn-tail' || node.kind === 'turn-process') continue
     return node
   }
   return undefined
@@ -30,11 +29,9 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
 }: TurnTailNodeViewProps) {
   const detailed = usePerformanceUsage(mode => mode) === 'detailed'
   const data = node.data
-  const hasLaterChatNode = useChat(snapshot =>
-    (lastContent(snapshot, data.turn, true)?.anchorSeq ?? -1) > (data.closing?.finalNode.seq ?? data.seq))
   const endsWithResponse = useChat((snapshot) => {
     if (snapshot.timeline.turnOrder.at(-1) !== data.turn) return false
-    const last = lastContent(snapshot, data.turn, false)
+    const last = lastContent(snapshot, data.turn)
     const block = last?.kind === 'assistant-step' ? last.data.blocks.findLast(candidate =>
       (candidate.kind !== 'text' && candidate.kind !== 'reasoning') || candidate.text.trim() !== '') : undefined
     return block !== undefined && hasAssistantReplyContent([block])
@@ -67,7 +64,7 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
         // The branch action owns boundary resolution: it sends the real
         // turn/end seq it already has, and the Host cuts exactly there.
         onBranch={() => { forkAt(data.seq) }}
-        branchUnavailable={data.branchUnavailable || hasLaterChatNode}
+        branchUnavailable={data.branchUnavailable}
         className={css.actions}
         extraActions={assistantActions}
         usageAction={detailed && data.tokenUsage !== undefined

@@ -1611,7 +1611,8 @@ describe('built-in conversation node Definitions', () => {
 
     const tail = node(snapshot(value), 'turn-tail')?.data as TurnTailChatData
     expect(tail.closing?.finalNode.seq).toBe(3)
-    expect(tail.branchUnavailable).toBe(true)
+    // Later tool work in the same Turn no longer blocks branching at its turn/end.
+    expect(tail.branchUnavailable).toBe(false)
   })
 
   it('publishes exact Turn usage only after pagination supplies the full lifecycle window', () => {
