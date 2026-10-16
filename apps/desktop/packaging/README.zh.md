@@ -19,6 +19,7 @@ description: "在本地或 Windows／macOS Actions 中生成 Desktop 安装包�
 - [macOS 自托管打包](#macos-actions)
 - [未签名 Windows 测试安装包](#unsigned-windows-test-installer)
 - [无发布签名的本地 macOS DMG](#local-macos-dmg-without-release-signing)
+- [Linux AppImage](#linux-appimage)
 - [macOS 发布签名与诊断](#macos-release-signing)
 - [目录构建与准备](#directory-and-preparation)
 - [用回环 registry 安装本地 Official 包](#local-official-bundles-from-a-loopback-registry)
@@ -162,6 +163,18 @@ pnpm run package:desktop:mac:x64:unsigned
 添加 `--check` 仅验证本地配置和工具而不构建，或添加 `--dir` 只生成解包应用。DMG 路径为 `apps/desktop/.desktop-build/targets/<target>/unsigned-artifacts/deepseek-harness-<version>-mac-<arch>-unsigned.dmg`。所有检查通过后，命令打印 `DMG:` 及其绝对路径。打开后将应用复制到本地测试目录。
 
 这些命令忽略 `.env.macos` 和继承的发布配置，使用 `com.deepseek.harness` 作为应用 ID，并省略自动更新和强制更新配置。构建工具、标准网络代理与 `DSH_DESKTOP_NPM_REGISTRY` 仍可从 shell 提供。它们跳过 Developer ID 签名、Apple 公证、临时签名钥匙串和公证代理修改。Electron 使用无需证书的本地 ad-hoc 签名，以便修改后的可执行文件能够运行；DMG 不签名。准备阶段和组装后的应用仍执行运行时完整性与冒烟检查。本地构建不生成更新源、ZIP 或发布完成记录，上传命令无法发布这些产物。macOS 可能要求在“系统设置 → 隐私与安全性”中批准打开未经公证的应用。
+
+<a id="linux-appimage"></a>
+
+## Linux AppImage
+
+在 Linux x64 主机上执行 `pnpm install` 后，在仓库根目录运行一条命令：
+
+```sh
+pnpm run package:desktop:linux:x64:unsigned
+```
+
+AppImage 路径为 `apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/deepseek-harness-<version>-linux-<arch>-unsigned.AppImage`；`--dir` 只生成解包后的 `linux-unpacked/` 应用。Linux 没有签名模式、更新源、发布记录或上传命令，因此该目标拒绝未带 `--unsigned` 的打包。与本地 macOS DMG 一样，它忽略 dotenv 发布配置，使用 `com.deepseek.harness` 作为应用 ID，准备阶段和组装后的应用执行相同的运行时完整性与冒烟检查。应用可执行文件为 `deepseek-harness`，内置的 `dsh` 启动器运行它。目标系统运行 AppImage 需要 FUSE 2。
 
 <a id="macos-release-signing"></a>
 

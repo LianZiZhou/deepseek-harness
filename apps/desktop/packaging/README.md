@@ -19,6 +19,7 @@ Build Desktop installers locally or through Windows or macOS Actions, choose dep
 - [macOS self-hosted packaging](#macos-actions)
 - [Unsigned Windows test installer](#unsigned-windows-test-installer)
 - [Local macOS DMG without release signing](#local-macos-dmg-without-release-signing)
+- [Linux AppImage](#linux-appimage)
 - [macOS release signing and diagnostics](#macos-release-signing)
 - [Directory builds and preparation](#directory-and-preparation)
 - [Local Official bundles from a loopback registry](#local-official-bundles-from-a-loopback-registry)
@@ -162,6 +163,18 @@ pnpm run package:desktop:mac:x64:unsigned
 Add `--check` to validate local configuration and tools without building, or `--dir` to stop at the unpacked application. The DMG is `apps/desktop/.desktop-build/targets/<target>/unsigned-artifacts/deepseek-harness-<version>-mac-<arch>-unsigned.dmg`. After all checks pass, the command prints `DMG:` followed by its absolute path. Open it and copy the application to a local test directory.
 
 These commands ignore `.env.macos` and inherited release settings, use `com.deepseek.harness` as the app ID, and omit automatic-update and mandatory-update configuration. Build tools, standard network proxies, and `DSH_DESKTOP_NPM_REGISTRY` remain available from the shell. They skip Developer ID signing, Apple notarization, temporary signing keychains, and notarization proxy changes. Electron receives a local ad-hoc signature without certificates so the modified executable can run; the DMG is unsigned. Both preparation and the assembled application still run runtime integrity and smoke checks. Local builds omit update feeds, ZIPs, and release completion records, and the upload commands cannot publish them. macOS may require approval in System Settings → Privacy & Security to open an unnotarized application.
+
+<a id="linux-appimage"></a>
+
+## Linux AppImage
+
+On a Linux x64 host, run one command from the repository root after `pnpm install`:
+
+```sh
+pnpm run package:desktop:linux:x64:unsigned
+```
+
+The AppImage is `apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/deepseek-harness-<version>-linux-<arch>-unsigned.AppImage`; `--dir` stops at the unpacked `linux-unpacked/` application. Linux has no signed mode, update feed, release record, or upload command, so the target rejects packaging without `--unsigned`. Like the local macOS DMG, it ignores dotenv release settings and uses `com.deepseek.harness` as the app ID, and preparation and the assembled application run the same runtime integrity and smoke checks. The application executable is `deepseek-harness`, which the bundled `dsh` launcher runs. Running an AppImage requires FUSE 2 on the target system.
 
 <a id="macos-release-signing"></a>
 
