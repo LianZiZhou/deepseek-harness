@@ -91,13 +91,18 @@ jobs:
 
   macos:
     needs: version
-    runs-on: macos-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        # The Apple Silicon runner builds both; x64 preparation runs the x64 Electron under Rosetta.
-        arch: [arm64, x64]
+        # Each architecture builds on native hardware: the packaged-runtime smoke
+        # converts a document through LibreOffice, which times out under Rosetta.
+        include:
+          - arch: arm64
+            runner: macos-latest
+          - arch: x64
+            runner: macos-15-intel
     steps:
       - uses: actions/checkout@v6
 
@@ -107,10 +112,6 @@ jobs:
 
       - name: Enable pnpm
         run: corepack enable && pnpm --version
-
-      - name: Install Rosetta
-        if: matrix.arch == 'x64'
-        run: /usr/sbin/softwareupdate --install-rosetta --agree-to-license
 
       - name: Install
         run: pnpm install --frozen-lockfile
