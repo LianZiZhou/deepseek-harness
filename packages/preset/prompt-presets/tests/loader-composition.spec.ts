@@ -50,7 +50,7 @@ async function boot(composition: readonly string[]): Promise<Context> {
       if (!MODULES.has(specifier)) throw new Error(`unexpected Loader import: ${specifier}`)
       return MODULES.get(specifier)
     },
-  } as unknown as NonNullable<typeof ctx.loader.internal>
+  } as never
   await ctx.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(join(root, 'cordis.yml')).href } })
   await ctx.loader.await()
   const unloaded = [...ctx.loader.entries()]

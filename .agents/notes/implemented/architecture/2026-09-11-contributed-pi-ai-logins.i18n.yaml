@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-11-contributed-pi-ai-logins.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-11-contributed-pi-ai-logins.md
+/agent-note-contributed-pi-ai-logins-and-the-z-ai-glm-coding-plan-sign-in:
+  en: c15fe72ac37cdb50
+  zh: 4d53502c3311befb
+/agent-note-contributed-pi-ai-logins-and-the-z-ai-glm-coding-plan-sign-in/problem:
+  en: 65dcca77000e9a3d
+  zh: 5192f280f700dd3f
+/agent-note-contributed-pi-ai-logins-and-the-z-ai-glm-coding-plan-sign-in/decision:
+  en: 3584e0e4948a8041
+  zh: 7fb3e2d677be3992
+/agent-note-contributed-pi-ai-logins-and-the-z-ai-glm-coding-plan-sign-in/alternatives-considered:
+  en: 1b15f128a9c21359
+  zh: b740f3bcc6f6561f
+/agent-note-contributed-pi-ai-logins-and-the-z-ai-glm-coding-plan-sign-in/consequences:
+  en: 1c4d8f87c419954c
+  zh: 40de37ebcc2120db

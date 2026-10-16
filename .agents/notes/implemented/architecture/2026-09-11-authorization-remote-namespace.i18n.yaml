@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-09-11-authorization-remote-namespace.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-11-authorization-remote-namespace.md
+/agent-note-the-authorization-seam-reaches-the-browser:
+  en: b4ccdbe5b7933365
+  zh: 62458fdd0171aacc
+/agent-note-the-authorization-seam-reaches-the-browser/problem:
+  en: 4e7024ada7ffb1b5
+  zh: cb2bf2fded7649c0
+/agent-note-the-authorization-seam-reaches-the-browser/decision:
+  en: d82105e00ea42f11
+  zh: 4e82dc09058163a5
+/agent-note-the-authorization-seam-reaches-the-browser/alternatives-considered:
+  en: 34b89439942c81e4
+  zh: c611458d4e407fb0
+/agent-note-the-authorization-seam-reaches-the-browser/consequences:
+  en: 7d7eecc2dc5f6b1e
+  zh: 05b4201e703ba8a6

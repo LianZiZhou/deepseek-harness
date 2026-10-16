@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/llm/llm-zai-coding-plan/README.md
+/:
+  en: 1e646eb7fed966b5
+  zh: 3d946f1bfc2c0599
+/deepseek-ai-dsh-llm-zai-coding-plan:
+  en: 143c8b7d49a44d13
+  zh: 8fd4639ad27bd8c9
+/deepseek-ai-dsh-llm-zai-coding-plan/summary:
+  en: 74c76c0423fdcae0
+  zh: bbea9ae4bc0d6792
+/deepseek-ai-dsh-llm-zai-coding-plan/table-of-contents:
+  en: 76368b6b1da79c80
+  zh: 52384aee991ac542
+/deepseek-ai-dsh-llm-zai-coding-plan/use-this-package:
+  en: d2cfde9112cb0a0a
+  zh: 7df5a7210d4f4ae5
+/deepseek-ai-dsh-llm-zai-coding-plan/use-this-package/what-the-human-does:
+  en: 23cf090ab1e7b305
+  zh: 969ef4dd38406c03
+/deepseek-ai-dsh-llm-zai-coding-plan/understand-the-implementation:
+  en: e6876adf94612589
+  zh: 1ea3849105a7b869
+/deepseek-ai-dsh-llm-zai-coding-plan/model-experience:
+  en: cdb4c8cdfa608f37
+  zh: 0a457af624408c25
+/deepseek-ai-dsh-llm-zai-coding-plan/model-experience/kv-cache-effect:
+  en: 9c2bd8fcb5e83878
+  zh: 86733eafbafaa2f4
+/deepseek-ai-dsh-llm-zai-coding-plan/known-limitations-and-deferred-work:
+  en: 91da5deddef7d2d9
+  zh: 20fed741fec2746d
+/deepseek-ai-dsh-llm-zai-coding-plan/known-limitations-and-deferred-work/dev-note:
+  en: 0dab1a5cd262d1f4
+  zh: 2fb207883a282af4

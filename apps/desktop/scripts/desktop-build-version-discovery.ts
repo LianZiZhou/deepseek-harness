@@ -2,7 +2,7 @@
  * Suggest the next build version for a product version, so the sequence number
  * is derived rather than remembered.
  *
- * `apps/desktop/README.md` gives the form as `<product version>.<date>.<index>`
+ * `apps/desktop/packaging/README.md#release-versions` gives the form as `<product version>.<date>.<index>`
  * for a prerelease base and `<product version>-test.<date>.<index>` for a
  * stable one. What makes an index correct is which ones are taken, and that is
  * recorded where the builds went: the update bucket for an uploaded build, the
@@ -30,8 +30,8 @@ const LISTING_DEADLINE_MS = 8_000
 /** Objects one listing page may return. */
 const LISTING_PAGE_SIZE = 1000
 
-/** Artifact name electron-builder writes for one build, on either platform; unsigned Windows builds add a suffix. */
-const ARTIFACT = /(?:^|\/)deepseek-harness-(?<version>.+)-(?:mac|win)-(?:arm64|x64)(?:-unsigned)?\.(?:exe|dmg|zip)$/u
+/** Artifact name electron-builder writes for one build, on either platform; unsigned and unnotarized builds add a suffix. */
+const ARTIFACT = /(?:^|\/)deepseek-harness-(?<version>.+)-(?:mac|win)-(?:arm64|x64)(?:-unsigned|-unnotarized)?\.(?:exe|dmg|zip)$/u
 
 /** Inputs that decide which versions are already taken. */
 export interface DesktopBuildVersionSuggestionOptions {
@@ -87,6 +87,8 @@ async function localVersions(artifactsRoot: string): Promise<string[]> {
  * @returns Versions parsed from object names, or undefined when the bucket cannot be listed completely in time.
  */
 async function remoteVersions(options: DesktopBuildVersionSuggestionOptions): Promise<string[] | undefined> {
+  // Linux publishes no update feed, so it has no bucket to be unique against.
+  if (options.target === 'linux-x64') return undefined
   const platform = options.target === 'win-x64' ? 'win32' as const : 'darwin' as const
   const arch = options.target === 'mac-arm64' ? 'arm64' : 'x64'
   // An unconfigured destination has nothing to be unique against; an invalid one must not be mistaken for it.

@@ -26,9 +26,10 @@ function lastContent(snapshot: ChatSnapshot, turn: number): ChatNode | undefined
 
 /** Turn-local actions and feature tail over the Location index, independent of Assistant placement. */
 export const TurnTailNodeView = memo(function TurnTailNodeView({
-  node, openFile, forkAt, resume, renderSlot, t, useChat, usePerformanceUsage,
+  node, openFile, forkAt, resume, renderSlot, t, useAccess, useChat, usePerformanceUsage,
 }: TurnTailNodeViewProps) {
   const detailed = usePerformanceUsage(mode => mode) === 'detailed'
+  const forkAllowed = useAccess('session/fork')
   const data = node.data
   // Only the latest Turn resumes; a resumed Turn opens after it, which retires the action.
   const isLatest = useChat(snapshot => snapshot.timeline.turnOrder.at(-1) === data.turn)
@@ -84,7 +85,7 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
         clock="end"
         // The branch action owns boundary resolution: it sends the real
         // turn/end seq it already has, and the Host cuts exactly there.
-        onBranch={() => { forkAt(data.seq) }}
+        onBranch={forkAllowed ? () => { forkAt(data.seq) } : undefined}
         branchUnavailable={data.branchUnavailable}
         className={css.actions}
         extraActions={assistantActions}

@@ -15,6 +15,7 @@
 type CredentialRef = Branded<'CredentialRef'>
 ```
 
+<a id="resolution"></a>
 ## 解析
 
 `resolve(ref)` 返回值及提供该值的来源层（由提供方定义）；未配置期间返回 `undefined`。消费方在每个操作中重新解析，绝不跨操作缓存——这种按操作进行的读取正是热更新机制。
@@ -31,7 +32,7 @@ interface ResolvedCredential {
 
 ## 描述
 
-`describe(ref)` 在绝不暴露值的前提下回应配置界面：引用当前是否可解析、来自哪一层、`set` 当前能否成功。本地提供方把由当前进程环境供值的引用报告为 `writable: false`——那样的写入会表面成功而解析持续返回遮蔽值，因此 seam 直接拒绝，界面也得以提前把该引用渲染为只读。
+`describe(ref)` 在绝不暴露值的前提下回应配置界面：引用当前是否可解析、来自哪一层、`set` 当前能否成功。本地提供方将其管理的文件排在启动环境之前，因此保存值总会成为生效且可写的那一层；移除后会重新使用启动环境或 `.env` 后备值。
 
 ```ts type-equiv
 /**
@@ -55,7 +56,7 @@ interface CredentialInfo {
 
 ## 内嵌 Platform 凭证
 
-PlatformSession 是 getPlatformSession 返回的仅限 Host 快照：origin 指定所配置的 Platform 签发来源，token 包含其已存账号凭证。userId 复制最近一次成功 getProfile 得到的稳定账号 ID；尚无一次成功读取或资料不含 ID 时为 null。快照复用该 ID，不自行发起资料请求，因此 ID 未知时只会让 userId 为 null，而不会延迟调用方；资料读取首次取得稳定 ID 或该 ID 变化时会通知 watch 订阅者，供标识使用方重新读取快照。使用方以 origin 和 userId 作为持久化浏览器存储的键，为 null 时退回临时存储。账号已退登或读取凭证期间凭证变化时不返回快照；签发来源不匹配时失败。原生使用方负责在凭证变化时使文档失效。账号控制器 RPC、AccountView 和 AccountDetails 均不包含此快照。
+PlatformSession 是 getPlatformSession 返回的仅限 Host 快照：origin 指定所配置的 Platform 签发来源，token 包含其已存账号凭证。userId 复制最近一次成功 getProfile 得到的稳定账号 ID；尚无一次成功读取或资料不含 ID 时为 null。快照复用该 ID，不自行发起资料请求，因此 ID 未知时只会让 userId 为 null，而不会延迟调用方；资料读取首次取得稳定 ID 或该 ID 变化时仅通知使用 `watch(signal, true)` 的 Host 订阅者，供标识使用方重新读取快照。使用方以 origin 和 userId 作为持久化浏览器存储的键，为 null 时退回临时存储。账号已退登或读取凭证期间凭证变化时不返回快照；签发来源不匹配时失败。原生使用方负责在凭证变化时使文档失效。账号控制器 RPC、AccountView 和 AccountDetails 均不包含此快照。
 
 AccountDetails.balance 将充值钱包投影为 value、赠送钱包投影为 bonusWallets，分别保留币种和十进制余额字符串。查询失败不包含钱包数组。
 
@@ -130,13 +131,84 @@ async begin(request: AuthorizationRequest): Promise<AuthorizationOutcome>
 
 Source: [`packages/credentials/authorization/src/index.ts`](../../packages/credentials/authorization/src/index.ts)
 
+<a id="ctxauthorizationcontroller--authorizationcontroller"></a>
+
+### `ctx.authorizationController` — `AuthorizationController`
+
+Host service backing the generated `ctx.remote.authorization` namespace.
+
+Nothing here interprets a flow: the seam owns which flows exist and what each one does, and this class owns only what the wire adds — the key grammar, the attempt and prompt identity a stateless page needs, and the refusal mapping. No method returns a credential, because no flow hands one to its caller.
+
+```ts cordis-catalog
+/**
+ * Every sign-in this composition offers, for a configuration page listing
+ * what can be authorized. A deployment mounting no authorization seam offers
+ * none, which is a fact about the composition rather than a failure — the
+ * page renders no sign-in and its credential fields still work.
+ * @returns one entry per registered flow, in registration order; empty when nothing is mounted.
+ */
+@Remote list(): AuthorizationEntryView[]
+
+/**
+ * Run one sign-in for the page that asked, and settle when it ends.
+ *
+ * The call lives as long as the conversation: the browser holds it open while
+ * the human is away in their own browser tab, and the notices and questions
+ * raised meanwhile arrive as forwarded events carrying this attempt's id.
+ * Abandoning the call — a closed page, a navigated-away tab — aborts the
+ * signal, which withdraws the attempt.
+ * @param key - the credential record to authorize, in `<scope>/<id>` form.
+ * @param method - which of the flow's methods to run; its first when absent.
+ * @param signal - caller lifetime; abort withdraws the attempt.
+ * @returns `authorized` once the flow commits its record, or `cancelled` when the human declined or the page gave up.
+ * @throws RemoteError when the request is invalid, no seam is mounted, or the flow fails.
+ */
+@Remote async begin(key: string, method: string | undefined, signal: AbortSignal): Promise<AuthorizationOutcomeView>
+
+/**
+ * Answer one question a running sign-in asked.
+ *
+ * Answering a question that is no longer open is refused rather than ignored:
+ * a page that raced its own withdrawal must learn its answer went nowhere,
+ * because the flow is still waiting for a different one.
+ * @param attempt - the attempt whose question is being answered.
+ * @param prompt - the question's id, as its event carried it.
+ * @param value - what the human typed, or the chosen option's id.
+ * @throws RemoteError when the request is invalid or that question is not open.
+ */
+@Remote answer(attempt: string, prompt: string, value: string): void
+
+/**
+ * Report that the human declined one question, which settles its attempt as
+ * cancelled rather than failed.
+ * @param attempt - the attempt whose question was declined.
+ * @param prompt - the question's id, as its event carried it.
+ * @throws RemoteError when the request is invalid or that question is not open.
+ */
+@Remote decline(attempt: string, prompt: string): void
+
+/**
+ * Withdraw the attempt running for one key, from a second call.
+ *
+ * Separate from the `begin` call's own signal because a Cancel button is a
+ * new request: the page pressing it holds no handle on the call it is
+ * cancelling. Withdrawing a key with nothing running is a no-op, so a page
+ * racing a flow that just settled is not told it made a mistake.
+ * @param key - the credential record whose attempt should stop.
+ * @throws RemoteError when the request is invalid or no seam is mounted.
+ */
+@Remote cancel(key: string): void
+```
+
+Source: [`packages/api/settings-controller/src/authorization.ts`](../../packages/api/settings-controller/src/authorization.ts)
+
 <a id="ctxcredentials--credentialprovider-abstract-seam"></a>
 
 ### `ctx.credentials` — `CredentialProvider` (abstract seam)
 
 Abstract credential service over two key spaces that answer two questions.
 
-A CredentialRef answers "what is behind this environment-variable name", layered over the process environment, the provider-managed store, and `.env` files. One seam-wide rule binds that half: an empty stored value is absent everywhere — `resolve` skips it, `describe` reports it unconfigured — so a blank never masquerades as a configured secret.
+A CredentialRef answers "what is behind this environment-variable name": the provider-managed store first, then ambient fallbacks such as the process environment and `.env` files. One seam-wide rule binds that half: an empty stored value is absent everywhere — `resolve` skips it, `describe` reports it unconfigured — so a blank never masquerades as a configured secret.
 
 A CredentialKey answers "what credential does this plugin hold for this id". Nothing can layer here — an authorization grant has no environment to be read from — so presence of the record is the whole fact, and modifyRecord is the only write path because a correct write depends on the current value (a token refresh is read-decide-replace under one lock).
 
@@ -160,10 +232,9 @@ abstract resolve(ref: CredentialRef): Promise<ResolvedCredential | undefined>
 abstract describe(ref: CredentialRef): Promise<CredentialInfo>
 
 /**
- * Durably store one value in the provider-managed writable source. Rejects
- * while a read-only source shadows the reference — the write would appear
- * to succeed while resolution keeps returning the shadowing value — and
- * rejects an empty value (use {@link unset}).
+ * Durably store one value in the provider-managed writable source. The stored
+ * value takes precedence over ambient fallbacks, and empty values are
+ * rejected (use {@link unset}).
  * @param ref - the reference to store.
  * @param value - the non-empty secret value.
  */
@@ -171,8 +242,8 @@ abstract set(ref: CredentialRef, value: string): Promise<void>
 
 /**
  * Remove one reference from the provider-managed writable source; removing
- * an absent reference is a no-op. Rejects while a read-only source shadows
- * the reference, like {@link set}.
+ * an absent reference is a no-op. Ambient fallback layers may become
+ * effective again after removal.
  * @param ref - the reference to remove.
  */
 abstract unset(ref: CredentialRef): Promise<void>
@@ -276,8 +347,8 @@ abstract getState(): Promise<AccountView>
 
 /**
  * Query Platform profile independently of wallet balances.
- * A ready result whose stable profile ID first becomes available or changes notifies watch
- * consumers, so identity consumers re-read getPlatformSession; repeated IDs stay silent.
+ * A ready result whose stable profile ID first becomes available or changes notifies identity-enabled watch
+ * consumers, so they re-read getPlatformSession; repeated IDs stay silent.
  * @param client - identity of the requesting UI for this call.
  * @returns profile outcome, or null if signed out or the grant changed during the query.
  */
@@ -332,9 +403,10 @@ abstract signOut(client: AccountClientMetadata): Promise<AccountView>
 /**
  * Subscribe to snapshots including a complete initial state.
  * @param signal - subscription lifetime; ending it never cancels login.
+ * @param includeIdentityChanges - also notify when cached Platform identity changes; defaults to false.
  * @returns complete snapshots as account state changes.
  */
-abstract watch(signal: AbortSignal): AsyncIterable<AccountView>
+abstract watch(signal: AbortSignal, includeIdentityChanges?: boolean): AsyncIterable<AccountView>
 
 /**
  * Resolve a credential only for the inference origin allowed by the provider.
@@ -365,6 +437,61 @@ abstract getDeviceIdentity(): Promise<{ deviceId?: string; userId?: AccountUserI
 ```
 
 Source: [`packages/credentials/deepseek-account/src/index.ts`](../../packages/credentials/deepseek-account/src/index.ts)
+
+<a id="api-authorization-events"></a>
+
+### `api-authorization/*` events
+
+<a id="api-authorizationnotice--emit"></a>
+
+#### `api-authorization/notice` — emit
+
+A running sign-in reported progress, or what the human must do next.
+
+```ts cordis-catalog
+/**
+ * A running sign-in reported progress, or what the human must do next.
+ * @mode emit
+ * @param notice - the attempt, its flow key, and the message with any page or code it refers to.
+ */
+'api-authorization/notice'(notice: AuthorizationNoticeEvent): void
+```
+
+Source: [`packages/api/settings-controller/src/types.ts`](../../packages/api/settings-controller/src/types.ts)
+
+<a id="api-authorizationprompt--emit"></a>
+
+#### `api-authorization/prompt` — emit
+
+A running sign-in needs a question answered before it can continue.
+
+```ts cordis-catalog
+/**
+ * A running sign-in needs a question answered before it can continue.
+ * @mode emit
+ * @param prompt - the attempt, its flow key, the question id, and how to present it.
+ */
+'api-authorization/prompt'(prompt: AuthorizationPromptEvent): void
+```
+
+Source: [`packages/api/settings-controller/src/types.ts`](../../packages/api/settings-controller/src/types.ts)
+
+<a id="api-authorizationprompt-closed--emit"></a>
+
+#### `api-authorization/prompt-closed` — emit
+
+A running sign-in withdrew one of its own questions.
+
+```ts cordis-catalog
+/**
+ * A running sign-in withdrew one of its own questions.
+ * @mode emit
+ * @param closed - the attempt and the withdrawn question's id.
+ */
+'api-authorization/prompt-closed'(closed: AuthorizationPromptClosedEvent): void
+```
+
+Source: [`packages/api/settings-controller/src/types.ts`](../../packages/api/settings-controller/src/types.ts)
 
 <a id="authorization-events"></a>
 
@@ -420,7 +547,7 @@ Source: [`packages/credentials/credentials/src/types.ts`](../../packages/credent
 
 #### `credentials/reference-updated` — emit
 
-Committed change to a provider-managed credential source: a `set`, an `unset`, or an external edit observed in storage. Ambient process-environment changes are not observable and never emit. Listener failures are contained and logged — a sync throw and an async rejection alike — without changing the committed operation's outcome, except `INVARIANT`-coded failures, which rethrow after every listener ran; that rethrow reaches the emitter only from synchronous listeners, so invariant checks on this event must not be async functions.
+Committed change to a provider-managed credential source: a `set`, an `unset`, or an external edit observed in storage. Ambient process-environment changes are not observable and never emit. Listener failures are contained and logged — a sync throw and an async rejection alike — without changing the committed operation's outcome.
 
 ```ts cordis-catalog
 /**
@@ -428,10 +555,7 @@ Committed change to a provider-managed credential source: a `set`, an `unset`, o
  * `unset`, or an external edit observed in storage. Ambient
  * process-environment changes are not observable and never emit. Listener
  * failures are contained and logged — a sync throw and an async rejection
- * alike — without changing the committed operation's outcome, except
- * `INVARIANT`-coded failures, which rethrow after every listener ran;
- * that rethrow reaches the emitter only from synchronous listeners, so
- * invariant checks on this event must not be async functions.
+ * alike — without changing the committed operation's outcome.
  * @param ref - the reference whose stored value changed.
  * @mode emit
  */
