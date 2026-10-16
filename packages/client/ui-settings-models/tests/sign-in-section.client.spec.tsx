@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   AuthorizationEntryView, AuthorizationPromptEvent,
 } from '@deepseek-ai/dsh-api-settings-controller/types'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { SignInSection } from '../src/client/SignInSection.tsx'
 import { SignInStore } from '../src/client/sign-in-store.ts'
 import type { SignInRemote } from '../src/client/sign-in-store.ts'
@@ -36,7 +37,8 @@ function remote(flows: AuthorizationEntryView[] = [FLOW]): SignInRemote & {
     decline: vi.fn(() => Promise.resolve({ ok: true, value: undefined })),
     cancel: vi.fn(() => Promise.resolve({ ok: true, value: undefined })),
   }
-  return Object.assign(api as unknown as SignInRemote, api, {
+  const typed: SignInRemote = api as never
+  return Object.assign(typed, api, {
     settle: (status: 'authorized' | 'cancelled') => { settle({ ok: true, value: { status } }) },
   })
 }
@@ -80,8 +82,8 @@ describe('the sign-in rows', () => {
   it('says the list could not be read instead of pretending there is nothing to sign in to', async () => {
     const api = remote()
     const failing = Object.assign(api, {
-      list: vi.fn(() => Promise.resolve({ ok: false, error: { code: 'internal', message: 'no seam', details: {} } })),
-    }) as unknown as SignInRemote
+      list: vi.fn(() => Promise.resolve({ ok: false, error: new RemoteError('gateway/internal', 'no seam', {}) })),
+    }) as never as SignInRemote
     const store = new SignInStore(failing)
     await act(async () => { await store.load() })
     render(<SignInSection controller={store} t={t} />)

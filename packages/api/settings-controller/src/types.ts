@@ -26,6 +26,12 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
      * never the value.
      */
     'credential/rejected': { readonly ref: string }
+    /**
+     * A sign-in flow failed. A withdrawn or declined attempt is not here: the
+     * seam reports those as a `cancelled` outcome, so everything carried by this
+     * code is the flow itself breaking, with the flow's own message.
+     */
+    'authorization/rejected': { readonly key: string }
   }
 }
 
@@ -114,25 +120,6 @@ export interface AuthorizationPromptClosedEvent {
   /** The withdrawn question's id. */
   readonly prompt: string
 }
-
-/** Stable authorization failure details returned by the `authorization` namespace. */
-export interface AuthorizationErrorDetailsMap {
-  /**
-   * The flow failed. A withdrawn or declined attempt is not here: the seam
-   * reports those as a `cancelled` outcome, so everything carried by this code
-   * is the flow itself breaking, with the flow's own message.
-   */
-  'authorization-rejected': { readonly key: string }
-}
-
-/** Authorization business failure carried by a rejected Remote call. */
-export type AuthorizationError = {
-  [Code in keyof AuthorizationErrorDetailsMap]: {
-    readonly code: Code
-    readonly message: string
-    readonly details: AuthorizationErrorDetailsMap[Code]
-  }
-}[keyof AuthorizationErrorDetailsMap]
 
 declare module '@deepseek-ai/cordis' {
   interface Events {

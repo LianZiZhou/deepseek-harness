@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`@deepseek-ai/dsh-llm-zai-coding-plan` signs a human in to Z.AI's GLM Coding Plan through their browser and stores the key that comes out of it as the `zai` route's credential. Z.AI issues nothing an inference request can use directly: the browser conversation ends in a short-lived OAuth token, and the durable `id.secret` key is minted from it afterwards through Z.AI's business API. The code comes back through the human — Z.AI's redirect allowlist admits only their own desktop scheme, so no local listener can catch it. Because the product is an ordinary api key, this plugin contributes a login *method* to the flow [`dsh-llm-pi-ai`](../llm-pi-ai/README.md) already registers for its `zai` route rather than adding a provider — the models, the endpoint, and the stored record all stay that route's. Its one configuration field exists because Z.AI's redirect allowlist has already moved once.
+`@deepseek-ai/dsh-llm-zai-coding-plan` signs a human in to Z.AI's GLM Coding Plan through their browser and stores the resulting key as the `zai` route's credential. The browser conversation ends in a short-lived OAuth token, from which the durable `id.secret` key is minted through Z.AI's business API; the authorization code comes back through the human, because Z.AI's redirect allowlist admits only its own desktop scheme. The plugin contributes a login *method* to the `zai` flow [`dsh-llm-pi-ai`](../llm-pi-ai/README.md) registers rather than adding a provider, so the models, endpoint, and stored record stay that route's.
 
 ## Table of Contents
 

@@ -549,6 +549,44 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'authorizationController',
+    summary: 'Host service backing the generated `ctx.remote.authorization` namespace.',
+    description: 'Host service backing the generated `ctx.remote.authorization` namespace.\n\nNothing here interprets a flow: the seam owns which flows exist and what each one does, and this class owns only what the wire adds — the key grammar, the attempt and prompt identity a stateless page needs, and the refusal mapping. No method returns a credential, because no flow hands one to its caller.',
+    methods: [
+      {
+        signature: '@Remote list(): AuthorizationEntryView[]',
+        description: 'Every sign-in this composition offers, for a configuration page listing what can be authorized. A deployment mounting no authorization seam offers none, which is a fact about the composition rather than a failure — the page renders no sign-in and its credential fields still work.',
+        parameters: [],
+        returns: 'one entry per registered flow, in registration order; empty when nothing is mounted.',
+      },
+      {
+        signature: '@Remote async begin(key: string, method: string | undefined, signal: AbortSignal): Promise<AuthorizationOutcomeView>',
+        description: 'Run one sign-in for the page that asked, and settle when it ends.\n\nThe call lives as long as the conversation: the browser holds it open while the human is away in their own browser tab, and the notices and questions raised meanwhile arrive as forwarded events carrying this attempt\'s id. Abandoning the call — a closed page, a navigated-away tab — aborts the signal, which withdraws the attempt.',
+        parameters: [{ name: 'key', description: 'the credential record to authorize, in `<scope>/<id>` form.' }, { name: 'method', description: 'which of the flow\'s methods to run; its first when absent.' }, { name: 'signal', description: 'caller lifetime; abort withdraws the attempt.' }],
+        returns: '`authorized` once the flow commits its record, or `cancelled` when the human declined or the page gave up.',
+        throws: ['RemoteError when the request is invalid, no seam is mounted, or the flow fails.'],
+      },
+      {
+        signature: '@Remote answer(attempt: string, prompt: string, value: string): void',
+        description: 'Answer one question a running sign-in asked.\n\nAnswering a question that is no longer open is refused rather than ignored: a page that raced its own withdrawal must learn its answer went nowhere, because the flow is still waiting for a different one.',
+        parameters: [{ name: 'attempt', description: 'the attempt whose question is being answered.' }, { name: 'prompt', description: 'the question\'s id, as its event carried it.' }, { name: 'value', description: 'what the human typed, or the chosen option\'s id.' }],
+        throws: ['RemoteError when the request is invalid or that question is not open.'],
+      },
+      {
+        signature: '@Remote decline(attempt: string, prompt: string): void',
+        description: 'Report that the human declined one question, which settles its attempt as cancelled rather than failed.',
+        parameters: [{ name: 'attempt', description: 'the attempt whose question was declined.' }, { name: 'prompt', description: 'the question\'s id, as its event carried it.' }],
+        throws: ['RemoteError when the request is invalid or that question is not open.'],
+      },
+      {
+        signature: '@Remote cancel(key: string): void',
+        description: 'Withdraw the attempt running for one key, from a second call.\n\nSeparate from the `begin` call\'s own signal because a Cancel button is a new request: the page pressing it holds no handle on the call it is cancelling. Withdrawing a key with nothing running is a no-op, so a page racing a flow that just settled is not told it made a mistake.',
+        parameters: [{ name: 'key', description: 'the credential record whose attempt should stop.' }],
+        throws: ['RemoteError when the request is invalid or no seam is mounted.'],
+      },
+    ],
+  },
+  {
     key: 'browserUse',
     summary: 'Owns one optional provider registration in the shared browser-use service.',
     description: 'Owns one optional provider registration in the shared browser-use service.',
@@ -4174,6 +4212,30 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'payload', description: '.signal - the current turn\'s explicit abort signal. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.' }],
   },
   {
+    name: 'api-authorization/notice',
+    mode: 'emit',
+    signature: '\'api-authorization/notice\'(notice: AuthorizationNoticeEvent): void',
+    summary: 'A running sign-in reported progress, or what the human must do next.',
+    description: 'A running sign-in reported progress, or what the human must do next.',
+    parameters: [{ name: 'notice', description: 'the attempt, its flow key, and the message with any page or code it refers to.' }],
+  },
+  {
+    name: 'api-authorization/prompt',
+    mode: 'emit',
+    signature: '\'api-authorization/prompt\'(prompt: AuthorizationPromptEvent): void',
+    summary: 'A running sign-in needs a question answered before it can continue.',
+    description: 'A running sign-in needs a question answered before it can continue.',
+    parameters: [{ name: 'prompt', description: 'the attempt, its flow key, the question id, and how to present it.' }],
+  },
+  {
+    name: 'api-authorization/prompt-closed',
+    mode: 'emit',
+    signature: '\'api-authorization/prompt-closed\'(closed: AuthorizationPromptClosedEvent): void',
+    summary: 'A running sign-in withdrew one of its own questions.',
+    description: 'A running sign-in withdrew one of its own questions.',
+    parameters: [{ name: 'closed', description: 'the attempt and the withdrawn question\'s id.' }],
+  },
+  {
     name: 'api-session/activity',
     mode: 'emit',
     signature: '\'api-session/activity\'(sessionId: SessionId, updatedAt: number): void',
@@ -4982,6 +5044,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AuthorizationEntry {\n    key: CredentialKey;\n    label: string;\n    methods: readonly AuthorizationMethod[];\n    inFlight: boolean;\n}',
   },
   {
+    name: 'AuthorizationEntryView',
+    declaration: 'export interface AuthorizationEntryView {\n    readonly key: string;\n    readonly label: string;\n    readonly methods: readonly AuthorizationMethodView[];\n    readonly inFlight: boolean;\n}',
+  },
+  {
     name: 'AuthorizationFlow',
     declaration: 'export interface AuthorizationFlow {\n    readonly key: CredentialKey;\n    readonly label: string;\n    readonly methods: readonly [\n        AuthorizationMethod,\n        ...AuthorizationMethod[]\n    ];\n    run(session: AuthorizationSession): Promise<void>;\n}',
   },
@@ -4994,20 +5060,44 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AuthorizationMethod {\n    id: string;\n    label: string;\n}',
   },
   {
+    name: 'AuthorizationMethodView',
+    declaration: 'export interface AuthorizationMethodView {\n    readonly id: string;\n    readonly label: string;\n}',
+  },
+  {
     name: 'AuthorizationNotice',
     declaration: 'export interface AuthorizationNotice {\n    message: string;\n    url?: string;\n    code?: string;\n}',
+  },
+  {
+    name: 'AuthorizationNoticeEvent',
+    declaration: 'export interface AuthorizationNoticeEvent {\n    readonly attempt: string;\n    readonly key: string;\n    readonly message: string;\n    readonly url?: string;\n    readonly code?: string;\n}',
   },
   {
     name: 'AuthorizationOutcome',
     declaration: 'export interface AuthorizationOutcome {\n    status: AuthorizationStatus;\n}',
   },
   {
+    name: 'AuthorizationOutcomeView',
+    declaration: 'export interface AuthorizationOutcomeView {\n    readonly status: \'authorized\' | \'cancelled\';\n}',
+  },
+  {
     name: 'AuthorizationPrompt',
     declaration: 'export type AuthorizationPrompt = {\n    signal?: AbortSignal;\n} & ({\n    kind: \'text\';\n    message: string;\n    placeholder?: string;\n} | {\n    kind: \'secret\';\n    message: string;\n    placeholder?: string;\n} | {\n    kind: \'select\';\n    message: string;\n    options: readonly AuthorizationPromptOption[];\n});',
   },
   {
+    name: 'AuthorizationPromptClosedEvent',
+    declaration: 'export interface AuthorizationPromptClosedEvent {\n    readonly attempt: string;\n    readonly prompt: string;\n}',
+  },
+  {
+    name: 'AuthorizationPromptEvent',
+    declaration: 'export interface AuthorizationPromptEvent {\n    readonly attempt: string;\n    readonly key: string;\n    readonly prompt: string;\n    readonly kind: \'text\' | \'secret\' | \'select\';\n    readonly message: string;\n    readonly placeholder?: string;\n    readonly options?: readonly AuthorizationPromptOptionView[];\n}',
+  },
+  {
     name: 'AuthorizationPromptOption',
     declaration: 'export interface AuthorizationPromptOption {\n    id: string;\n    label: string;\n    description?: string;\n}',
+  },
+  {
+    name: 'AuthorizationPromptOptionView',
+    declaration: 'export interface AuthorizationPromptOptionView {\n    readonly id: string;\n    readonly label: string;\n    readonly description?: string;\n}',
   },
   {
     name: 'AuthorizationRequest',

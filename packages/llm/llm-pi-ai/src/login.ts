@@ -12,7 +12,6 @@ import type { AuthEvent, AuthPrompt, AuthType, Provider } from '@earendil-works/
 import type { Context } from '@deepseek-ai/cordis'
 import type { AuthorizationMethod, AuthorizationPrompt, AuthorizationSession } from '@deepseek-ai/dsh-authorization'
 import { isCredentialKeySegment } from '@deepseek-ai/dsh-credentials'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import { catalogProvider, catalogProviderIds } from './catalog.ts'
 import { recordKeyFor } from './auth.ts'
@@ -40,9 +39,6 @@ function loginMethods(ctx: Context, provider: Provider): AuthorizationMethod[] {
   return [...own.slice(0, apiKeyAt), ...contributed, ...own.slice(apiKeyAt)]
 }
 
-/** This package's settings section, where a route's profile lives. */
-const NS = settingsNamespace('llm-pi-ai')
-
 /**
  * Give the route a profile, so what was just signed into is usable.
  *
@@ -61,16 +57,17 @@ const NS = settingsNamespace('llm-pi-ai')
  * itself succeeded, and failing it here would discard a credential the human
  * did obtain.
  * @param ctx - the plugin context carrying the optional settings service.
+ * @param ns - the adapter's settings section, when it is a Loader entry the settings service exposes.
  * @param provider - the route that was signed into.
  */
-async function declareRoute(ctx: Context, provider: string): Promise<void> {
+async function declareRoute(ctx: Context, ns: string | undefined, provider: string): Promise<void> {
   const settings = ctx.get('settings')
-  if (settings === undefined) return
-  const section = settings.describe().find(descriptor => descriptor.ns === NS)?.value as
-    { providers?: Record<string, unknown> } | undefined
-  if (section?.providers?.[provider] !== undefined) return
+  if (settings === undefined || ns === undefined) return
+  const descriptor = settings.describe().find(entry => entry.ns === ns)
+  const section = descriptor?.value as { providers?: Record<string, unknown> } | undefined
+  if (descriptor === undefined || section?.providers?.[provider] !== undefined) return
   try {
-    await settings.mutate(NS, [{ op: 'set', path: ['providers', provider], value: {} }])
+    await settings.mutate(ns, [{ op: 'set', path: ['providers', provider], value: {} }], descriptor.revision)
   } catch (error: unknown) {
     ctx.logger.warn(
       'llm-pi-ai: signed in to "%s" but could not declare its route; add it on the Models page to use its models',
@@ -222,8 +219,9 @@ async function runPiAi(
  * running flow cannot serve.
  * @param ctx - the plugin context carrying `ctx.authorization`.
  * @param auth - the injectables every collection here is built with.
+ * @param settingsSection - the adapter's own Loader entry id, whose `providers` a successful sign-in declares the route in.
  */
-export function registerPiAiFlows(ctx: Context, auth: PiAiAuthInjection): void {
+export function registerPiAiFlows(ctx: Context, auth: PiAiAuthInjection, settingsSection?: string): void {
   const registered = new Map<string, () => void>()
 
   const register = (providerId: string): void => {
@@ -257,7 +255,7 @@ export function registerPiAiFlows(ctx: Context, auth: PiAiAuthInjection): void {
         else await runContributed(contribution, providerId, session, auth)
         // After the credential, because a route declared before one exists
         // would register and then fail every request until the login finished.
-        await declareRoute(ctx, providerId)
+        await declareRoute(ctx, settingsSection, providerId)
       },
     }))
   }

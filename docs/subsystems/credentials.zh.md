@@ -161,7 +161,7 @@ Nothing here interprets a flow: the seam owns which flows exist and what each on
  * @param method - which of the flow's methods to run; its first when absent.
  * @param signal - caller lifetime; abort withdraws the attempt.
  * @returns `authorized` once the flow commits its record, or `cancelled` when the human declined or the page gave up.
- * @throws TypertRemoteFailure when the request is invalid, no seam is mounted, or the flow fails.
+ * @throws RemoteError when the request is invalid, no seam is mounted, or the flow fails.
  */
 @Remote async begin(key: string, method: string | undefined, signal: AbortSignal): Promise<AuthorizationOutcomeView>
 
@@ -174,7 +174,7 @@ Nothing here interprets a flow: the seam owns which flows exist and what each on
  * @param attempt - the attempt whose question is being answered.
  * @param prompt - the question's id, as its event carried it.
  * @param value - what the human typed, or the chosen option's id.
- * @throws TypertRemoteFailure when the request is invalid or that question is not open.
+ * @throws RemoteError when the request is invalid or that question is not open.
  */
 @Remote answer(attempt: string, prompt: string, value: string): void
 
@@ -183,7 +183,7 @@ Nothing here interprets a flow: the seam owns which flows exist and what each on
  * cancelled rather than failed.
  * @param attempt - the attempt whose question was declined.
  * @param prompt - the question's id, as its event carried it.
- * @throws TypertRemoteFailure when the request is invalid or that question is not open.
+ * @throws RemoteError when the request is invalid or that question is not open.
  */
 @Remote decline(attempt: string, prompt: string): void
 
@@ -195,7 +195,7 @@ Nothing here interprets a flow: the seam owns which flows exist and what each on
  * cancelling. Withdrawing a key with nothing running is a no-op, so a page
  * racing a flow that just settled is not told it made a mistake.
  * @param key - the credential record whose attempt should stop.
- * @throws TypertRemoteFailure when the request is invalid or no seam is mounted.
+ * @throws RemoteError when the request is invalid or no seam is mounted.
  */
 @Remote cancel(key: string): void
 ```

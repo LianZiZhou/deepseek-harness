@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`@deepseek-ai/dsh-llm-zai-coding-plan` 让人在浏览器中登录 Z.AI 的 GLM Coding Plan，并把登录产出的密钥存为 `zai` 路由的凭据。Z.AI 不会签发任何推理请求可以直接使用的东西：浏览器对话只产出一个短时 OAuth token，持久的 `id.secret` 密钥要在此之后经 Z.AI 业务 API 铸造。授权码要经由人传回——Z.AI 的重定向白名单只接受他们自家桌面端的 scheme，任何本地监听器都接不到它。由于产物就是一个普通 API 密钥，本插件向 [`dsh-llm-pi-ai`](../llm-pi-ai/README.zh.md) 已为其 `zai` 路由注册的 flow 贡献一个登录**方法**，而不是新增一个提供方——模型、端点与存储记录都仍属于那条路由。它唯一的配置字段之所以存在，是因为 Z.AI 的重定向白名单已经变过一次。
+`@deepseek-ai/dsh-llm-zai-coding-plan` 让人在浏览器中登录 Z.AI 的 GLM Coding Plan，并把得到的密钥存为 `zai` 路由的凭据。浏览器对话只产出一个短时 OAuth token，持久的 `id.secret` 密钥由它经 Z.AI 业务 API 铸造；授权码要经由人传回，因为 Z.AI 的重定向白名单只接受其自家桌面端的 scheme。本插件向 [`dsh-llm-pi-ai`](../llm-pi-ai/README.zh.md) 为 `zai` 路由注册的 flow 贡献一个登录**方法**，而不是新增提供方，因此模型、端点与存储记录都仍属于那条路由。
 
 ## 目录
 

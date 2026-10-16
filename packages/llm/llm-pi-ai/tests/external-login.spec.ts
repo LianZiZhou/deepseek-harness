@@ -6,10 +6,9 @@ import { Context } from '@deepseek-ai/cordis'
 import AuthorizationService from '@deepseek-ai/dsh-authorization'
 import type { AuthorizationInteraction, AuthorizationSession } from '@deepseek-ai/dsh-authorization'
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
-import z from '@deepseek-ai/schemastery'
+import type { SettingsDescriptor, SettingsPathOp } from '@deepseek-ai/dsh-settings'
+import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { authContextFrom, credentialStoreFrom, recordKeyFor } from '../src/auth.ts'
-import { MemorySettings } from '../../../settings/settings/tests/memory.ts'
 import { contributePiAiLogin } from '../src/external-login.ts'
 import type { PiAiContributedKey } from '../src/external-login.ts'
 import { registerPiAiFlows } from '../src/login.ts'
@@ -18,29 +17,52 @@ const ZAI = recordKeyFor('zai')
 const CODEX = recordKeyFor('openai-codex')
 const dirs: string[] = []
 
-/** The section shape this package registers, narrowed to what a route declaration touches. */
-const Section = z.object({ providers: z.dict(z.object({}).default({})).default({}) })
+/** The adapter's Loader entry id, which names its settings section. */
+const SECTION = 'llm-pi-ai'
+
+/**
+ * The adapter's live Config section as the settings service exposes it: only
+ * the `providers` set path a route declaration writes, revisioned like the real
+ * form so a stale write is refused.
+ */
+class SectionSettings {
+  revision = 1
+  constructor(public value: { providers: Record<string, unknown> }, private readonly writable: boolean) {}
+
+  describe(): SettingsDescriptor[] {
+    return [{
+      ns: SECTION as SettingsNamespace, autoGenerate: false, schema: {}, value: this.value, revision: this.revision, applies: 'live',
+    }]
+  }
+
+  mutate(ns: string, ops: readonly SettingsPathOp[], expectedRevision?: number): Promise<void> {
+    if (!this.writable) return Promise.reject(new Error('settings document is read-only'))
+    if (ns !== SECTION || expectedRevision !== this.revision) return Promise.reject(new Error('stale or unknown section'))
+    for (const op of ops) {
+      if (op.op !== 'set' || op.path[0] !== 'providers' || op.path.length !== 2) return Promise.reject(new Error('unexpected edit'))
+      this.value = { providers: { ...this.value.providers, [op.path[1]!]: op.value } }
+    }
+    this.revision++
+    return Promise.resolve()
+  }
+}
 
 /** A context with the record store and the seam, ready for flows. */
-async function harness(options: { settings?: Record<string, unknown>; writable?: boolean } = {}): Promise<Context> {
+async function harness(options: { settings?: { providers: Record<string, unknown> }; writable?: boolean } = {}): Promise<Context> {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-pi-contrib-'))
   dirs.push(dir)
   const ctx = new Context()
   await ctx.plugin(LocalCredentialProvider, { path: join(dir, '.credentials.yaml'), watch: false })
   await ctx.plugin(AuthorizationService)
   if (options.settings !== undefined) {
-    await ctx.plugin(MemorySettings, { doc: options.settings, writable: options.writable ?? true })
-    installSettingsSection(ctx, settingsNamespace('llm-pi-ai'), Section, { providers: {} }, {
-      setSource: () => {},
-      onChange: () => {},
-    })
+    ctx.provide('settings', new SectionSettings(options.settings, options.writable ?? true) as never)
   }
   return ctx
 }
 
 /** Mount the adapter's flows on a context. */
 function mountFlows(ctx: Context): void {
-  registerPiAiFlows(ctx, { credentials: credentialStoreFrom(ctx), authContext: authContextFrom(ctx) })
+  registerPiAiFlows(ctx, { credentials: credentialStoreFrom(ctx), authContext: authContextFrom(ctx) }, SECTION)
 }
 
 /** An interaction that answers nothing, because a contributed run needs no human here. */
@@ -108,7 +130,7 @@ describe('contributed pi-ai logins', () => {
   })
 
   it('declares the route it signed into, so the signed-in models are usable', async () => {
-    const ctx = await harness({ settings: {} })
+    const ctx = await harness({ settings: { providers: {} } })
     mountFlows(ctx)
     contributePiAiLogin(ctx, {
       provider: 'zai',
@@ -117,12 +139,12 @@ describe('contributed pi-ai logins', () => {
     })
     await expect(ctx.authorization.begin({ key: ZAI, method: 'oauth', interaction: surface() }))
       .resolves.toEqual({ status: 'authorized' })
-    const section = ctx.settings.describe().find(d => String(d.ns) === 'llm-pi-ai')?.value
+    const section = ctx.settings.describe().find(d => String(d.ns) === SECTION)?.value
     expect(section).toEqual({ providers: { zai: {} } })
   })
 
   it('leaves a route someone already configured exactly as it is', async () => {
-    const configured = { 'llm-pi-ai': { providers: { zai: { baseURL: 'https://proxy.example/v1' } } } }
+    const configured = { providers: { zai: { baseURL: 'https://proxy.example/v1' } } }
     const ctx = await harness({ settings: configured })
     mountFlows(ctx)
     contributePiAiLogin(ctx, {
@@ -132,11 +154,12 @@ describe('contributed pi-ai logins', () => {
     })
     await expect(ctx.authorization.begin({ key: ZAI, method: 'oauth', interaction: surface() }))
       .resolves.toEqual({ status: 'authorized' })
-    const section = ctx.settings.describe().find(d => String(d.ns) === 'llm-pi-ai')?.value
+    const section = ctx.settings.describe().find(d => String(d.ns) === SECTION)?.value
     expect(section).toEqual({ providers: { zai: { baseURL: 'https://proxy.example/v1' } } })
   })
+
   it('keeps the credential when the settings document refuses the route', async () => {
-    const ctx = await harness({ settings: {}, writable: false })
+    const ctx = await harness({ settings: { providers: {} }, writable: false })
     mountFlows(ctx)
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
     contributePiAiLogin(ctx, {
@@ -149,7 +172,6 @@ describe('contributed pi-ai logins', () => {
     await expect(ctx.credentials.readRecord(ZAI)).resolves.toEqual({ kind: 'api-key', key: 'id.secret' })
     expect(warn).toHaveBeenCalled()
   })
-
 
   it('keeps the credential when no settings provider can take the route', async () => {
     const ctx = await harness()

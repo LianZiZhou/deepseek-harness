@@ -365,10 +365,8 @@ describe('pushed invalidations', () => {
     await b.ctx.plugin({ inject: [...inject], apply }).await()
     const entry = b.slots.entries('settings.section')
       .find(candidate => candidate.options.id === 'models')!
-    const injected = (
-      entry.inject as unknown as
-      () => import('../src/client/ModelsSection.tsx').ModelsSectionInjected
-    )()
+    const injected = entry.inject!() as Record<string, unknown>
+      & import('../src/client/ModelsSection.tsx').ModelsSectionInjected
     await injected.controller.load()
     expect(injected.hooks.snapshot.getSnapshot().namespaces.get('llm-test')?.revision).toBe(1)
 

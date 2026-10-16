@@ -22,7 +22,6 @@
   },
   "files": [
     "lib/index.js",
-    "lib/types/**/*.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",

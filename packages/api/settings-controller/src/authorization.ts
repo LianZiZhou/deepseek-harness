@@ -19,7 +19,7 @@ import type {
   AuthorizationInteraction, AuthorizationNotice, AuthorizationPrompt, AuthorizationService,
 } from '@deepseek-ai/dsh-authorization'
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
-import { Remote, TypertRemoteFailure, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import { z } from 'zod'
 import type { AuthorizationEntryView, AuthorizationOutcomeView } from './types.ts'
@@ -49,11 +49,7 @@ interface PendingPrompt {
 function parseRequest<T>(method: string, schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value)
   if (!parsed.success) {
-    throw new TypertRemoteFailure({
-      code: 'bad-request',
-      message: `invalid payload for ${method}`,
-      details: { issues: parsed.error.issues },
-    })
+    throw new RemoteError('gateway/bad-request', `invalid payload for ${method}`, { issues: parsed.error.issues })
   }
   return parsed.data
 }
@@ -111,7 +107,7 @@ export class AuthorizationController extends TypertRemoteService {
    * @param method - which of the flow's methods to run; its first when absent.
    * @param signal - caller lifetime; abort withdraws the attempt.
    * @returns `authorized` once the flow commits its record, or `cancelled` when the human declined or the page gave up.
-   * @throws TypertRemoteFailure when the request is invalid, no seam is mounted, or the flow fails.
+   * @throws RemoteError when the request is invalid, no seam is mounted, or the flow fails.
    */
   @Remote
   async begin(key: string, method: string | undefined, signal: AbortSignal): Promise<AuthorizationOutcomeView> {
@@ -143,7 +139,7 @@ export class AuthorizationController extends TypertRemoteService {
    * @param attempt - the attempt whose question is being answered.
    * @param prompt - the question's id, as its event carried it.
    * @param value - what the human typed, or the chosen option's id.
-   * @throws TypertRemoteFailure when the request is invalid or that question is not open.
+   * @throws RemoteError when the request is invalid or that question is not open.
    */
   @Remote
   answer(attempt: string, prompt: string, value: string): void {
@@ -155,7 +151,7 @@ export class AuthorizationController extends TypertRemoteService {
    * cancelled rather than failed.
    * @param attempt - the attempt whose question was declined.
    * @param prompt - the question's id, as its event carried it.
-   * @throws TypertRemoteFailure when the request is invalid or that question is not open.
+   * @throws RemoteError when the request is invalid or that question is not open.
    */
   @Remote
   decline(attempt: string, prompt: string): void {
@@ -171,7 +167,7 @@ export class AuthorizationController extends TypertRemoteService {
    * cancelling. Withdrawing a key with nothing running is a no-op, so a page
    * racing a flow that just settled is not told it made a mistake.
    * @param key - the credential record whose attempt should stop.
-   * @throws TypertRemoteFailure when the request is invalid or no seam is mounted.
+   * @throws RemoteError when the request is invalid or no seam is mounted.
    */
   @Remote
   cancel(key: string): void {
@@ -238,11 +234,11 @@ export class AuthorizationController extends TypertRemoteService {
     const parsed = parseRequest(method, schema, request)
     const waiting = this.pending.get(parsed.prompt)
     if (waiting === undefined || waiting.attempt !== parsed.attempt) {
-      throw new TypertRemoteFailure({
-        code: 'bad-request',
-        message: `no open question ${JSON.stringify(parsed.prompt)} on attempt ${JSON.stringify(parsed.attempt)}`,
-        details: {},
-      })
+      throw new RemoteError(
+        'gateway/bad-request',
+        `no open question ${JSON.stringify(parsed.prompt)} on attempt ${JSON.stringify(parsed.attempt)}`,
+        {},
+      )
     }
     this.pending.delete(parsed.prompt)
     return waiting
@@ -261,11 +257,11 @@ export class AuthorizationController extends TypertRemoteService {
   private provider(): AuthorizationService {
     const authorization = this.ctx.get('authorization')
     if (authorization === undefined) {
-      throw new TypertRemoteFailure({
-        code: 'internal',
-        message: 'authorization service is absent: this deployment does not mount the authorization seam (@deepseek-ai/dsh-authorization) in its composition',
-        details: {},
-      })
+      throw new RemoteError(
+        'gateway/internal',
+        'authorization service is absent: this deployment does not mount the authorization seam (@deepseek-ai/dsh-authorization) in its composition',
+        {},
+      )
     }
     return authorization
   }
@@ -279,12 +275,13 @@ export class AuthorizationController extends TypertRemoteService {
  * @param error - whatever the seam threw.
  * @returns the failure to raise for that refusal.
  */
-function rejected(key: string, error: unknown): TypertRemoteFailure {
-  return new TypertRemoteFailure({
-    code: 'authorization-rejected',
-    message: error instanceof Error ? error.message : String(error),
-    details: { key },
-  })
+function rejected(key: string, error: unknown): RemoteError<'authorization/rejected'> {
+  return new RemoteError(
+    'authorization/rejected',
+    error instanceof Error ? error.message : String(error),
+    { key },
+    { cause: error },
+  )
 }
 
 export default AuthorizationController

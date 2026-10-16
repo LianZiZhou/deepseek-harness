@@ -53,7 +53,7 @@ async function loadYaml(lines: readonly string[]): Promise<Context> {
       if (!modules.has(specifier)) throw new Error(`unexpected Loader import: ${specifier}`)
       return modules.get(specifier)
     },
-  } as unknown as NonNullable<typeof context.loader.internal>
+  } as never
   await context.loader.create({
     name: 'cordis:include',
     config: { path: pathToFileURL(configPath).href },

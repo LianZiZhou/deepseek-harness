@@ -32,6 +32,7 @@ function surfaceOf(answer: (notices: AuthorizationNotice[]) => Promise<string>):
     prompts,
     method: 'oauth',
     signal: new AbortController().signal,
+    commit: () => Promise.reject(new Error('the Z.AI login never commits; llm-pi-ai stores its key')),
     notify(notice) { notices.push(notice) },
     prompt(prompt) {
       prompts.push(prompt)

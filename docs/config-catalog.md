@@ -238,7 +238,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-api-settings-controller`
 
-- `source`: [`packages/api/settings-controller/src/index.ts:35`](../packages/api/settings-controller/src/index.ts)
+- `source`: [`packages/api/settings-controller/src/index.ts:39`](../packages/api/settings-controller/src/index.ts)
 
 ```ts config-catalog
 /** Host integrations replaceable by direct unit tests. */
@@ -2141,6 +2141,28 @@ export interface ReplayModelConfig {
 export type Config = Readonly<Record<string, never>>
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-retry -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-llm-zai-coding-plan -->
+<a id="deepseek-aidsh-llm-zai-coding-plan"></a>
+
+## `@deepseek-ai/dsh-llm-zai-coding-plan`
+
+- `source`: [`packages/llm/llm-zai-coding-plan/src/index.ts:37`](../packages/llm/llm-zai-coding-plan/src/index.ts)
+
+```ts config-catalog
+/** The one thing a deployment may need to correct without waiting for a release. */
+export interface Config {
+  /**
+   * The redirect to ask Z.AI for. Z.AI validates it against a server-side
+   * allowlist this harness does not control, and that allowlist has already
+   * moved once — every loopback address it once accepted is now refused at the
+   * authorize page. Set this when it moves again; omitting it asks for the
+   * address Z.AI's own desktop client uses.
+   */
+  readonly redirectUri?: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-zai-coding-plan -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-lsp-stdio -->
 <a id="deepseek-aidsh-lsp-stdio"></a>

@@ -26,7 +26,6 @@ import type { SettingsDocumentOpenValue } from './types.ts'
 
 export { AuthorizationController } from './authorization.ts'
 export { CredentialsController } from './credentials.ts'
-export { SETTINGS_CONTROLLER_REMOTE_EVENTS } from './remote-events.ts'
 export type * from './types.ts'
 
 const settingsNamespaceRequestSchema = z.object({ ns: z.string().min(1) })

@@ -7,7 +7,7 @@ import AuthorizationService, { AuthorizationDeclinedError } from '@deepseek-ai/d
 import type { AuthorizationFlow, AuthorizationSession } from '@deepseek-ai/dsh-authorization'
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local'
 import { credentialKey } from '@deepseek-ai/dsh-credentials'
-import { TypertRemoteFailure, remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
+import { RemoteError, remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import AuthorizationController from '../src/authorization.ts'
 import type { AuthorizationNoticeEvent, AuthorizationPromptEvent } from '../src/types.ts'
 
@@ -18,7 +18,7 @@ const KEY = 'llm-pi-ai/zai'
  * raise. Typed as one so the rejection reads as intentional rather than as the
  * mistake the lint rule is looking for.
  */
-const NOT_AN_ERROR = { toString: () => 'nope' } as unknown as Error
+const NOT_AN_ERROR: Error = Object.assign(Object.create(null) as Error, { toString: () => 'nope' })
 const dirs: string[] = []
 
 /** A context carrying the credential store, the seam, and this controller. */
@@ -121,7 +121,7 @@ describe('the authorization Remote namespace', () => {
       () => Promise.resolve().then(() => { ctx.authorizationController.cancel(KEY) }),
     ]
     for (const call of calls) {
-      await expect(call()).rejects.toThrow(TypertRemoteFailure)
+      await expect(call()).rejects.toThrow(RemoteError)
     }
   })
 
@@ -220,15 +220,15 @@ describe('the authorization Remote namespace', () => {
     const running = ctx.authorizationController.begin(KEY, 'oauth', new AbortController().signal)
     const prompt = await firstPrompt(seen.prompts)
     expect(() => { ctx.authorizationController.answer(prompt.attempt, 'not-a-prompt', 'x') })
-      .toThrow(TypertRemoteFailure)
+      .toThrow(RemoteError)
     expect(() => { ctx.authorizationController.answer('not-an-attempt', prompt.prompt, 'x') })
-      .toThrow(TypertRemoteFailure)
+      .toThrow(RemoteError)
     expect(() => { ctx.authorizationController.decline(prompt.attempt, 'not-a-prompt') })
-      .toThrow(TypertRemoteFailure)
+      .toThrow(RemoteError)
     ctx.authorizationController.answer(prompt.attempt, prompt.prompt, 'code')
     await expect(running).resolves.toEqual({ status: 'authorized' })
     expect(() => { ctx.authorizationController.answer(prompt.attempt, prompt.prompt, 'again') })
-      .toThrow(TypertRemoteFailure)
+      .toThrow(RemoteError)
   })
 
   it('fails the questions an ending sign-in leaves open', async () => {
@@ -267,18 +267,16 @@ describe('the authorization Remote namespace', () => {
     const ctx = await harness()
     register(ctx, () => Promise.reject(new Error('Z.AI token exchange failed')))
     await expect(ctx.authorizationController.begin(KEY, 'oauth', new AbortController().signal))
-      .rejects.toThrow(TypertRemoteFailure)
+      .rejects.toThrow(RemoteError)
     await expect(ctx.authorizationController.begin(KEY, 'oauth', new AbortController().signal))
-      .rejects.toMatchObject({
-        failure: { code: 'authorization-rejected', message: 'Z.AI token exchange failed', details: { key: KEY } },
-      })
+      .rejects.toMatchObject({ code: 'authorization/rejected', message: 'Z.AI token exchange failed', details: { key: KEY } })
   })
 
   it('reports a flow that refused with a bare string', async () => {
     const ctx = await harness()
     register(ctx, () => Promise.reject(NOT_AN_ERROR))
     await expect(ctx.authorizationController.begin(KEY, 'oauth', new AbortController().signal))
-      .rejects.toMatchObject({ failure: { code: 'authorization-rejected', message: 'nope' } })
+      .rejects.toMatchObject({ code: 'authorization/rejected', message: 'nope' })
   })
 
   it('settles cancelled when a declined prompt reaches the seam as a decline', async () => {
@@ -297,8 +295,8 @@ describe('the authorization Remote namespace', () => {
     const ctx = await harness()
     for (const key of ['llm-pi-ai', 'LLM/zai', 'llm-pi-ai/zai/extra', '']) {
       await expect(ctx.authorizationController.begin(key, undefined, new AbortController().signal))
-        .rejects.toMatchObject({ failure: { code: 'bad-request' } })
-      expect(() => { ctx.authorizationController.cancel(key) }).toThrow(TypertRemoteFailure)
+        .rejects.toMatchObject({ code: 'gateway/bad-request' })
+      expect(() => { ctx.authorizationController.cancel(key) }).toThrow(RemoteError)
     }
   })
 
@@ -370,6 +368,6 @@ describe('the authorization Remote namespace', () => {
     const ctx = await harness()
     register(ctx, () => Promise.resolve())
     await expect(ctx.authorizationController.begin(KEY, '', new AbortController().signal))
-      .rejects.toMatchObject({ failure: { code: 'bad-request' } })
+      .rejects.toMatchObject({ code: 'gateway/bad-request' })
   })
 })

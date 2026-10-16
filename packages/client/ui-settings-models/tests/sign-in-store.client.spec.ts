@@ -3,20 +3,20 @@ import { describe, expect, it, vi } from 'vitest'
 import type {
   AuthorizationEntryView, AuthorizationNoticeEvent, AuthorizationPromptEvent,
 } from '@deepseek-ai/dsh-api-settings-controller/types'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { SignInStore } from '../src/client/sign-in-store.ts'
 import type { SignInRemote } from '../src/client/sign-in-store.ts'
 
 /** Answers over the Remote carrier, which has no envelope. */
-type RemoteAnswer<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: { code: string; message: string; details: object } }
+type RemoteAnswer<T> = RemoteResult<T>
 
 function remoteOk<T>(value: T): RemoteAnswer<T> {
   return { ok: true, value }
 }
 
 function remoteFail<T>(message: string): RemoteAnswer<T> {
-  return { ok: false, error: { code: 'authorization-rejected', message, details: {} } }
+  return { ok: false, error: new RemoteError('authorization/rejected', message, { key: KEY }) }
 }
 
 const KEY = 'llm-pi-ai/zai'

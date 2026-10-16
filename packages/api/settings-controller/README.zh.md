@@ -29,7 +29,7 @@ kind: "package-reference"
 
 `settings.describe()` 返回部署信息，以及在 `redactSecrets: true` 下读取的所有 namespace。`settings.update`、`settings.replace` 与 `settings.mutate` 暴露 settings 服务的三种写入操作，并返回该 namespace 的新脱敏视图；陈旧写入使用 `settings-conflict`，其他提供方拒绝使用 `settings-rejected`。
 
-`authorization.list()` 回答本组合提供的每一种登录，`authorization.begin(key, method)` 运行其中一种。该调用本身就是整段对话，而不是一次请求/响应：人离开去自己的浏览器标签页期间它保持打开，flow 的 notice 与提问则在此期间以转发的 `api-authorization/notice`、`api-authorization/prompt` 与 `api-authorization/prompt-closed` 事件到达，每个都携带该次尝试的 id。页面用 `authorization.answer(attempt, prompt, value)` 回答每个提问，或用 `authorization.decline(attempt, prompt)` 拒绝它；`authorization.cancel(key)` 以第二次调用撤回正在运行的尝试，因为「取消」按钮并不持有它所取消的那次调用的句柄。回答一个已不再打开的提问会被拒绝而非忽略，而出故障的 flow 报告为 `authorization-rejected`，携带 flow 自己的消息。这里没有任何方法会返回凭据，因为没有任何 flow 会把凭据交给它的调用方。
+`authorization.list()` 回答本组合提供的每一种登录，`authorization.begin(key, method)` 运行其中一种。该调用本身就是整段对话，而不是一次请求/响应：人离开去自己的浏览器标签页期间它保持打开，flow 的 notice 与提问则在此期间以转发的 `api-authorization/notice`、`api-authorization/prompt` 与 `api-authorization/prompt-closed` 事件到达，每个都携带该次尝试的 id。页面用 `authorization.answer(attempt, prompt, value)` 回答每个提问，或用 `authorization.decline(attempt, prompt)` 拒绝它；`authorization.cancel(key)` 以第二次调用撤回正在运行的尝试，因为「取消」按钮并不持有它所取消的那次调用的句柄。回答一个已不再打开的提问会被拒绝而非忽略，而出故障的 flow 报告为 `authorization/rejected`，携带 flow 自己的消息。这里没有任何方法会返回凭据，因为没有任何 flow 会把凭据交给它的调用方。
 
 `settings.openSettingsDocument()` 准备提供方持有的文档，并用原生文本编辑器打开；该方法不接受浏览器提供的文件系统目标。
 
