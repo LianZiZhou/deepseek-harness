@@ -166,7 +166,7 @@ async function mounted(options: { byId?: Record<string, { id: string; mainView?:
 
 /** The section's injected face, as the renderer reads it. */
 function sectionFace(slots: SlotRegistry): PromptPresetSectionInjected {
-  return (slots.entries('settings.section')[0]!.inject as unknown as () => PromptPresetSectionInjected)()
+  return slots.entries('settings.section')[0]!.inject!() as Record<string, unknown> & PromptPresetSectionInjected
 }
 
 /** The switcher's injected face for one session, as the renderer reads it. */
@@ -176,7 +176,7 @@ function seatFace(
   slot: 'conversation.session.header.actions' | 'conversation.hero.controls' = 'conversation.session.header.actions',
 ): PromptPresetSeatInjected {
   const entry = slots.entries(slot)[0]!
-  return (entry.inject as unknown as (id: string | undefined) => PromptPresetSeatInjected)(sessionId)
+  return entry.inject!(sessionId as never) as Record<string, unknown> & PromptPresetSeatInjected
 }
 
 describe('the plugin halves', () => {

@@ -12,7 +12,7 @@
  * @module dsh-llm-pi-ai/catalog
  */
 
-import { builtinProviders, getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all'
+import { builtinProviders, getAllBuiltinModels, getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import type { BuiltinProvider } from '@earendil-works/pi-ai/providers/all'
 import type {
   AnthropicMessagesCompat,
@@ -166,37 +166,53 @@ export const CHAT_TEMPLATE_VARS = Object.keys(CHAT_TEMPLATE_VAR_GATE) as readonl
 let providerIndex: Map<string, Provider> | undefined
 
 /**
- * Installed catalog providers by id, constructed once. Each entry owns the API
- * implementations for its own models, which is why a catalog route reuses this
- * provider instead of being rebuilt from parts.
- * @returns the catalog provider index.
+ * Whether this adapter serves one installed catalog provider. It dispatches
+ * chat requests only, so a provider whose catalog lists models but no chat
+ * model (image-generation or classifier models alone) is not a catalog route;
+ * a provider whose catalog lists no models at all stays one.
+ * @param provider - the installed provider.
+ * @returns whether the provider ships a chat model or lists no models.
+ */
+function servesChat(provider: Provider): boolean {
+  const id = provider.id as BuiltinProvider
+  return getBuiltinModels(id).length > 0 || getAllBuiltinModels(id).length === 0
+}
+
+/**
+ * Installed catalog providers this adapter serves, by id, constructed once.
+ * Each entry owns the API implementations for its own models, which is why a
+ * catalog route reuses this provider instead of being rebuilt from parts.
+ * @returns the catalog provider index, in catalog order.
  */
 function catalogProviders(): Map<string, Provider> {
-  providerIndex ??= new Map(builtinProviders().map(provider => [provider.id, provider]))
+  providerIndex ??= new Map(builtinProviders().filter(servesChat).map(provider => [provider.id, provider]))
   return providerIndex
 }
 
 /**
- * The installed catalog provider for one route, when pi-ai ships one.
+ * The installed catalog provider for one route, when pi-ai ships one this
+ * adapter serves.
  * @param provider - provider route key.
- * @returns the catalog provider, or `undefined` for a route pi-ai does not ship.
+ * @returns the catalog provider, or `undefined` for a route pi-ai does not ship
+ *   or ships without a chat model.
  */
 export function catalogProvider(provider: string): Provider | undefined {
   return catalogProviders().get(provider)
 }
 
 /**
- * Every provider route the installed pi-ai catalog ships.
- * @returns the catalog provider ids.
+ * Every provider route the installed pi-ai catalog ships and this adapter
+ * serves: a provider whose catalog lists models but no chat model is left out.
+ * @returns the catalog provider ids, in catalog order.
  */
 export function catalogProviderIds(): readonly string[] {
-  return getBuiltinProviders()
+  return [...catalogProviders().keys()]
 }
 
 /**
  * The installed catalog models for one route, indexed by model id.
  * @param provider - provider route key.
- * @returns catalog models by id; empty for a route pi-ai does not ship.
+ * @returns catalog models by id; empty for a route {@link catalogProvider} does not return.
  */
 export function catalogModels(provider: string): Map<string, Model<Api>> {
   if (!catalogProviders().has(provider)) return new Map()
@@ -222,11 +238,8 @@ export interface CatalogReasoningSource {
   readonly model: Model<Api>
 }
 
-/** Reasoning-capable catalog models by exact and by normalized id; built once, the catalog being static. */
-let reasoningIndex: {
-  readonly exact: Map<string, CatalogReasoningSource[]>
-  readonly normalized: Map<string, CatalogReasoningSource[]>
-} | undefined
+/** Reasoning-capable catalog models by normalized id; built once, the catalog being static. */
+let reasoningIndex: Map<string, CatalogReasoningSource[]> | undefined
 
 /**
  * The spelling-insensitive form of a model id: case folded, a leading
@@ -240,24 +253,19 @@ export function normalizedModelId(id: string): string {
 }
 
 /** The lazily built index {@link catalogReasoningFor} reads. */
-function reasoningCatalog(): NonNullable<typeof reasoningIndex> {
+function reasoningCatalog(): Map<string, CatalogReasoningSource[]> {
   if (reasoningIndex !== undefined) return reasoningIndex
-  const exact = new Map<string, CatalogReasoningSource[]>()
   const normalized = new Map<string, CatalogReasoningSource[]>()
-  const add = (index: Map<string, CatalogReasoningSource[]>, key: string, source: CatalogReasoningSource) => {
-    const list = index.get(key)
-    if (list === undefined) index.set(key, [source])
-    else list.push(source)
-  }
   for (const provider of catalogProviderIds()) {
     for (const model of catalogModels(provider).values()) {
       if (!model.reasoning) continue
-      const source = { provider, model }
-      add(exact, model.id, source)
-      add(normalized, normalizedModelId(model.id), source)
+      const key = normalizedModelId(model.id)
+      const list = normalized.get(key)
+      if (list === undefined) normalized.set(key, [{ provider, model }])
+      else list.push({ provider, model })
     }
   }
-  reasoningIndex = { exact, normalized }
+  reasoningIndex = normalized
   return reasoningIndex
 }
 
@@ -266,26 +274,27 @@ function reasoningCatalog(): NonNullable<typeof reasoningIndex> {
  * from when the route's own catalog does not describe it — a custom gateway
  * serving `grok-4.7`, or a built-in route proxying another maker's model.
  *
- * An exact id wins over a normalized one. Among the routes shipping the id,
- * the model maker's own route wins, then one speaking the requesting route's
- * protocol, then the route id in code-unit order so the answer never depends
- * on catalog iteration order. Only reasoning models are candidates: a name
- * match that does not reason has nothing to lend.
+ * Candidates share the normalized id. The model maker's own route wins, even
+ * over a reseller that ships the exact spelling; then an exact spelling, then
+ * a route speaking the requesting route's protocol, then the route id in
+ * code-unit order so the answer never depends on catalog iteration order.
+ * Only reasoning models are candidates: a name match that does not reason has
+ * nothing to lend.
  * @param id - the model id the route serves.
  * @param api - the wire protocol the requesting route speaks.
  * @returns the source to borrow from, or undefined when no catalog model matches.
  */
 export function catalogReasoningFor(id: string, api: string): CatalogReasoningSource | undefined {
-  const index = reasoningCatalog()
-  const candidates = index.exact.get(id) ?? index.normalized.get(normalizedModelId(id))
+  const candidates = reasoningCatalog().get(normalizedModelId(id))
   if (candidates === undefined) return undefined
   const origin = (source: CatalogReasoningSource): number => {
     const at = ORIGIN_PROVIDERS.indexOf(source.provider)
     return at === -1 ? ORIGIN_PROVIDERS.length : at
   }
+  const spelling = (source: CatalogReasoningSource): number => source.model.id === id ? 0 : 1
   const protocol = (source: CatalogReasoningSource): number => source.model.api === api ? 0 : 1
-  return [...candidates].sort((a, b) => origin(a) - origin(b) || protocol(a) - protocol(b)
-    || a.provider.localeCompare(b.provider, 'en'))[0]
+  return [...candidates].sort((a, b) => origin(a) - origin(b) || spelling(a) - spelling(b)
+    || protocol(a) - protocol(b) || a.provider.localeCompare(b.provider, 'en'))[0]
 }
 
 /**

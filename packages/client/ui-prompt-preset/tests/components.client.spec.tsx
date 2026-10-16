@@ -98,7 +98,7 @@ function renderSeat(state: Partial<PromptPresetSeatState> = {}, overrides: Parti
     clearError: vi.fn(),
     t: translate,
     ...overrides,
-  } as unknown as PromptPresetSeatProps
+  } as PromptPresetSeatProps
   render(<PromptPresetSeat {...props} />)
   return { select, props }
 }
@@ -136,7 +136,7 @@ function renderSection(state: Partial<PromptPresetSectionState> = {}, overrides:
     usePromptPresetSection: bindSnapshotSelector(store),
     t: translate,
     ...actions,
-  } as unknown as PromptPresetSectionProps
+  } as PromptPresetSectionProps
   render(<PromptPresetSection {...props} />)
   return actions
 }
