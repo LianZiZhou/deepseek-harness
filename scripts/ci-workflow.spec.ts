@@ -343,7 +343,8 @@ describe('CI workflow', () => {
       const cores = jobName === 'windows-native-tests' ? 2 : 16
       expect(evaluateRunsOn(job['runs-on'], { vars: { DSH_CI_FAILOVER_WINDOWS: 'blacksmith' } }))
         .toBe(`blacksmith-${cores}vcpu-windows-2025`)
-      expect(job.if).toBe("github.event_name == 'pull_request'")
+      // Forks have no access to the upstream organization's Windows pools.
+      expect(job.if).toBe("github.event_name == 'pull_request' && github.repository == 'deepseek-harness/deepseek-harness'")
     }
 
     // windows-build runs the blocking build/site pair.
@@ -502,6 +503,7 @@ describe('CI workflow', () => {
       expect(job['runs-on'], `${jobName} runs-on must use the Linux failover switch`).toContain('DSH_CI_FAILOVER_LINUX')
       expect(job['runs-on'], `${jobName} runs-on must not use the Windows failover switch`).not.toContain('DSH_CI_FAILOVER_WINDOWS')
       expect(job['runs-on']).toContain('vm-backup')
+      expect(job.if, `${jobName} runs only where the upstream pools exist`).toBe("github.event_name == 'pull_request' && github.repository == 'deepseek-harness/deepseek-harness'")
       expect(evaluateRunsOn(job['runs-on'], { vars: { DSH_CI_FAILOVER_LINUX: 'blacksmith' } }))
         .toBe(`blacksmith-${jobName === 'node-24' ? 8 : 16}vcpu-ubuntu-2404`)
     }
@@ -509,6 +511,11 @@ describe('CI workflow', () => {
     expect(aggregate['runs-on']).not.toContain('DSH_CI_FAILOVER_WINDOWS')
     expect(aggregate['runs-on']).toContain('vm-backup')
     expect(aggregate['runs-on']).toContain('blacksmith-4vcpu-ubuntu-2404')
+    // Upstream treats a skipped required job as a failure; forks skip the pool-pinned jobs.
+    if (!Array.isArray(aggregate.steps)) throw new TypeError('all-checks-passed must define steps')
+    const verdict = aggregate.steps.filter(isRecord).find(step => step.name === 'Fail if any needed job did not succeed')
+    expect(verdict?.if).toContain("github.repository == 'deepseek-harness/deepseek-harness' && contains(needs.*.result, 'skipped')")
+    expect(verdict?.if).toContain("contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')")
 
     // Evaluating the full selector, not just substring containment, proves the
     // blacksmith branch is standalone: it must not fall through to the
