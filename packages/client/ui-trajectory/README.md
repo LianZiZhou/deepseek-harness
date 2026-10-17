@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-The Trajectory tab lets you inspect agent activity as a turn-aware ledger and interactive timing overview. It groups User, Assistant, Tool, nested Subtool, and compaction records, marks turn and step boundaries, and opens a record inspector for token usage, duration, input, output, timing, images, and attachment summaries. Long histories open at the current tail, load older pages on demand, and render only visible rows. During streaming, the view follows the tail until you scroll upward, and in-flight records show a start marker without inventing elapsed time.
+The Trajectory tab lets you inspect agent activity as a turn-aware ledger and interactive timing overview. It groups User, Assistant, Tool, nested Subtool, and compaction records, marks turn and step boundaries, and opens a record inspector for token usage, duration, input, output, timing, images, and attachment summaries. Long histories open at the current tail, load older pages on demand, and render only visible rows. During streaming, the view follows the tail until you scroll upward, and in-flight records show a start marker without inventing elapsed time. It also registers the Context tab for inspecting and editing model context.
 
 ## Table of Contents
 
@@ -44,6 +44,12 @@ Thinking in the inspector uses compact Markdown at the inspector's fixed 13px si
 Streaming replies retain their known start time and TTFT. After settlement, token timestamps provide generation duration; throughput also requires recorded usage. Historical replies retain the same recorded timing. TTFT measures from the Step start to its first token, including output from an earlier retry attempt; an unloaded Step start or a stream without tokens leaves the corresponding metric unavailable.
 
 A fixed Overview above the ledger projects real record start/duration timing from left to right; Assistant spans divide recorded TTFT from decoding, and a 500 ms hover reveals exact clock and duration details. Dragging an interval focuses the ledger on every record active at any point in that inclusive range; wheel gestures zoom the time domain; a right-button click clears the selected interval, and a right-button drag pans an already zoomed viewport. The initial view and streaming updates stay at the tail; scrolling upward suspends following so new records do not interrupt inspection of earlier rows.
+
+### The Context tab
+
+The Context tab reads `session.context` and lists the derived model history in request order, each message with its role, producing event seq, and content; projected messages are marked. Collapsible sections show the latest logged request header and the system prompt and tools the next step assembles, with a badge when the system prompt changes next step. The view refetches shortly after the log grows. Every message offers "Fork from here" when the Peer may fork.
+
+With `session/rewrite` access, the Edit mode switch stages changes locally: replace message text, reasoning, or tool-call arguments (images and other blocks are kept), delete messages, or insert user messages. While changes are staged, refetching pauses. "Apply" overwrites the Session through the current cursor; "Restart from here" also discards every later event and starts a turn from that message. Both confirm first, interrupt a running turn, and report Host refusals in place. The [rewrite decision](../../../.agents/notes/implemented/architecture/2026-10-17-in-place-session-rewrite.md) records the storage behavior.
 
 -----
 

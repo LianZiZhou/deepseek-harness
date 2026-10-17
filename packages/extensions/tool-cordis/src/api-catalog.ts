@@ -2235,6 +2235,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the new Session identity.',
       },
       {
+        signature: '@Remote(\'context\') async context(request: SessionContextRequest): Promise<SessionContextValue>',
+        description: 'Read the model context the next request of one Session sends, resuming a cold Session first.',
+        parameters: [{ name: 'request', description: 'Session whose context is read.' }],
+        returns: 'derived history paired with event seqs, the logged request header, and the next-step prompt preview.',
+      },
+      {
+        signature: '@Remote(\'rewrite\') rewrite(request: SessionRewriteRequest): Promise<SessionRewriteValue>',
+        description: 'Destructively rewrite one Session log under its own id: discard events after `throughSeq`, apply content edits to the kept prefix, and resume the Session from the result. Clients holding the Session receive `api-session/rewritten` and must reload it.',
+        parameters: [{ name: 'request', description: 'Session, the caller\'s last read seq, cut point, edits, and interrupt/resume choices.' }],
+        returns: 'the Session identity and the last seq of the rewritten log.',
+      },
+      {
         signature: '@Remote(\'prompt\') async prompt(request: SessionPromptRequest, signal: AbortSignal): Promise<SessionPromptValue>',
         description: 'Admit one prompt after explicitly resuming its Session.',
         parameters: [{ name: 'request', description: 'Session identity, prompt content, source metadata, and delivery mode.' }, { name: 'signal', description: 'caller cancellation before prompt admission begins.' }],
@@ -2319,7 +2331,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   {
     key: 'sessionPersistence',
     summary: 'Durable append-only session storage addressed through per-session handles.',
-    description: 'Durable append-only session storage addressed through per-session handles.\n\nStorage semantics shared by every backend: events are contiguous from seq 0 and never rewritten; a torn physical tail is never returned to a reader and is truncated by the write path before its first append; reads validate current-format records only and refuse unknown vocabulary fail-closed. `append` persists best-effort; `flush` — per handle or service-wide — is the durability barrier.\n\nVisibility: a created session is observable through `stat`/`list`/`open` in this process from the moment `create` resolves, even while a backend defers physical materialization (a pure optimization); other processes see the session only once it materializes, and a session that never materialized before a crash never existed. `SessionHandle.flush` forces materialization.\n\nFreshness: once an `append` or `flush` resolves, reads started afterwards on this backend instance observe at least that prefix.',
+    description: 'Durable append-only session storage addressed through per-session handles.\n\nStorage semantics shared by every backend: events are contiguous from seq 0 and never rewritten by `append`; only an explicit replace swaps a whole log; a torn physical tail is never returned to a reader and is truncated by the write path before its first append; reads validate current-format records only and refuse unknown vocabulary fail-closed. `append` persists best-effort; `flush` — per handle or service-wide — is the durability barrier.\n\nVisibility: a created session is observable through `stat`/`list`/`open` in this process from the moment `create` resolves, even while a backend defers physical materialization (a pure optimization); other processes see the session only once it materializes, and a session that never materialized before a crash never existed. `SessionHandle.flush` forces materialization.\n\nFreshness: once an `append` or `flush` resolves, reads started afterwards on this backend instance observe at least that prefix.',
     methods: [
       {
         signature: 'readonly identity: symbol = Symbol(\'sessionPersistence\')',
@@ -2359,6 +2371,13 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'options', description: 'optional cancellation.' }],
         returns: 'one snapshot per stored session.',
       },
+      {
+        signature: 'replace(storage: SessionInspection, options?: SessionPersistenceReplaceOptions): Promise<void>',
+        description: 'Atomically replace one stored session\'s complete log and header under the same id. The caller must hold no write handle for the session; the backend claims write ownership for the duration of the swap, so a concurrent writer makes it reject instead of interleaving. On resolution every later `open`, `read`, `stat`, and `list` observes the new log and a changed `revision`; on rejection the stored log is unchanged. Backends that cannot replace a log keep this default refusal.',
+        parameters: [{ name: 'storage', description: 'the replacement header, inherited cut, and complete event log from seq 0.' }, { name: 'options', description: 'optional cancellation observed before the replacement publishes.' }],
+        returns: 'resolution once the replacement is durable.',
+        throws: ['{SessionReplaceUnsupportedError} from backends without log replacement.', '{SessionPersistenceNotFoundError} when the session does not exist.', '{SessionAlreadyOwnedError} when a write handle is active.'],
+      },
     ],
   },
   {
@@ -2395,6 +2414,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Cold-read one session\'s projections from its complete log. Each unit is seeded from the identity-checked cached rows — the registry skips `apply` for the already-folded prefix (events at or below the row\'s `seq`) — and the refreshed checkpoint is written back (fail-soft, fire-and-forget), so the first cold read creates the cache row and later ones seed from it. The caller supplies the complete log in seq order: this service never consults the persistence layer.',
         parameters: [{ name: 'meta', description: 'the stored session header (identity witness).' }, { name: 'inheritedEventCount', description: 'exact inherited prefix length for projection initialization and identity.' }, { name: 'events', description: 'the session\'s complete log, in seq order.' }],
         returns: 'the projection cut at the log end.',
+      },
+      {
+        signature: 'async invalidate(id: SessionId): Promise<void>',
+        description: 'Drop one session\'s stored record after its log was replaced in place. Rows record how far they folded by seq, so a replaced log with the same header would otherwise seed folds from events it no longer contains. The delete queues on the domain\'s write chain behind every write already queued, including the disposal checkpoint of the agent released before the replacement; call it after that release and before the next resume.',
+        parameters: [{ name: 'id', description: 'the session whose record is discarded.' }],
+        returns: 'resolution once the delete is durable.',
       },
     ],
   },
@@ -4266,6 +4291,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'A Session left the live Host registry.',
     description: 'A Session left the live Host registry.',
     parameters: [{ name: 'sessionId', description: 'removed Session identity.' }],
+  },
+  {
+    name: 'api-session/rewritten',
+    mode: 'emit',
+    signature: '\'api-session/rewritten\'(sessionId: SessionId): void',
+    summary: 'A Session log was replaced in place; every held event, cursor, and projection value for it is stale.',
+    description: 'A Session log was replaced in place; every held event, cursor, and projection value for it is stale.',
+    parameters: [{ name: 'sessionId', description: 'rewritten Session identity.' }],
   },
   {
     name: 'api-session/status',
@@ -7288,6 +7321,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SessionCancelValue {\n    readonly accepted: true;\n}',
   },
   {
+    name: 'SessionContextMessage',
+    declaration: 'export interface SessionContextMessage {\n    readonly seq: number;\n    readonly event: string;\n    readonly role: \'system\' | \'developer\' | \'user\' | \'assistant\' | \'tool\';\n    readonly content: JsonValue;\n    readonly toolCallId?: string;\n    readonly isError?: boolean;\n    readonly projected?: true;\n}',
+  },
+  {
+    name: 'SessionContextRequest',
+    declaration: 'export interface SessionContextRequest {\n    readonly sessionId: SessionId;\n}',
+  },
+  {
+    name: 'SessionContextValue',
+    declaration: 'export interface SessionContextValue {\n    readonly cursor: number;\n    readonly messages: readonly SessionContextMessage[];\n    readonly request?: JsonValue;\n    readonly next?: {\n        readonly systemPrompt: string;\n        readonly tools: JsonValue;\n    };\n}',
+  },
+  {
     name: 'SessionControlBaseline',
     declaration: 'export interface SessionControlBaseline {\n    readonly projections: Readonly<Record<SessionId, SessionProjectionBaseline>>;\n}',
   },
@@ -7302,6 +7347,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionCreateValue',
     declaration: 'export interface SessionCreateValue {\n    readonly sessionId: SessionId;\n    readonly agentPreset?: string;\n}',
+  },
+  {
+    name: 'SessionEdit',
+    declaration: 'export type SessionEdit = {\n    readonly kind: \'replace-content\';\n    readonly seq: number;\n    readonly content: readonly SessionEditBlock[];\n    readonly isError?: boolean;\n} | {\n    readonly kind: \'delete\';\n    readonly seq: number;\n} | {\n    readonly kind: \'insert-user\';\n    readonly afterSeq: number;\n    readonly content: readonly SessionEditBlock[];\n};',
+  },
+  {
+    name: 'SessionEditBlock',
+    declaration: 'export type SessionEditBlock = {\n    readonly type: \'text\';\n    readonly text: string;\n} | {\n    readonly type: \'reasoning\';\n    readonly text: string;\n} | {\n    readonly type: \'tool-call\';\n    readonly id: string;\n    readonly name: string;\n    readonly arguments: string;\n} | {\n    readonly type: \'keep\';\n    readonly index: number;\n};',
   },
   {
     name: 'SessionEndInput',
@@ -7540,6 +7593,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SessionPersistenceOpenOptions {\n    readonly signal?: AbortSignal;\n}',
   },
   {
+    name: 'SessionPersistenceReplaceOptions',
+    declaration: 'export interface SessionPersistenceReplaceOptions {\n    readonly signal?: AbortSignal;\n}',
+  },
+  {
     name: 'SessionPersistenceRevision',
     declaration: 'export type SessionPersistenceRevision = Branded<\'SessionPersistenceRevision\'>;',
   },
@@ -7638,6 +7695,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionResumeValue',
     declaration: 'export interface SessionResumeValue {\n    readonly accepted: true;\n}',
+  },
+  {
+    name: 'SessionRewriteRequest',
+    declaration: 'export interface SessionRewriteRequest {\n    readonly sessionId: SessionId;\n    readonly expectedCursor: number;\n    readonly throughSeq: number;\n    readonly edits: readonly SessionEdit[];\n    readonly interrupt?: boolean;\n    readonly resume?: boolean;\n}',
+  },
+  {
+    name: 'SessionRewriteValue',
+    declaration: 'export interface SessionRewriteValue {\n    readonly sessionId: SessionId;\n    readonly cursor: number;\n}',
   },
   {
     name: 'SessionSearchCursor',

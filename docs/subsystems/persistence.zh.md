@@ -344,7 +344,7 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 Durable append-only session storage addressed through per-session handles.
 
-Storage semantics shared by every backend: events are contiguous from seq 0 and never rewritten; a torn physical tail is never returned to a reader and is truncated by the write path before its first append; reads validate current-format records only and refuse unknown vocabulary fail-closed. `append` persists best-effort; `flush` — per handle or service-wide — is the durability barrier.
+Storage semantics shared by every backend: events are contiguous from seq 0 and never rewritten by `append`; only an explicit replace swaps a whole log; a torn physical tail is never returned to a reader and is truncated by the write path before its first append; reads validate current-format records only and refuse unknown vocabulary fail-closed. `append` persists best-effort; `flush` — per handle or service-wide — is the durability barrier.
 
 Visibility: a created session is observable through `stat`/`list`/`open` in this process from the moment `create` resolves, even while a backend defers physical materialization (a pure optimization); other processes see the session only once it materializes, and a session that never materialized before a crash never existed. `SessionHandle.flush` forces materialization.
 
@@ -410,6 +410,23 @@ abstract stat(id: SessionId, options?: SessionPersistenceStatOptions): Promise<S
  * @returns one snapshot per stored session.
  */
 abstract list(options?: SessionPersistenceListOptions): Promise<readonly SessionPersistenceSnapshot[]>
+
+/**
+ * Atomically replace one stored session's complete log and header under the
+ * same id. The caller must hold no write handle for the session; the
+ * backend claims write ownership for the duration of the swap, so a
+ * concurrent writer makes it reject instead of interleaving. On resolution
+ * every later `open`, `read`, `stat`, and `list` observes the new log and a
+ * changed `revision`; on rejection the stored log is unchanged. Backends
+ * that cannot replace a log keep this default refusal.
+ * @param storage - the replacement header, inherited cut, and complete event log from seq 0.
+ * @param options - optional cancellation observed before the replacement publishes.
+ * @returns resolution once the replacement is durable.
+ * @throws {SessionReplaceUnsupportedError} from backends without log replacement.
+ * @throws {SessionPersistenceNotFoundError} when the session does not exist.
+ * @throws {SessionAlreadyOwnedError} when a write handle is active.
+ */
+replace(storage: SessionInspection, options?: SessionPersistenceReplaceOptions): Promise<void>
 ```
 
 Types: [SessionId](core.zh.md)

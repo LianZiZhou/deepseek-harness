@@ -48,7 +48,11 @@ export function parseContextBlocks(content: JsonValue): ContextBlock[] {
   })
 }
 
-/** Plain text of a message for previews and search. */
+/**
+ * Plain text of a message for previews and comparisons.
+ * @param blocks - parsed message blocks.
+ * @returns the blocks' text joined by newlines, with other blocks named by type.
+ */
 export function blocksText(blocks: readonly ContextBlock[]): string {
   return blocks.map((block) => {
     switch (block.kind) {
@@ -96,7 +100,11 @@ export interface ContextDraft {
 /** A draft with nothing staged. */
 export const EMPTY_DRAFT: ContextDraft = { replaced: new Map(), deleted: new Set(), inserted: [] }
 
-/** Whether the draft stages any change. */
+/**
+ * Whether the draft stages no change.
+ * @param draft - staged changes.
+ * @returns true when nothing is replaced, deleted, or inserted.
+ */
 export function draftIsEmpty(draft: ContextDraft): boolean {
   return draft.replaced.size === 0 && draft.deleted.size === 0 && draft.inserted.length === 0
 }

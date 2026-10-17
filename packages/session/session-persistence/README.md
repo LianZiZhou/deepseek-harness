@@ -82,7 +82,7 @@ The package is a seam, not a backend framework: it exports the abstract `Session
 
 ### The invariants every backend honors
 
-- **Append-only, contiguous `seq`.** Committed events are never rewritten; `append`'s first `seq` must equal the stored next-seq, and a gap rejects.
+- **Append-only, contiguous `seq`.** `append` never rewrites committed events; its first `seq` must equal the stored next-seq, and a gap rejects. Only `replace(storage)` swaps a whole log: it claims write ownership for the swap, rejects while a write handle is active, and changes the revision. The base class refuses it with `SessionReplaceUnsupportedError`.
 - **A torn physical tail never reaches a reader.** It belongs to an append that never resolved; the write path truncates it durably before its first new append.
 - **Lossless JSON data.** Batches and headers pass the shared one-pass validate-and-snapshot boundary (`materializeAppendBatch`/`materializeCreateHeader`); non-serializable payloads reject at the call site.
 - **Durability.** `append` persists best-effort; `flush` — per handle or service-wide — is the barrier that promises storage and also materializes an empty session.

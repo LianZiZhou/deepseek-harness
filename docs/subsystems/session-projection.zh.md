@@ -194,9 +194,21 @@ async write(session: Session): Promise<void>
  * @returns the projection cut at the log end.
  */
 coldSnapshot( meta: SessionHeader, inheritedEventCount: SessionLogOffset, events: readonly SessionEvent[], ): ProjectionSnapshot
+
+/**
+ * Drop one session's stored record after its log was replaced in place.
+ * Rows record how far they folded by seq, so a replaced log with the same
+ * header would otherwise seed folds from events it no longer contains. The
+ * delete queues on the domain's write chain behind every write already
+ * queued, including the disposal checkpoint of the agent released before
+ * the replacement; call it after that release and before the next resume.
+ * @param id - the session whose record is discarded.
+ * @returns resolution once the delete is durable.
+ */
+async invalidate(id: SessionId): Promise<void>
 ```
 
-Types: [Session](session.zh.md) · [SessionEvent](session.zh.md) · [SessionHeader](persistence.zh.md) · [SessionLogOffset](session.zh.md)
+Types: [Session](session.zh.md) · [SessionEvent](session.zh.md) · [SessionHeader](persistence.zh.md) · [SessionId](core.zh.md) · [SessionLogOffset](session.zh.md)
 
 Source: [`packages/session/session-projection-cache/src/index.ts`](../../packages/session/session-projection-cache/src/index.ts)
 
