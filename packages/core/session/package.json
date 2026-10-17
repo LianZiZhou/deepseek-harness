@@ -26,6 +26,10 @@
       "types": "./lib/types/fork.d.ts",
       "default": "./lib/types/fork.js"
     },
+    "./rewrite": {
+      "types": "./lib/types/rewrite.d.ts",
+      "default": "./lib/types/rewrite.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json",
     "./surface": {
