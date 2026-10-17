@@ -723,6 +723,21 @@ export class SessionManager {
   }
 
   /**
+   * Discard everything held for a Session whose log was replaced in place:
+   * its projection cut, any in-flight projection read, and its open history
+   * window, then reload both from the replaced log.
+   * @param sessionId - rewritten Session identity.
+   */
+  handleSessionRewritten(sessionId: SessionId): void {
+    this.projectionInflight.get(sessionId)?.controller.abort()
+    this.projectionInflight.delete(sessionId)
+    this.projectionLoads.delete(sessionId)
+    this.projectionStores.get(sessionId)?.clear()
+    void this.refreshProjections(sessionId)
+    void this.sessions.get(sessionId)?.resync()
+  }
+
+  /**
    * Apply one live Agent running-state change.
    * @param sessionId - Session whose Agent state changed.
    * @param running - current Agent running state.

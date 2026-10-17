@@ -1,0 +1,205 @@
+/**
+ * `session.rewrite`: stops the controller-owned Agent, replaces the stored
+ * log with the edited prefix, invalidates derived state, and resumes the
+ * Session under the same id.
+ */
+import { describe, expect, it, vi } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
+import type { Agent, AgentHandle, ResumeAgentOptions } from '@deepseek-ai/dsh-agent'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import SessionStore, { SessionLogOffset } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import { SessionPersistenceRevision, type SessionInspection } from '@deepseek-ai/dsh-session-persistence'
+import { createSessionTestRemote, installSessionReadTestServices, testSessionPersistence } from './test-remote.ts'
+
+const sid = (id: string): SessionId => id as SessionId
+
+interface Stored {
+  meta: SessionHeader
+  events: SessionEvent[]
+}
+
+/** A composed controller whose fake Agent factory resumes from an in-memory stored log. */
+async function composed(options: { status?: 'idle' | 'running' } = {}) {
+  const ctx = new Context()
+  await ctx.plugin(SessionStore)
+  await ctx.plugin(AgentRegistry)
+  installSessionReadTestServices(ctx)
+  const stored = new Map<SessionId, Stored>()
+  let revision = 0
+  const write = (id: SessionId, entry: Stored): void => {
+    revision += 1
+    stored.set(id, entry)
+  }
+  const replace = vi.fn(async (storage: SessionInspection) => {
+    write(storage.meta.id, { meta: storage.meta, events: [...storage.events] })
+  })
+  const invalidate = vi.fn(async (_id: SessionId) => {})
+  ctx.provide('sessionProjectionCache', {
+    invalidate,
+    hydratePrepared: (session: Session, events: readonly SessionEvent[]) =>
+      ctx.sessionProjections.hydrate(session, {}, events, SessionLogOffset(0)),
+    coldSnapshot: (meta: SessionHeader, inherited: SessionLogOffset, events: readonly SessionEvent[]) =>
+      ctx.sessionProjections.restore({}, events, SessionLogOffset(0), meta, inherited).snapshot,
+  } as never)
+  ctx.provide('sessionPersistence', testSessionPersistence(ctx, {
+    list: () => Promise.resolve([...stored.values()].map(entry => entry.meta)),
+    stat: (id: SessionId) => {
+      const entry = stored.get(id)
+      return Promise.resolve(entry === undefined ? undefined : { header: entry.meta, revision: SessionPersistenceRevision(`test:${id}:${revision}`) })
+    },
+    inspect: (id: SessionId) => {
+      const entry = stored.get(id)
+      return Promise.resolve(entry === undefined
+        ? undefined
+        : { meta: entry.meta, inheritedEventCount: SessionLogOffset(0), events: entry.events })
+    },
+    replace,
+  }) as never)
+  const resumes: Array<ReturnType<typeof vi.fn>> = []
+  const live = (
+    id: SessionId, seed: readonly SessionEvent[], meta: SessionHeader,
+  ): Promise<AgentHandle> => new Promise((resolve, reject) => {
+    let session: Session | undefined
+    const resume = vi.fn()
+    resumes.push(resume)
+    ctx.plugin({
+      inject: ['sessions', 'agents'],
+      apply: async (inner: Context) => {
+        session = inner.sessions.create(id, { seed: [...seed], meta: { cwd: meta.cwd ?? '/proj' } })
+        const agent = {} as Agent
+        Object.assign(agent, { id, session, status: options.status ?? 'idle', ctx: inner, resume, cancel: vi.fn(), whenIdle: () => Promise.resolve() })
+        await inner.agents.register(agent)
+      } }).then((fiber) => {
+      const agent = ctx.agents.get(id)
+      if (agent === undefined) throw new Error('fake agent was not registered')
+      // Like the real write path, the stored log holds every live append once the Agent stops.
+      resolve({ agent, dispose: async () => {
+        const events = [...agent.session.snapshotEvents()]
+        await fiber.dispose()
+        write(id, { meta, events })
+      } })
+    }).catch(reject)
+  })
+  ctx.agents.setFactory({
+    createAgent: () => Promise.reject(new Error('rewrite tests resume stored sessions')),
+    resume: (_owner: Context, request: ResumeAgentOptions) => {
+      const entry = stored.get(request.resumeSessionId)
+      if (entry === undefined) return Promise.reject(new Error('not stored'))
+      return live(request.resumeSessionId, entry.events, entry.meta)
+    },
+  })
+  return { ctx, stored, replace, invalidate, resumes }
+}
+
+/** Store one closed two-turn conversation for `id`. */
+function storeConversation(stored: Map<SessionId, Stored>, id: SessionId): SessionEvent[] {
+  const prompt = (text: string) => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
+  const events: SessionEvent[] = []
+  const push = (event: Omit<SessionEvent, 'seq' | 'time'>) => {
+    events.push({ ...event, seq: events.length, time: events.length } as SessionEvent)
+  }
+  for (const turn of [1, 2]) {
+    push({ type: 'turn/start', data: { turn } } as SessionEvent)
+    push({ type: 'user/message', data: prompt(`prompt ${turn}`), surfaceOp: 'append' } as SessionEvent)
+    push({ type: 'turn/end', data: { turn, reason: { kind: 'completed' } } } as SessionEvent)
+  }
+  stored.set(id, { meta: { version: 4, id, createdAt: 1, cwd: '/proj', isSeeded: false } as SessionHeader, events })
+  return events
+}
+
+const remote = (ctx: Context) => createSessionTestRemote(ctx, {
+  defaultModelSelection: () => ({ provider: 'default-provider', model: 'default-model' }),
+  cwd: '/tmp',
+})
+
+describe('session.rewrite', () => {
+  it('replaces the stored log, announces the rewrite before resuming, and restarts on request', async () => {
+    const { ctx, stored, replace, invalidate, resumes } = await composed()
+    const id = sid('rewrite-me')
+    storeConversation(stored, id)
+    const order: string[] = []
+    ctx.on('api-session/rewritten', () => { order.push(`rewritten:${String(ctx.agents.get(id) === undefined)}`) })
+    const response = await remote(ctx).rewrite({
+      sessionId: id,
+      expectedCursor: 5,
+      throughSeq: 1,
+      edits: [{ kind: 'replace-content', seq: 1, content: [{ type: 'text', text: 'edited prompt' }] }],
+      resume: true,
+    })
+
+    expect(response).toEqual({ ok: true, value: { sessionId: id, cursor: 2 } })
+    expect(replace).toHaveBeenCalledOnce()
+    expect(invalidate).toHaveBeenCalledWith(id)
+    expect(order).toEqual(['rewritten:true'])
+    const rewritten = stored.get(id)?.events ?? []
+    expect(rewritten.map(event => event.type)).toEqual(['turn/start', 'user/message', 'turn/end'])
+    expect(rewritten[1]).toMatchObject({ data: { content: [{ type: 'text', text: 'edited prompt' }] } })
+    expect(ctx.agents.get(id)).toBeDefined()
+    expect(resumes.at(-1)).toHaveBeenCalledOnce()
+    await ctx.fiber.dispose()
+  })
+
+  it('stops a controller-owned live Agent before replacing its log', async () => {
+    const { ctx, stored, replace } = await composed()
+    const id = sid('live-owned')
+    storeConversation(stored, id)
+    const first = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 5, edits: [] })
+    expect(first.ok).toBe(true)
+    const before = ctx.agents.get(id)
+    const second = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 6, throughSeq: 2, edits: [] })
+    if (!second.ok) throw second.error
+    expect(second).toMatchObject({ ok: true, value: { cursor: 2 } })
+    expect(replace).toHaveBeenCalledTimes(2)
+    expect(ctx.agents.get(id)).not.toBe(before)
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects a stale cursor and leaves the stored log unchanged', async () => {
+    const { ctx, stored, replace } = await composed()
+    const id = sid('stale')
+    const events = storeConversation(stored, id)
+    const response = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 2, throughSeq: 1, edits: [] })
+    expect(response).toMatchObject({ ok: false, error: { code: 'session/rewrite-conflict', details: { cursor: 5 } } })
+    expect(replace).not.toHaveBeenCalled()
+    expect(stored.get(id)?.events).toEqual(events)
+    expect(ctx.agents.get(id)).toBeDefined()
+    await ctx.fiber.dispose()
+  })
+
+  it('maps an invalid edit to session/rewrite-invalid', async () => {
+    const { ctx, stored } = await composed()
+    const id = sid('invalid')
+    storeConversation(stored, id)
+    const response = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 5, edits: [{ kind: 'delete', seq: 0 }] })
+    expect(response).toMatchObject({ ok: false, error: { code: 'session/rewrite-invalid', details: { code: 'NOT_A_MESSAGE', seq: 0 } } })
+    await ctx.fiber.dispose()
+  })
+
+  it('refuses a running Session unless asked to interrupt it', async () => {
+    const { ctx, stored } = await composed({ status: 'running' })
+    const id = sid('running')
+    storeConversation(stored, id)
+    await remote(ctx).resume({ sessionId: id })
+    const refused = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 6, throughSeq: 1, edits: [] })
+    expect(refused).toMatchObject({ ok: false, error: { code: 'session/agent-busy' } })
+    const live = ctx.agents.get(id)
+    const accepted = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 6, throughSeq: 1, edits: [], interrupt: true })
+    if (!accepted.ok) throw accepted.error
+    expect(accepted.ok).toBe(true)
+    expect(live?.cancel).toHaveBeenCalledWith({ kind: 'user' }, { keepInbox: true })
+    await ctx.fiber.dispose()
+  })
+
+  it('refuses a live Agent the controller did not start', async () => {
+    const { ctx, stored } = await composed()
+    const id = sid('foreign')
+    storeConversation(stored, id)
+    const session = ctx.sessions.create(id, { meta: { cwd: '/proj' } })
+    await ctx.agents.register({ id, session, status: 'idle', ctx } as Agent)
+    const response = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 1, edits: [] })
+    expect(response).toMatchObject({ ok: false, error: { code: 'session/rewrite-unavailable', details: { reason: 'foreign-owner' } } })
+    await ctx.fiber.dispose()
+  })
+})

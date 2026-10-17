@@ -68,6 +68,8 @@ import type {
   SessionProjectionValues,
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
+  SessionRewriteRequest,
+  SessionRewriteValue,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -452,6 +454,19 @@ export class SessionController extends TypertRemoteService {
       }
     }
     return this.commands.fork(request)
+  }
+
+  /**
+   * Destructively rewrite one Session log under its own id: discard events
+   * after `throughSeq`, apply content edits to the kept prefix, and resume the
+   * Session from the result. Clients holding the Session receive
+   * `api-session/rewritten` and must reload it.
+   * @param request - Session, the caller's last read seq, cut point, edits, and interrupt/resume choices.
+   * @returns the Session identity and the last seq of the rewritten log.
+   */
+  @Remote('rewrite')
+  rewrite(request: SessionRewriteRequest): Promise<SessionRewriteValue> {
+    return this.commands.rewrite(request)
   }
 
   /**

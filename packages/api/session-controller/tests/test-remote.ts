@@ -40,6 +40,8 @@ import type {
   SessionCancelRequest,
   SessionCancelValue,
   SessionResumeRequest,
+  SessionRewriteRequest,
+  SessionRewriteValue,
   SessionResumeValue,
   SessionControlFrame,
   SessionCreateRequest,
@@ -86,6 +88,7 @@ export interface TestSessionRemote {
   updateQueue(request: SessionUpdateQueueRequest): Promise<RemoteResult<SessionUpdateQueueValue>>
   cancel(request: SessionCancelRequest): Promise<RemoteResult<SessionCancelValue>>
   resume(request: SessionResumeRequest): Promise<RemoteResult<SessionResumeValue>>
+  rewrite(request: SessionRewriteRequest): Promise<RemoteResult<SessionRewriteValue>>
   openWorkspacePath(
     request: SessionOpenWorkspacePathRequest,
     signal?: AbortSignal,
@@ -378,6 +381,7 @@ export function createSessionTestRemote(
     updateQueue: request => remoteResult(() => direct.updateQueue(request)),
     cancel: request => remoteResult(() => direct.cancel(request)),
     resume: request => remoteResult(() => direct.resume(request)),
+    rewrite: request => remoteResult(() => direct.rewrite(request)),
     openWorkspacePath: (request, signal = new AbortController().signal) => remoteResult(
       () => direct.openWorkspacePath(request, signal),
       signal,

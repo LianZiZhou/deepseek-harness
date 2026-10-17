@@ -87,7 +87,7 @@ const RENUMBERABLE_TYPES: ReadonlySet<string> = new Set([
   'turn/start', 'turn/end', 'step/start', 'step/end',
   'system/message', 'developer/message', 'user/message', 'assistant/message', 'assistant/attempt',
   'tool/call', 'tool/result', 'request/header', 'request/context', 'session/end-seed',
-  'llm/retry', 'llm/retry-started',
+  'llm/retry', 'llm/retry-started', 'agent/inbox/spliced',
 ])
 
 const SURFACE_TYPES: ReadonlySet<string> = new Set<SurfaceEventType>([
