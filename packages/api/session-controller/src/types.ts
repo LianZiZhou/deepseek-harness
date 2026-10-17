@@ -227,6 +227,9 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'session/title-invalid': { readonly sessionId: SessionId }
     'session/fork-unavailable': { readonly sessionId: SessionId }
     'session/resume-unavailable': { readonly sessionId: SessionId; readonly reason: string }
+    'session/rewrite-invalid': { readonly sessionId: SessionId; readonly code: string; readonly seq?: number }
+    'session/rewrite-conflict': { readonly sessionId: SessionId; readonly expectedCursor: number; readonly cursor: number }
+    'session/rewrite-unavailable': { readonly sessionId: SessionId; readonly reason: string }
     'session/migration-required': { readonly sessionId: SessionId }
     'subagent/not-found': {
       readonly parentSessionId: SessionId
@@ -339,6 +342,94 @@ export interface SessionForkRequest {
 /** Identity of a newly forked Session. */
 export interface SessionForkValue {
   readonly sessionId: SessionId
+}
+
+/**
+ * One block of edited message content. `keep` reuses block `index` of the
+ * original message unchanged, which is how images, files, and tool changes
+ * survive an edit; new content may only be text, reasoning, or tool calls.
+ */
+export type SessionEditBlock =
+  | { readonly type: 'text'; readonly text: string }
+  | { readonly type: 'reasoning'; readonly text: string }
+  | { readonly type: 'tool-call'; readonly id: string; readonly name: string; readonly arguments: string }
+  | { readonly type: 'keep'; readonly index: number }
+
+/** One edit addressed by the seqs of the log the client read. */
+export type SessionEdit =
+  | {
+    /** Replace the content of one message event, keeping its identity and role. */
+    readonly kind: 'replace-content'
+    readonly seq: number
+    readonly content: readonly SessionEditBlock[]
+    /** New failure flag of an edited tool result; omission keeps the original. */
+    readonly isError?: boolean
+  }
+  /** Remove one user, developer, assistant, or tool-result message. */
+  | { readonly kind: 'delete'; readonly seq: number }
+  /** Add a user message after `afterSeq`; `keep` blocks are not accepted here. */
+  | { readonly kind: 'insert-user'; readonly afterSeq: number; readonly content: readonly SessionEditBlock[] }
+
+/**
+ * Destructive in-place rewrite of one Session log: events after `throughSeq`
+ * are discarded and `edits` apply to the kept prefix under the same Session id.
+ */
+export interface SessionRewriteRequest {
+  readonly sessionId: SessionId
+  /** Last seq the client read; a different current last seq rejects with `session/rewrite-conflict`. */
+  readonly expectedCursor: number
+  /** Inclusive seq of the last kept event. */
+  readonly throughSeq: number
+  readonly edits: readonly SessionEdit[]
+  /** Cancel a running turn first instead of rejecting with `session/agent-busy`. */
+  readonly interrupt?: boolean
+  /** Start a turn from the rewritten history once the Session is live again. */
+  readonly resume?: boolean
+}
+
+/** Result of one committed rewrite. */
+export interface SessionRewriteValue {
+  readonly sessionId: SessionId
+  /** Last seq of the rewritten log, including restart closers. */
+  readonly cursor: number
+}
+
+/** Request for the model context of one Session. */
+export interface SessionContextRequest {
+  readonly sessionId: SessionId
+}
+
+/** One message of the derived model history, paired with the event that produced it. */
+export interface SessionContextMessage {
+  /** Seq of the producing event; the address edits use. */
+  readonly seq: number
+  /** Type of the producing event. */
+  readonly event: string
+  readonly role: 'system' | 'developer' | 'user' | 'assistant' | 'tool'
+  /** Content blocks exactly as the model receives them. */
+  readonly content: JsonValue
+  /** Call answered by a tool message; absent on other roles. */
+  readonly toolCallId?: string
+  /** Whether a tool message reports a failed call; absent on other roles. */
+  readonly isError?: boolean
+  /** A plugin message projection changed this message from its producing event. */
+  readonly projected?: true
+}
+
+/**
+ * The model context of one Session at `cursor`: the derived history the next
+ * request sends, the latest logged request header, and, when a system prompt
+ * service is composed, the system prompt and tools the next step assembles.
+ * Provider adapters still map this logical request to their wire format.
+ */
+export interface SessionContextValue {
+  /** Last seq of the log this snapshot reads; pass it as a rewrite's `expectedCursor`. */
+  readonly cursor: number
+  readonly messages: readonly SessionContextMessage[]
+  /** Latest logged request header: call configuration, adapter defaults, and tool schemas. */
+  readonly request?: JsonValue
+  /** Side-effect-free assembly of the next step's system prompt and tools. */
+  readonly next?: { readonly systemPrompt: string; readonly tools: JsonValue }
 }
 
 /** Session prompt request. */
@@ -624,6 +715,12 @@ declare module '@deepseek-ai/cordis' {
      * @param sessionId - removed Session identity.
      */
     'api-session/removed'(sessionId: SessionId): void
+    /**
+     * A Session log was replaced in place; every held event, cursor, and projection value for it is stale.
+     * @mode emit
+     * @param sessionId - rewritten Session identity.
+     */
+    'api-session/rewritten'(sessionId: SessionId): void
     /**
      * One Agent changed running state.
      * @mode emit

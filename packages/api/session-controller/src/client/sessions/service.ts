@@ -396,6 +396,14 @@ export class ClientSessions implements ISessions {
   }
 
   /**
+   * Forward one in-place log replacement to the Manager.
+   * @param sessionId - rewritten Session identity.
+   */
+  handleSessionRewritten(sessionId: Parameters<SessionManager['handleSessionRewritten']>[0]): void {
+    this.manager.handleSessionRewritten(sessionId)
+  }
+
+  /**
    * Apply one remotely forwarded running-state change.
    * @param args - Session identity and current Agent running state.
    */

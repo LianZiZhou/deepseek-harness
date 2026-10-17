@@ -10,6 +10,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { isTypertOwnedValue } from '@deepseek-ai/dsh-typert-protocol'
 import { afterEach, describe, expect, vi, type MockInstance } from 'vitest'
+import { SessionManager } from '../src/client/sessions/manager.ts'
 import { ClientSessions } from '../src/client/sessions/service.ts'
 import type { SessionListValue } from '../src/types.ts'
 
@@ -63,6 +64,10 @@ describe('Session Controller Client apply', () => {
       expect(sessions.list.getSnapshot().byId[sid('session-1')]).toMatchObject({ running: true, updatedAt: 9 })
     })
     expect(error).toHaveBeenCalledWith(sid('session-1'), 'agent failed')
+
+    const rewritten = vi.spyOn(SessionManager.prototype, 'handleSessionRewritten').mockImplementation(() => {})
+    await emit(mock, 'api-session/rewritten', sid('session-1'))
+    await vi.waitFor(() => { expect(rewritten).toHaveBeenCalledWith(sid('session-1')) })
 
     await emit(mock, 'api-session/removed', sid('session-1'))
     await vi.waitFor(() => { expect(sessions.list.getSnapshot().byId[sid('session-1')]).toBeUndefined() })

@@ -64,6 +64,10 @@ Fork 复制 `atSeq` 所选的精确事件前缀，包含切点事件，允许在
 
 恢复会话时若已有写句柄占用，返回 `session/writer-held`，并携带会话 id；其他恢复失败仍返回 `gateway/internal`。
 
+`session.rewrite` 在同一 id 下覆盖一个 Session 日志。除非设置 `interrupt`，它以 `session/agent-busy` 拒绝正在运行的 Agent；以 `session/rewrite-unavailable` 拒绝不是由本控制器启动的活跃 Agent；以 `session/rewrite-conflict` 拒绝最后 seq 与 `expectedCursor` 不同的日志。随后它停止 Agent，保留 `throughSeq` 及之前的事件，应用编辑，把未结束的尾部轮次以 `interrupted` 关闭，校验结果，通过 `SessionPersistence.replace` 替换已存储日志，删除投影缓存记录，发出 `api-session/rewritten`，并恢复该 Session；`resume: true` 还会启动一个轮次。编辑内容只能包含文本、思考、工具调用，以及指向被编辑消息中块的 `keep` 引用，因此附件只能来自现有日志。无效编辑返回 `session/rewrite-invalid`，并带有拒绝代码与 seq。收到该通知后，该 Session 的 follower 结束，客户端重新加载其投影与历史（[决策](../../../.agents/notes/implemented/architecture/2026-10-17-in-place-session-rewrite.zh.md)）。
+
+`session.context` 像 prompt 一样解析 Session，按请求顺序返回推导出的模型历史，每条消息都与产生它的事件 seq 配对，被插件投影修改的消息会带标记，同时返回最新记录的请求头。组合了系统提示服务时，`next` 预览下一步组装的系统提示与工具，不记录任何内容。提供方适配器仍会把这个逻辑请求映射为各自的请求格式。
+
 `loadThrough(seq)` 在共享目标被覆盖或加载结束前私下保留较早页面，随后把成功取得的页面按顺序作为一次前插发布。历史加载期间实时事件仍然可见。后续页面失败时保留已成功取得的部分；历史窗口被替换时丢弃被替换窗口的暂存页面。普通 `loadOlder()` 直接发布 Host 选取的一页结果。
 
 Client 的首次 `follow`、重连首屏与 `loadOlder()` 至少请求 50 条以 append 方式追加的 `user/message` 和 `assistant/message` 事件，并向前跨过至少两个 `turn/start`，其中包含已加载窗口开头尚未补齐的轮次。Host 在首次同时满足两个下限的轮次开头停止；若先达到 500 条计数消息或历史已耗尽，则立即返回。Steering 不增加轮次分界。区间内的其他事件随页返回，但不计入消息预算。分页和 follow 请求可选的 `turnWindow` 在 `maxMessages` 上限内指定这两个下限。`loadThrough()` 复用相同规则，仅将每页消息数下限设为 200；500 条上限不限制整次跳转。不带 `turnWindow` 的请求保留按消息对齐的分页方式。

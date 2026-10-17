@@ -17,7 +17,9 @@ import {
 } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import { buildForkSeed } from '@deepseek-ai/dsh-session/fork'
-import { SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
+import { buildRewriteLog } from '@deepseek-ai/dsh-session/rewrite'
+import { rewriteFailure, toEditOp } from './rewrite-edits.ts'
+import { Session, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { SessionTitleInvalidError } from '@deepseek-ai/dsh-session-title'
@@ -50,6 +52,8 @@ import type {
   SessionPromptValue,
   SessionRenameRequest,
   SessionRenameValue,
+  SessionRewriteRequest,
+  SessionRewriteValue,
   SessionSelectModelRequest,
   SessionSelectModelValue,
   SessionUpdateQueueRequest,
@@ -297,7 +301,7 @@ export class SessionCommandController {
     const composition = await this.agents.composeAgent(this.agents.presetForObservation(source))
     try {
       const { provider, model } = this.ctx.agentDefaultModel.currentSelection()
-      await this.ctx.agents.create({
+      this.agents.adopt(await this.ctx.agents.create({
         sessionId: childId,
         seed,
         inheritedEventCount: SessionLogOffset(boundary + 1),
@@ -311,7 +315,7 @@ export class SessionCommandController {
         },
         agentOptions: { provider, model },
         setup: composition.setup,
-      })
+      }))
     } catch (error) {
       throw new RemoteError(
         'gateway/internal',
@@ -331,6 +335,69 @@ export class SessionCommandController {
       }
     }
     return { sessionId: childId }
+  }
+
+  /**
+   * Destructively rewrite one Session log under its own id: stop the live
+   * Agent, discard events after `throughSeq`, apply `edits` to the kept
+   * prefix, close an open tail turn as `interrupted`, replace the stored log,
+   * and resume the Session. The previous stored log is kept by the
+   * persistence backend only as a recovery copy; clients must reload.
+   * @param request - Session, the client's cursor, cut point, edits, and interrupt/resume choices.
+   * @returns the Session identity and the last seq of the rewritten log.
+   */
+  async rewrite(request: SessionRewriteRequest): Promise<SessionRewriteValue> {
+    const { sessionId } = request
+    let throughSeq: SessionSeq
+    try {
+      throughSeq = SessionSeq(request.throughSeq)
+    } catch {
+      throw new RemoteError('gateway/bad-request', 'throughSeq must be a non-negative safe integer', {})
+    }
+    const live = this.ctx.agents.get(sessionId)
+    if (live !== undefined) {
+      if (hasApiSessionSubagentOwner(this.ctx, live.session, live)) throw apiSessionSubagentOwnershipError(sessionId)
+      if (live.status !== 'idle') {
+        if (request.interrupt !== true) {
+          throw new RemoteError('session/agent-busy', 'the session is running; interrupt it to rewrite', { reason: 'running' })
+        }
+        live.cancel({ kind: 'user' }, { keepInbox: true })
+        await live.whenIdle()
+      }
+    }
+    const persistence = this.ctx.get('sessionPersistence')
+    if (persistence === undefined) {
+      throw new RemoteError('session/rewrite-unavailable', 'no session persistence is composed', { sessionId, reason: 'no-persistence' })
+    }
+    let cursor = -1
+    let agent: Agent
+    try {
+      agent = await this.agents.replaceStopped(sessionId, async () => {
+        const stored = await inspectApiSession(this.ctx, sessionId)
+        const last = stored.events.length - 1
+        if (last !== request.expectedCursor) {
+          throw new RemoteError('session/rewrite-conflict', `session "${sessionId}" changed since it was read (last seq ${last}, expected ${request.expectedCursor})`, {
+            sessionId, expectedCursor: request.expectedCursor, cursor: last,
+          })
+        }
+        const result = buildRewriteLog(stored.events, stored.inheritedEventCount, {
+          throughSeq,
+          edits: request.edits.map(edit => toEditOp(edit, stored.events)),
+        })
+        const meta = { ...stored.meta, isSeeded: result.isSeeded }
+        // Refuse a log the Session itself would refuse before the stored copy changes.
+        Session.create(sessionId, result.events, meta, result.inheritedEventCount, this.ctx.sessions.messageProjections)
+        await persistence.replace({ meta, inheritedEventCount: result.inheritedEventCount, events: result.events })
+        await this.ctx.get('sessionProjectionCache')?.invalidate(sessionId)
+        cursor = result.events.length - 1
+        // Before the resume, so no follower splices the resumed log onto its old cursor.
+        this.ctx.emit('api-session/rewritten', sessionId)
+      })
+    } catch (error: unknown) {
+      throw rewriteFailure(sessionId, error)
+    }
+    if (request.resume === true && agent.resume !== undefined && agent.status === 'idle') agent.resume()
+    return { sessionId, cursor }
   }
 
   /**

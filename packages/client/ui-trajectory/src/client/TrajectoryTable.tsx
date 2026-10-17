@@ -235,7 +235,8 @@ const REQUEST_TABS: readonly DetailTabItem[] = [
   { id: 'timing', labelKey: 'tab.timing' },
 ]
 
-function jsonTreeLabels(t: TrajectoryTranslate): JsonTreeLabels {
+/** Localized JsonTree copy shared by trajectory and context inspection. */
+export function jsonTreeLabels(t: TrajectoryTranslate): JsonTreeLabels {
   return {
     copyValue: t('copy.value'),
     copyJson: t('copy.json'),

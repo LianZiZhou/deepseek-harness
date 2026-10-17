@@ -82,7 +82,7 @@ await ctx.sessionPersistence.flush()                           // backend-wide d
 
 ### 每个后端必须遵守的不变量
 
-- **仅追加，连续 `seq`。** 已提交事件绝不重写；`append` 的第一个 `seq` 必须等于已存储 next-seq，缺口会被拒绝。
+- **仅追加，连续 `seq`。** `append` 绝不重写已提交事件；它的第一个 `seq` 必须等于已存储 next-seq，缺口会被拒绝。只有 `replace(storage)` 会替换整条日志：它在替换期间占有写所有权，存在活跃写句柄时拒绝，并改变 revision。基类以 `SessionReplaceUnsupportedError` 拒绝该操作。
 - **撕裂的物理尾部绝不到达读取方。** 它属于一次从未完成的 append；写路径在第一次新 append 之前将其持久截断。
 - **无损 JSON 数据。** 批次与 header 经过共享的单遍校验并快照边界（`materializeAppendBatch`/`materializeCreateHeader`）；无法序列化的载荷在调用处被拒绝。
 - **持久性。** `append` 尽力而为地持久化；`flush`——逐句柄或服务级——是承诺存储并同时把空会话实体化的屏障。

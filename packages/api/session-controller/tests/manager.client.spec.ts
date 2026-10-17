@@ -815,6 +815,26 @@ describe('subagent catalogs', () => {
     expect(mock.log.requests('session/page')).toEqual([])
   })
 
+  it('discards projections and reloads them and the open history after an in-place rewrite', async ({ mock, remote, start }) => {
+    remote.session.list.mockImplementation(() => Promise.resolve(ok({ items: [summary(S1)] as never[] })))
+    remote.session.projections
+      .mockImplementationOnce(() => Promise.resolve(ok({ kind: 'sequenced', asOfSeq: 9, values: { title: 'Before' } })))
+      .mockImplementationOnce(() => Promise.resolve(ok({ kind: 'sequenced', asOfSeq: 2, values: { title: 'After' } })))
+    mock.load(sessionWorld)
+    const client = await start()
+    const manager = new SessionManager(client.ctx.remote)
+    onTestFinished(() => manager.dispose())
+    await manager.refreshList()
+    await manager.refreshProjections(S1)
+    expect(manager.projectionValues(S1)?.title).toBe('Before')
+    const resync = vi.spyOn(manager.get(S1), 'resync').mockResolvedValue()
+
+    manager.handleSessionRewritten(S1)
+
+    await vi.waitFor(() => { expect(manager.projectionValues(S1)?.title).toBe('After') })
+    expect(resync).toHaveBeenCalledOnce()
+  })
+
   it('keeps a catalog-discovered child address across identity resolution and status frames', async ({ mock, remote, start }) => {
     remote.session.list.mockImplementation(() => Promise.resolve(ok({ items: [
       summary(S1),

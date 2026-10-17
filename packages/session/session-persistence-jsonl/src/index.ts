@@ -14,7 +14,7 @@ import {
   sessionFormatCatalog,
 } from '@deepseek-ai/dsh-session-format-catalog'
 import { readdirSync, type Dirent } from 'node:fs'
-import { open, mkdir, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
+import { open, mkdir, readdir, realpath, link, rename, rm, stat, truncate } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { scheduler } from 'node:timers/promises'
@@ -24,11 +24,12 @@ import {
   SessionPersistence, SessionPersistenceRevision, SessionFormatUnsupportedError,
   SessionPersistenceCorruptionError,
   SessionAlreadyExistsError, SessionPersistenceNotFoundError,
-  assertStoredId, materializeCreateHeader, sessionFormatVersionRefusal, validateStoredEvents,
+  assertContiguous, assertStoredId, materializeAppendBatch, materializeCreateHeader, sessionFormatVersionRefusal, validateStoredEvents,
   type SessionAccess, type SessionHandle,
   type SessionHandleReadResult,
   type SessionLocation, type SessionPersistenceCreateOptions,
-  type SessionPersistenceListOptions, type SessionPersistenceOpenOptions,
+  type SessionInspection, type SessionPersistenceListOptions, type SessionPersistenceOpenOptions,
+  type SessionPersistenceReplaceOptions,
   type SessionPersistenceSnapshot, type SessionPersistenceStatOptions,
   type SessionPersistenceRevision as PersistenceRevision,
 } from '@deepseek-ai/dsh-session-persistence'
@@ -461,6 +462,59 @@ class JsonlSessionPersistence extends SessionPersistence {
         throw new AggregateError([failure, releaseFailure], `session "${id}": write open failed and its lock release failed`)
       }
       throw failure
+    }
+  }
+
+  /**
+   * Atomically replace a stored log in its current-format generation file.
+   * The previous file stays beside it as `<generation file>.rewrite-<ms>.bak`,
+   * a name no generation scan selects. Historical-format logs must be opened
+   * for write once (which migrates them) before they can be replaced.
+   * @param storage - replacement header, inherited cut, and complete events from seq 0.
+   * @param options - optional cancellation observed before publication.
+   * @returns resolution once the replacement and its directory entry are durable.
+   */
+  override async replace(storage: SessionInspection, options?: SessionPersistenceReplaceOptions): Promise<void> {
+    options?.signal?.throwIfAborted()
+    const meta = materializeCreateHeader(storage.meta)
+    const id = meta.id
+    toHeaderLine(meta, meta.isSeeded ? storage.inheritedEventCount : undefined)
+    const events = [...materializeAppendBatch(storage.events)]
+    assertContiguous(id, events, 0)
+    validateStoredEvents(meta, events, this.locate(meta))
+    await this.ensureRootEncoding()
+    this.tracker.claimWrite(id)
+    let lease: SessionWriteLease | undefined
+    try {
+      const resolved = await this.findLog(id, options?.signal)
+      if (resolved === undefined) throw new SessionPersistenceNotFoundError(id)
+      if (resolved.sourceVersion !== sessionFormatCatalog.currentVersion) {
+        throw new SessionFormatUnsupportedError(
+          `session "${id}" is stored at format v${resolved.sourceVersion}; open it for write once to migrate before replacing its log`,
+          { kind: 'jsonl', path: resolved.sourcePath },
+        )
+      }
+      lease = await this.acquireLease(id, undefined, dirname(resolved.currentPath))
+      const content = await this.encodeMaterialization(meta, storage.inheritedEventCount, events)
+      options?.signal?.throwIfAborted()
+      const finalPath = resolved.currentPath
+      await link(finalPath, `${finalPath}.rewrite-${Date.now()}.bak`)
+      const tmp = await this.writeSyncedTempFile(finalPath, content)
+      try {
+        await rename(tmp, finalPath)
+      } catch (error: unknown) {
+        await rm(tmp, { force: true })
+        throw error
+      }
+      /* v8 ignore next -- Windows rename is write-through; POSIX syncs the directory entry. */
+      if (process.platform !== 'win32') await this.syncDirPosix(dirname(finalPath))
+      this.coldLogMemo.delete(id)
+    } finally {
+      try {
+        await lease?.release()
+      } finally {
+        this.tracker.releaseClaim(id)
+      }
     }
   }
 

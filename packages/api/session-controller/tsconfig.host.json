@@ -20,7 +20,9 @@
     "src/media-references.ts",
     "src/model-selection-projection.ts",
     "src/archived-session-gate.ts",
-    "src/skill-catalog.ts"
+    "src/skill-catalog.ts",
+    "src/context.ts",
+    "src/rewrite-edits.ts"
   ],
   "references": [
     {
@@ -40,6 +42,9 @@
     },
     {
       "path": "../../core/session"
+    },
+    {
+      "path": "../../core/system-prompt"
     },
     {
       "path": "../../context/file-reference"

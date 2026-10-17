@@ -1,0 +1,154 @@
+/* Scrolling host for the model-context inspector. */
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-1);
+  font-family: var(--dsw-font-family);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+}
+
+.title {
+  font: var(--dsw-font-xs-strong-13);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.note,
+.error {
+  margin: 0;
+  padding: 6px 16px;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.error {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 16px calc(var(--dsh-composer-height, 152px) + 16px);
+}
+
+.section {
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  font: var(--dsw-font-xs-13);
+}
+
+.section > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.messages {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.message {
+  padding: 8px;
+  margin-bottom: 6px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.message[data-edited] {
+  border-color: var(--dsw-alias-state-warn-label);
+}
+
+.message[data-deleted] {
+  opacity: 0.5;
+}
+
+.messageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.meta {
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.text,
+.reasoning {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: var(--dsw-font-xs-13);
+}
+
+.reasoning {
+  color: var(--dsw-alias-label-secondary);
+  font-style: italic;
+}
+
+.toolCall {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.editor {
+  width: 100%;
+  min-height: 72px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: var(--dsw-radius-xs);
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-xs-13);
+}
+
+.editorActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.inserted {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--dsw-alias-border-l2);
+}
