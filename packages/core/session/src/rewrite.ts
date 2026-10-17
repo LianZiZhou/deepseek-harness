@@ -270,10 +270,10 @@ function renumber(slots: readonly Slot[]): SessionEvent[] {
     let event: SessionEvent = { ...slot.event, seq: SessionSeq(index) }
     if (slot.original === index) return event
     if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') {
-      event = { ...event, surfaceOp: { op: 'replace', startSeq: remap(event.surfaceOp.startSeq, index), endSeq: remap(event.surfaceOp.endSeq, index) } } as SessionEvent
+      event = { ...event, surfaceOp: { op: 'replace', startSeq: remap(event.surfaceOp.startSeq, index), endSeq: remap(event.surfaceOp.endSeq, index) } }
     }
     if (event.sourceEventSeqs !== undefined) {
-      event = { ...event, sourceEventSeqs: event.sourceEventSeqs.map(seq => remap(seq, index)) } as SessionEvent
+      event = { ...event, sourceEventSeqs: event.sourceEventSeqs.map(seq => remap(seq, index)) }
     }
     if (event.type === 'developer/message' && event.data.headerSeq !== undefined) {
       event = { ...event, data: { ...event.data, headerSeq: remap(event.data.headerSeq, index) } }

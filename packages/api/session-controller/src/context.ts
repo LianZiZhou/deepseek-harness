@@ -5,7 +5,6 @@ import { assembleContextFor } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Message } from '@deepseek-ai/dsh-llm'
 import { deriveEventMessage } from '@deepseek-ai/dsh-session'
-import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { SessionContextMessage, SessionContextValue } from './types.ts'
@@ -47,6 +46,8 @@ export async function readSessionContext(ctx: Context, agent: Agent): Promise<Se
   }
   const systemPrompt = ctx.get('systemPrompt')
   if (systemPrompt === undefined) return value
+  // The service is optional, so its module loads only when it is composed.
+  const { renderPrompt } = await import('@deepseek-ai/dsh-system-prompt')
   const assembly = await systemPrompt.assemble({ ...assembleContextFor(agent), preview: true })
   return { ...value, next: { systemPrompt: renderPrompt(assembly), tools: json(assembly.tools) } }
 }
@@ -65,6 +66,6 @@ function contextMessage(seq: number, event: string, message: Message, projected:
 }
 
 /** Session values are lossless JSON by the Session append contract; this re-types them for the wire. */
-function json<T>(value: T): JsonValue {
+function json(value: object): JsonValue {
   return value as JsonValue
 }
