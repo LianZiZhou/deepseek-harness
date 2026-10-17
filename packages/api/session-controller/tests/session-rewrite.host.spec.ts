@@ -1,7 +1,8 @@
 /**
  * `session.rewrite`: stops the controller-owned Agent, replaces the stored
  * log with the edited prefix, invalidates derived state, and resumes the
- * Session under the same id.
+ * Session under the same id. `session.context` reads the derived model
+ * history those edits address.
  */
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
@@ -200,6 +201,31 @@ describe('session.rewrite', () => {
     await ctx.agents.register({ id, session, status: 'idle', ctx } as Agent)
     const response = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 1, edits: [] })
     expect(response).toMatchObject({ ok: false, error: { code: 'session/rewrite-unavailable', details: { reason: 'foreign-owner' } } })
+    await ctx.fiber.dispose()
+  })
+})
+
+describe('session.context', () => {
+  it('pairs each derived message with its producing event seq at the current cursor', async () => {
+    const { ctx, stored } = await composed()
+    const id = sid('context')
+    storeConversation(stored, id)
+    const response = await remote(ctx).context({ sessionId: id })
+    if (!response.ok) throw response.error
+    expect(response.value.cursor).toBe(6)
+    expect(response.value.messages).toEqual([
+      { seq: 1, event: 'user/message', role: 'user', content: [{ type: 'text', text: 'prompt 1' }] },
+      { seq: 4, event: 'user/message', role: 'user', content: [{ type: 'text', text: 'prompt 2' }] },
+    ])
+    expect(response.value.request).toBeUndefined()
+    expect(response.value.next).toBeUndefined()
+    await ctx.fiber.dispose()
+  })
+
+  it('reports a missing Session', async () => {
+    const { ctx } = await composed()
+    const response = await remote(ctx).context({ sessionId: sid('missing') })
+    expect(response).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
     await ctx.fiber.dispose()
   })
 })

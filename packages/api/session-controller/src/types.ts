@@ -394,6 +394,42 @@ export interface SessionRewriteValue {
   readonly cursor: number
 }
 
+/** Request for the model context of one Session. */
+export interface SessionContextRequest {
+  readonly sessionId: SessionId
+}
+
+/** One message of the derived model history, paired with the event that produced it. */
+export interface SessionContextMessage {
+  /** Seq of the producing event; the address edits use. */
+  readonly seq: number
+  /** Type of the producing event. */
+  readonly event: string
+  readonly role: 'system' | 'developer' | 'user' | 'assistant' | 'tool'
+  /** Content blocks exactly as the model receives them. */
+  readonly content: JsonValue
+  readonly toolCallId?: string
+  readonly isError?: boolean
+  /** A plugin message projection changed this message from its producing event. */
+  readonly projected?: true
+}
+
+/**
+ * The model context of one Session at `cursor`: the derived history the next
+ * request sends, the latest logged request header, and, when a system prompt
+ * service is composed, the system prompt and tools the next step assembles.
+ * Provider adapters still map this logical request to their wire format.
+ */
+export interface SessionContextValue {
+  /** Last seq of the log this snapshot reads; pass it as a rewrite's `expectedCursor`. */
+  readonly cursor: number
+  readonly messages: readonly SessionContextMessage[]
+  /** Latest logged request header: call configuration, adapter defaults, and tool schemas. */
+  readonly request?: JsonValue
+  /** Side-effect-free assembly of the next step's system prompt and tools. */
+  readonly next?: { readonly systemPrompt: string; readonly tools: JsonValue }
+}
+
 /** Session prompt request. */
 export interface SessionPromptRequest {
   /** Client-minted identity persisted on the exact accepted user message. */

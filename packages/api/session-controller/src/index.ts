@@ -70,7 +70,10 @@ import type {
   SessionUpdateQueueValue,
   SessionRewriteRequest,
   SessionRewriteValue,
+  SessionContextRequest,
+  SessionContextValue,
 } from './types.ts'
+import { readSessionContext } from './context.ts'
 
 export type * from './types.ts'
 export { ApiSessionNotFound } from './agent.ts'
@@ -454,6 +457,19 @@ export class SessionController extends TypertRemoteService {
       }
     }
     return this.commands.fork(request)
+  }
+
+  /**
+   * Read the model context the next request of one Session sends, resuming a
+   * cold Session first.
+   * @param request - Session whose context is read.
+   * @returns derived history paired with event seqs, the logged request header, and the next-step prompt preview.
+   */
+  @Remote('context')
+  async context(request: SessionContextRequest): Promise<SessionContextValue> {
+    const found = await this.agents.resolveAgent(request.sessionId)
+    if ('error' in found) throw found.error
+    return readSessionContext(this.ctx, found.agent)
   }
 
   /**
