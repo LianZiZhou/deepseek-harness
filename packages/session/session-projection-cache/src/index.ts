@@ -306,6 +306,20 @@ export class SessionProjectionCache extends Service {
   }
 
 
+  /**
+   * Drop one session's stored record after its log was replaced in place.
+   * Rows record how far they folded by seq, so a replaced log with the same
+   * header would otherwise seed folds from events it no longer contains. The
+   * delete queues on the domain's write chain behind every write already
+   * queued, including the disposal checkpoint of the agent released before
+   * the replacement; call it after that release and before the next resume.
+   * @param id - the session whose record is discarded.
+   * @returns resolution once the delete is durable.
+   */
+  async invalidate(id: SessionId): Promise<void> {
+    await this.requireTable().delete(id)
+  }
+
   // --- write-behind (throttle + mandatory points) ---
 
   private installWritePath(): void {

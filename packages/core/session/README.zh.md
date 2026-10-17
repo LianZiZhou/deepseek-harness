@@ -79,6 +79,8 @@ session.deriveMessages()         // the derived model history
 
 `ctx.sessions.fork(source, boundary?, childSessionId?)` 从实时源会话复制包含切点的精确事件前缀（默认：最后一个事件）。`dsh-session/fork` 的 `buildForkSeed` 在复制事件之后放置继承标记，仅为开放步骤补缺失的错误工具结果，并以 `forked` 原因关闭步骤和轮次。已关闭的步骤与轮次保持原样，包括历史缺失结果。标记和结束事件属于子会话；`inheritedEventCount` 只统计复制的前缀。
 
+`dsh-session/rewrite` 的 `buildRewriteLog(events, inheritedEventCount, plan)` 为原地改写构建替换日志。它保留 `events[0..throughSeq]`，应用按原始 seq 寻址的内容替换、对用户/开发者/助手/工具结果消息的删除以及插入的用户消息，重映射信封中的 seq 引用与 `headerSeq`，并以 `interrupted` 关闭未结束的尾部轮次。被编辑的助手消息会丢弃 stream、用量与回放状态；在继承前缀内的编辑或截断会返回非 seeded 的日志。对越界 seq、非消息目标、跨越数据可能引用 seq 的事件重新编号或破坏工具调用配对，它抛出 `SessionRewriteError`；调用方在存储前用 `Session.create` 校验结果（[决策](../../../.agents/notes/implemented/architecture/2026-10-17-in-place-session-rewrite.zh.md)）。
+
 逻辑 `SessionHeader.isSeeded` 字段报告是否存在 fork 历史，而不公开位置整数。`Session.inheritedEventCount` 保留经过校验的精确 `SessionLogOffset`；`ownEvents()` 返回从该切点开始的事件，`isOwnSeq(seq)` 只接受已存在且由子会话拥有的位置。底层带 seed 构造必须显式提供 `seed` 与 `inheritedEventCount`，因为构造 seed 可以在继承前缀之后包含子会话自有的设置事件。
 
 ### 刷新持久状态

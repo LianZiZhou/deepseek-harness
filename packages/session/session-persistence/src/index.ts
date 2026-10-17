@@ -10,6 +10,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import type { SessionEvent, SessionHeader, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { SessionHandle, SessionAccess } from './handle.ts'
 import type { SessionPersistenceRevision } from './revision.ts'
+import { SessionReplaceUnsupportedError } from './errors.ts'
 
 // Re-export the metadata vocabulary so Consumers import it from the Service Definition.
 export type { SessionHeader } from '@deepseek-ai/dsh-session'
@@ -31,6 +32,7 @@ export {
   SessionPersistenceCorruptionError,
   SessionPersistenceNotFoundError,
   SessionReadOnlyError,
+  SessionReplaceUnsupportedError,
   sessionFormatVersionRefusal,
 } from './errors.ts'
 export type { SessionLocation } from './errors.ts'
@@ -102,6 +104,12 @@ export interface SessionPersistenceStatOptions {
   readonly signal?: AbortSignal
 }
 
+/** Options for {@link SessionPersistence.replace}. */
+export interface SessionPersistenceReplaceOptions {
+  /** Optional cancellation observed before the replacement publishes. */
+  readonly signal?: AbortSignal
+}
+
 /** Options for {@link SessionPersistence.list}. */
 export interface SessionPersistenceListOptions {
   /** Optional cancellation for backend listing work. */
@@ -118,7 +126,8 @@ declare module '@deepseek-ai/cordis' {
  * Durable append-only session storage addressed through per-session handles.
  *
  * Storage semantics shared by every backend: events are contiguous from seq 0
- * and never rewritten; a torn physical tail is never returned to a reader and
+ * and never rewritten by `append`; only an explicit {@link replace} swaps a
+ * whole log; a torn physical tail is never returned to a reader and
  * is truncated by the write path before its first append; reads validate
  * current-format records only and refuse unknown vocabulary fail-closed.
  * `append` persists best-effort; `flush` — per handle or service-wide — is
@@ -201,6 +210,26 @@ export abstract class SessionPersistence extends Service {
    * @returns one snapshot per stored session.
    */
   abstract list(options?: SessionPersistenceListOptions): Promise<readonly SessionPersistenceSnapshot[]>
+
+  /**
+   * Atomically replace one stored session's complete log and header under the
+   * same id. The caller must hold no write handle for the session; the
+   * backend claims write ownership for the duration of the swap, so a
+   * concurrent writer makes it reject instead of interleaving. On resolution
+   * every later `open`, `read`, `stat`, and `list` observes the new log and a
+   * changed `revision`; on rejection the stored log is unchanged. Backends
+   * that cannot replace a log keep this default refusal.
+   * @param storage - the replacement header, inherited cut, and complete event log from seq 0.
+   * @param options - optional cancellation observed before the replacement publishes.
+   * @returns resolution once the replacement is durable.
+   * @throws {SessionReplaceUnsupportedError} from backends without log replacement.
+   * @throws {SessionPersistenceNotFoundError} when the session does not exist.
+   * @throws {SessionAlreadyOwnedError} when a write handle is active.
+   */
+  replace(storage: SessionInspection, options?: SessionPersistenceReplaceOptions): Promise<void> {
+    void options
+    return Promise.reject(new SessionReplaceUnsupportedError(storage.meta.id, this.constructor.name))
+  }
 }
 
 export default SessionPersistence

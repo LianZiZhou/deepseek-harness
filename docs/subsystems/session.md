@@ -930,6 +930,24 @@ workspaceDesktop(): { name: string; available: boolean; fileManager: 'finder' | 
 @Remote('fork') async fork(request: SessionForkRequest): Promise<SessionForkValue>
 
 /**
+ * Read the model context the next request of one Session sends, resuming a
+ * cold Session first.
+ * @param request - Session whose context is read.
+ * @returns derived history paired with event seqs, the logged request header, and the next-step prompt preview.
+ */
+@Remote('context') async context(request: SessionContextRequest): Promise<SessionContextValue>
+
+/**
+ * Destructively rewrite one Session log under its own id: discard events
+ * after `throughSeq`, apply content edits to the kept prefix, and resume the
+ * Session from the result. Clients holding the Session receive
+ * `api-session/rewritten` and must reload it.
+ * @param request - Session, the caller's last read seq, cut point, edits, and interrupt/resume choices.
+ * @returns the Session identity and the last seq of the rewritten log.
+ */
+@Remote('rewrite') rewrite(request: SessionRewriteRequest): Promise<SessionRewriteValue>
+
+/**
  * Admit one prompt after explicitly resuming its Session.
  * @param request - Session identity, prompt content, source metadata, and delivery mode.
  * @param signal - caller cancellation before prompt admission begins.
@@ -1225,6 +1243,25 @@ A Session left the live Host registry.
  * @param sessionId - removed Session identity.
  */
 'api-session/removed'(sessionId: SessionId): void
+```
+
+Types: [SessionId](core.md)
+
+Source: [`packages/api/session-controller/src/types.ts`](../../packages/api/session-controller/src/types.ts)
+
+<a id="api-sessionrewritten--emit"></a>
+
+#### `api-session/rewritten` — emit
+
+A Session log was replaced in place; every held event, cursor, and projection value for it is stale.
+
+```ts cordis-catalog
+/**
+ * A Session log was replaced in place; every held event, cursor, and projection value for it is stale.
+ * @mode emit
+ * @param sessionId - rewritten Session identity.
+ */
+'api-session/rewritten'(sessionId: SessionId): void
 ```
 
 Types: [SessionId](core.md)

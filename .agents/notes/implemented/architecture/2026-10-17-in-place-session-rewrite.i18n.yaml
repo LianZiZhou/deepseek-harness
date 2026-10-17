@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-10-17-in-place-session-rewrite.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-10-17-in-place-session-rewrite.md
+/agent-note-in-place-session-log-rewrite:
+  en: ac2c34cfdaffe7a5
+  zh: a006138ef56fa98f
+/agent-note-in-place-session-log-rewrite/problem:
+  en: 330b62d9c5319ea1
+  zh: 9b9e77c74529807d
+/agent-note-in-place-session-log-rewrite/decision:
+  en: a7cf83d93465a5bd
+  zh: bc12cb8e924b2b19
+/agent-note-in-place-session-log-rewrite/alternatives-considered:
+  en: 86059a69cc9cfd16
+  zh: 06e9b47573881a40
+/agent-note-in-place-session-log-rewrite/consequences:
+  en: 0aefdde6f098a31e
+  zh: 25cc193b6bbc420e

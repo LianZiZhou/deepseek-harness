@@ -25,6 +25,8 @@ import type { ToolHistory } from '@deepseek-ai/dsh-llm'
 import { buildForkSeed } from './fork.ts'
 
 export { buildForkSeed } from './fork.ts'
+export { buildRewriteLog, SessionRewriteError } from './rewrite.ts'
+export type { SessionEditOp, SessionRewriteErrorCode, SessionRewritePlan, SessionRewriteResult } from './rewrite.ts'
 export * from './types.ts'
 export { SessionPreparation } from './preparation.ts'
 export type { SessionPreparationOptions } from './preparation.ts'

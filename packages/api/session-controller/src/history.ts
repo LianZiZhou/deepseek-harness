@@ -40,7 +40,8 @@ const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
 
 /** Implements cold-safe history operations delegated by the Session Controller. */
 export class SessionHistoryController {
-  private readonly closeFollowers = new Set<() => void>()
+  /** Open followers and the Session each one follows. */
+  private readonly closeFollowers = new Map<() => void, SessionId>()
   private readonly assistantStreams = new Map<SessionId, SessionAssistantStreamAccumulator>()
 
   /**
@@ -62,8 +63,15 @@ export class SessionHistoryController {
     ctx.on('agent/disposed', ({ agent }) => {
       this.assistantStreams.delete(agent.session.id)
     }, { global: true })
+    // A replaced log invalidates every follower's cursor; ending the stream
+    // keeps it from splicing the new log onto the old one.
+    ctx.on('api-session/rewritten', (sessionId) => {
+      for (const [close, target] of this.closeFollowers) {
+        if (target === sessionId) close()
+      }
+    })
     ctx.effect(() => () => {
-      for (const close of this.closeFollowers) close()
+      for (const close of this.closeFollowers.keys()) close()
       this.closeFollowers.clear()
     }, 'session-controller.history')
   }
@@ -142,7 +150,7 @@ export class SessionHistoryController {
       follower.closed = true
       notify()
     }
-    this.closeFollowers.add(close)
+    this.closeFollowers.set(close, target)
     const disposeEvent = this.ctx.on('session/event', (session, event) => {
       if (session.id !== target) return
       buffered.pushBack({ type: 'event', event })

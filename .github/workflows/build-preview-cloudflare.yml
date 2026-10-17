@@ -32,6 +32,8 @@ env:
 
 jobs:
   preview:
+    # Deploys to the upstream Cloudflare Pages project; forks have no Cloudflare credentials.
+    if: ${{ github.repository == 'deepseek-harness/deepseek-harness' }}
     runs-on: ubuntu-24.04
     name: cloudflare pages preview
     steps:

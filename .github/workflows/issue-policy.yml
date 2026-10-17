@@ -14,6 +14,8 @@ permissions:
 jobs:
   policy:
     name: Issue policy
+    # The policy reads the upstream organization's project and labels (config.json); forks have neither.
+    if: ${{ github.repository == 'deepseek-harness/deepseek-harness' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out trusted policy

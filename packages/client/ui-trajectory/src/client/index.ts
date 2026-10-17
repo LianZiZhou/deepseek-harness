@@ -14,6 +14,10 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+// Type-only: the `remote.session` namespace and the optional Workspace navigation service.
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import { ContextView, type ContextViewInjected } from './ContextView.tsx'
 import { createTrajectoryDurationStore } from './duration-store.ts'
 import { createTrajectoryStringWrappingStore } from './string-wrapping-store.ts'
 import { en, NS, zh } from './locales.ts'
@@ -37,8 +41,8 @@ export type {
   UseTrajectory,
 } from './trajectory-contract.ts'
 
-/** Required services: the conversation slot, registries, ordinary Session paging, and the locale service. */
-export const inject = ['slots', 'sessions', 'uiSession', 'uiConversation', 'locale']
+/** Required services: the conversation slot, registries, ordinary Session paging, the Session Remote, and the locale service. */
+export const inject = ['slots', 'sessions', 'uiSession', 'uiConversation', 'locale', 'remote', 'remote.session']
 
 /**
  * Client plugin body: register the trajectory view tab. The registration
@@ -108,4 +112,23 @@ export function apply(ctx: Context): void {
       }
     },
   }, TrajectoryView))
+  ctx.slots.inject('conversation.view', () => ctx.slots.register({
+    name: 'conversation.view',
+    id: 'context',
+    order: 20,
+    locale: NS,
+    label: () => t('view.context'),
+    inject: (sessionId: SessionId): ContextViewInjected => ({
+      load: () => ctx.remote.session.context({ sessionId }),
+      rewrite: request => ctx.remote.session.rewrite({ sessionId, ...request }),
+      forkAt: (seq) => {
+        ctx.sessions.fork({ sessionId, atSeq: seq, increaseTitle: true })
+          .then((childId) => { ctx.get('uiWorkspace')?.openSession(childId) })
+          .catch((error: unknown) => {
+            // A failed fork leaves the source view unchanged; the Session list shows no child.
+            console.error('[ui-trajectory] fork failed:', error)
+          })
+      },
+    }),
+  }, ContextView))
 }

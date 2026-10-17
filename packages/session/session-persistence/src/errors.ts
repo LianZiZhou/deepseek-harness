@@ -36,6 +36,18 @@ export class SessionAlreadyOwnedError extends Error {
   }
 }
 
+/** The backend does not implement {@link SessionPersistence.replace}. */
+export class SessionReplaceUnsupportedError extends Error {
+  /**
+   * @param sessionId - the session whose log replacement was refused.
+   * @param backend - the backend name that refused it.
+   */
+  constructor(readonly sessionId: SessionId, backend: string) {
+    super(`session "${sessionId}": backend "${backend}" cannot replace a stored log`)
+    this.name = 'SessionReplaceUnsupportedError'
+  }
+}
+
 /** A mutation (`append`/`flush`) was called on a read handle. */
 export class SessionReadOnlyError extends Error {
   /**
