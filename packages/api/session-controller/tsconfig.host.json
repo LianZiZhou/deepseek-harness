@@ -21,7 +21,8 @@
     "src/model-selection-projection.ts",
     "src/archived-session-gate.ts",
     "src/skill-catalog.ts",
-    "src/context.ts"
+    "src/context.ts",
+    "src/rewrite-edits.ts"
   ],
   "references": [
     {

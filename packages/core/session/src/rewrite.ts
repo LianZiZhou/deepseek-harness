@@ -115,15 +115,15 @@ export function buildRewriteLog(
   plan: SessionRewritePlan,
 ): SessionRewriteResult {
   const { throughSeq } = plan
-  if (!Number.isSafeInteger(throughSeq) || throughSeq < 0 || throughSeq >= events.length || events[throughSeq]?.seq !== throughSeq) {
-    throw new SessionRewriteError(`rewrite boundary ${String(throughSeq)} does not exist (last seq: ${String(events.at(-1)?.seq ?? 'none')})`, 'INVALID_BOUNDARY', throughSeq)
+  if (throughSeq >= events.length) {
+    throw new SessionRewriteError(`rewrite boundary ${throughSeq} does not exist (the log holds ${events.length} events)`, 'INVALID_BOUNDARY', throughSeq)
   }
   const slots: Slot[] = events.slice(0, throughSeq + 1).map(event => ({ original: event.seq, event }))
   let earliestChange: number = throughSeq + 1
   let renumbered = false
   for (const edit of plan.edits) {
     const target = edit.kind === 'insert-user' ? edit.afterSeq : edit.seq
-    if (!Number.isSafeInteger(target) || target < 0 || target > throughSeq) {
+    if (target > throughSeq) {
       throw new SessionRewriteError(`edit seq ${String(target)} is outside the kept range 0..${throughSeq}`, 'INVALID_BOUNDARY', target)
     }
     const index = slots.findIndex(slot => slot.original === target)
@@ -131,7 +131,7 @@ export function buildRewriteLog(
     earliestChange = Math.min(earliestChange, target)
     switch (edit.kind) {
       case 'replace-content':
-        applyReplace(slots, index, edit)
+        applyReplace(slots, index, edit, target)
         break
       case 'delete': {
         // oxlint-disable-next-line typescript/no-non-null-assertion -- index came from findIndex.
@@ -182,7 +182,9 @@ export function buildRewriteLog(
   }
 }
 
-function applyReplace(slots: Slot[], index: number, edit: Extract<SessionEditOp, { kind: 'replace-content' }>): void {
+function applyReplace(
+  slots: Slot[], index: number, edit: Extract<SessionEditOp, { kind: 'replace-content' }>, seq: SessionSeqType,
+): void {
   // oxlint-disable-next-line typescript/no-non-null-assertion -- index came from findIndex.
   const slot = slots[index]!
   const event = slot.event
@@ -197,13 +199,13 @@ function applyReplace(slots: Slot[], index: number, edit: Extract<SessionEditOp,
     case 'tool/result': {
       // A successful result may not carry failure identity.
       const { error, ...data } = event.data
-      const isError = edit.isError ?? event.data.message.isError
+      const kept = (edit.isError ?? event.data.message.isError) === true ? error : undefined
       slot.event = {
         ...event,
         data: {
           ...data,
-          message: { ...event.data.message, content: edit.content, ...isError === undefined ? {} : { isError } },
-          ...isError === true && error !== undefined ? { error } : {},
+          message: { ...event.data.message, content: edit.content, ...edit.isError === undefined ? {} : { isError: edit.isError } },
+          ...kept === undefined ? {} : { error: kept },
         },
       }
       return
@@ -219,7 +221,7 @@ function applyReplace(slots: Slot[], index: number, edit: Extract<SessionEditOp,
       return
     }
     default:
-      throw new SessionRewriteError(`event ${String(slot.original)} (${event.type}) carries no editable message`, 'NOT_A_MESSAGE', slot.original ?? undefined)
+      throw new SessionRewriteError(`event ${seq} (${event.type}) carries no editable message`, 'NOT_A_MESSAGE', seq)
   }
 }
 
@@ -241,11 +243,12 @@ function assertRenumberable(slots: readonly Slot[]): void {
   let shifted = false
   for (const [index, slot] of slots.entries()) {
     if (slot.original !== index) shifted = true
-    if (shifted && !RENUMBERABLE_TYPES.has(slot.event.type)) {
+    // Inserted slots (no original seq) are user messages, which always renumber.
+    if (shifted && slot.original !== null && !RENUMBERABLE_TYPES.has(slot.event.type)) {
       throw new SessionRewriteError(
-        `deleting or inserting before event ${String(slot.original)} (${slot.event.type}) would move an event whose data may cite other events; edit content instead, or cut the log before it`,
+        `deleting or inserting before event ${slot.original} (${slot.event.type}) would move an event whose data may cite other events; edit content instead, or cut the log before it`,
         'UNMAPPABLE_REFERENCE',
-        slot.original ?? undefined,
+        slot.original,
       )
     }
   }
@@ -307,11 +310,9 @@ function assertToolPairing(events: readonly SessionEvent[]): void {
         break
       case 'step/end':
       case 'turn/end':
-        if (pending.size > 0) {
-          const [callId, seq] = [...pending][0] ?? []
-          throw new SessionRewriteError(`tool call "${String(callId)}" requested by event ${String(seq)} has no result before its step closed`, 'INVALID_RESULT', seq)
+        for (const [callId, seq] of pending) {
+          throw new SessionRewriteError(`tool call "${callId}" requested by event ${seq} has no result before its step closed`, 'INVALID_RESULT', seq)
         }
-        pending.clear()
         break
       case 'turn/start':
         pending.clear()

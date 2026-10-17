@@ -4,7 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { assembleContextFor } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Message } from '@deepseek-ai/dsh-llm'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { deriveEventMessage } from '@deepseek-ai/dsh-session'
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
@@ -28,17 +28,20 @@ export async function readSessionContext(ctx: Context, agent: Agent): Promise<Se
   const derived = new Map<string, Message>(session.deriveMessages().map(message => [message.id, message]))
   const messages: SessionContextMessage[] = []
   for (const seq of session.surface.nodes) {
-    const event = events[seq]
-    if (event === undefined) continue
-    const original = eventMessage(event)
-    if (original === undefined) continue
-    const message = derived.get(original.id)
-    if (message === undefined) continue
+    // Surface nodes are seqs of this log by construction.
+    // oxlint-disable-next-line typescript/no-non-null-assertion
+    const event = events[seq]!
+    // Without projections this is the producing event's own message; empty messages send nothing.
+    const original = deriveEventMessage(event)
+    if (original === null) continue
+    // Projections keep message identity, so every nonempty node is in the derived history.
+    // oxlint-disable-next-line typescript/no-non-null-assertion
+    const message = derived.get(original.id)!
     messages.push(contextMessage(seq, event.type, message, message !== original))
   }
   const header = session.requestHeader()
   const value: SessionContextValue = {
-    cursor: events.at(-1)?.seq ?? -1,
+    cursor: events.length - 1,
     messages,
     ...header === undefined ? {} : { request: json(header) },
   }
@@ -48,21 +51,6 @@ export async function readSessionContext(ctx: Context, agent: Agent): Promise<Se
   return { ...value, next: { systemPrompt: renderPrompt(assembly), tools: json(assembly.tools) } }
 }
 
-function eventMessage(event: SessionEvent): Message | undefined {
-  switch (event.type) {
-    case 'user/message':
-      return event.data
-    case 'system/message':
-    case 'developer/message':
-    case 'assistant/message':
-    case 'tool/result':
-      return event.data.message
-    // Other surface-eligible events are plugin-owned; their projected messages carry no producing message here.
-    default:
-      return undefined
-  }
-}
-
 function contextMessage(seq: number, event: string, message: Message, projected: boolean): SessionContextMessage {
   return {
     seq,
@@ -70,7 +58,7 @@ function contextMessage(seq: number, event: string, message: Message, projected:
     role: message.role,
     content: json(message.content),
     ...message.role === 'tool'
-      ? { toolCallId: message.toolCallId, ...message.isError === undefined ? {} : { isError: message.isError } }
+      ? { toolCallId: message.toolCallId, isError: message.isError === true }
       : {},
     ...projected ? { projected: true } : {},
   }

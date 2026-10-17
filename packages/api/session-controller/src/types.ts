@@ -408,7 +408,9 @@ export interface SessionContextMessage {
   readonly role: 'system' | 'developer' | 'user' | 'assistant' | 'tool'
   /** Content blocks exactly as the model receives them. */
   readonly content: JsonValue
+  /** Call answered by a tool message; absent on other roles. */
   readonly toolCallId?: string
+  /** Whether a tool message reports a failed call; absent on other roles. */
   readonly isError?: boolean
   /** A plugin message projection changed this message from its producing event. */
   readonly projected?: true

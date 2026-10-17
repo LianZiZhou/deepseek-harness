@@ -178,16 +178,13 @@ export async function inspectApiSession(
 export class ApiSessionAgentController {
   private readonly resumes = new Map<SessionId, Promise<Agent>>()
   /** Handles of the Agents this controller created or resumed; the only Agents it may stop. */
-  private readonly handles = new Map<SessionId, AgentHandle>()
+  private readonly handles = new WeakMap<Agent, AgentHandle>()
   private readonly claims = new Map<SessionId, Promise<void>>()
   private readonly selections = new WeakMap<Agent, InstalledSelection>()
   private readonly imageAdmissionChains = new WeakMap<Agent, Promise<void>>()
 
   /** @param ctx - Host context carrying Agent, model, persistence, and Typert services. */
   constructor(private readonly ctx: Context) {
-    ctx.on('agent/disposed', ({ agent }) => {
-      if (this.handles.get(agent.id)?.agent === agent) this.handles.delete(agent.id)
-    })
     ctx.typert.lookups.configure('agent', async (sessionId: SessionId) => {
       const found = await this.resolveAgent(sessionId)
       if ('error' in found) throw found.error
@@ -278,7 +275,7 @@ export class ApiSessionAgentController {
    * @returns the handle's Agent.
    */
   adopt(handle: AgentHandle): Agent {
-    this.handles.set(handle.agent.id, handle)
+    this.handles.set(handle.agent, handle)
     return handle.agent
   }
 
@@ -299,13 +296,10 @@ export class ApiSessionAgentController {
       void resumeError
     })
     const live = this.ctx.agents.get(sessionId)
-    const handle = this.handles.get(sessionId)
-    if (live !== undefined && handle?.agent !== live) throw new ApiSessionForeignOwner(sessionId)
+    const handle = live === undefined ? undefined : this.handles.get(live)
+    if (live !== undefined && handle === undefined) throw new ApiSessionForeignOwner(sessionId)
     const task = (async (): Promise<Agent> => {
-      if (handle !== undefined && live !== undefined) {
-        this.handles.delete(sessionId)
-        await handle.dispose()
-      }
+      await handle?.dispose()
       try {
         await replace()
       } catch (error: unknown) {

@@ -15,9 +15,10 @@ import type {} from '@deepseek-ai/dsh-client-file-upload'
 import {
   ReasoningEffortId, assistantStreamChunks, createUserMessage, freezeMessage,
 } from '@deepseek-ai/dsh-llm'
-import { ToolCallId, type ContentBlock, type MessageSource } from '@deepseek-ai/dsh-llm'
+import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import { buildForkSeed } from '@deepseek-ai/dsh-session/fork'
-import { buildRewriteLog, SessionRewriteError, type SessionEditOp } from '@deepseek-ai/dsh-session/rewrite'
+import { buildRewriteLog } from '@deepseek-ai/dsh-session/rewrite'
+import { rewriteFailure, toEditOp } from './rewrite-edits.ts'
 import { Session, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
@@ -28,7 +29,6 @@ import type { Workspace } from '@deepseek-ai/dsh-workspace'
 import {
   ApiSessionAgentController,
   ApiSessionCwdConflict,
-  ApiSessionForeignOwner,
   ApiSessionNotFound,
   ApiSessionPresetConflict,
   ApiSessionSubagentOwnership,
@@ -52,8 +52,6 @@ import type {
   SessionPromptValue,
   SessionRenameRequest,
   SessionRenameValue,
-  SessionEdit,
-  SessionEditBlock,
   SessionRewriteRequest,
   SessionRewriteValue,
   SessionSelectModelRequest,
@@ -376,7 +374,7 @@ export class SessionCommandController {
     try {
       agent = await this.agents.replaceStopped(sessionId, async () => {
         const stored = await inspectApiSession(this.ctx, sessionId)
-        const last = stored.events.at(-1)?.seq ?? -1
+        const last = stored.events.length - 1
         if (last !== request.expectedCursor) {
           throw new RemoteError('session/rewrite-conflict', `session "${sessionId}" changed since it was read (last seq ${last}, expected ${request.expectedCursor})`, {
             sessionId, expectedCursor: request.expectedCursor, cursor: last,
@@ -391,7 +389,7 @@ export class SessionCommandController {
         Session.create(sessionId, result.events, meta, result.inheritedEventCount, this.ctx.sessions.messageProjections)
         await persistence.replace({ meta, inheritedEventCount: result.inheritedEventCount, events: result.events })
         await this.ctx.get('sessionProjectionCache')?.invalidate(sessionId)
-        cursor = result.events.at(-1)?.seq ?? -1
+        cursor = result.events.length - 1
         // Before the resume, so no follower splices the resumed log onto its old cursor.
         this.ctx.emit('api-session/rewritten', sessionId)
       })
@@ -676,94 +674,6 @@ export class SessionCommandController {
       if (workspace !== undefined) return workspace
     }
     return undefined
-  }
-}
-
-/** Map one rewrite failure to the Remote error vocabulary. */
-function rewriteFailure(sessionId: SessionId, error: unknown): Error {
-  if (remoteErrorOf(error) !== undefined) return error as Error
-  if (error instanceof SessionRewriteError) {
-    return new RemoteError('session/rewrite-invalid', error.message, {
-      sessionId, code: error.code, ...(error.seq === undefined ? {} : { seq: error.seq }),
-    })
-  }
-  if (error instanceof ApiSessionForeignOwner) {
-    return new RemoteError('session/rewrite-unavailable', error.message, { sessionId, reason: 'foreign-owner' })
-  }
-  if (error instanceof Error && (error.name === 'SessionAlreadyOwnedError' || error.name === 'SessionReplaceUnsupportedError' || error.name === 'SessionFormatUnsupportedError')) {
-    return new RemoteError('session/rewrite-unavailable', error.message, { sessionId, reason: error.name })
-  }
-  if (error instanceof Error && error.message.startsWith('invalid seed event')) {
-    return new RemoteError('session/rewrite-invalid', error.message, { sessionId, code: 'INVALID_RESULT' })
-  }
-  return new RemoteError('gateway/internal', `failed to rewrite session "${sessionId}": ${String(error)}`, {})
-}
-
-/**
- * Resolve one wire edit against the log it addresses. `keep` blocks reuse the
- * original message's block, so a client can only reference attachments the
- * log already holds.
- */
-function toEditOp(edit: SessionEdit, events: readonly SessionEvent[]): SessionEditOp {
-  const seqOf = (value: number): SessionSeq => {
-    try {
-      return SessionSeq(value)
-    } catch {
-      throw new SessionRewriteError(`edit seq ${String(value)} is not a non-negative safe integer`, 'INVALID_BOUNDARY')
-    }
-  }
-  switch (edit.kind) {
-    case 'replace-content': {
-      const seq = seqOf(edit.seq)
-      const original = messageContent(events[seq])
-      return {
-        kind: 'replace-content', seq,
-        content: edit.content.map(block => toContentBlock(block, original, seq)),
-        ...(edit.isError === undefined ? {} : { isError: edit.isError }),
-      }
-    }
-    case 'delete':
-      return { kind: 'delete', seq: seqOf(edit.seq) }
-    case 'insert-user': {
-      const afterSeq = seqOf(edit.afterSeq)
-      return { kind: 'insert-user', afterSeq, content: edit.content.map(block => toContentBlock(block, [], afterSeq)) }
-    }
-    default:
-      return assertNever(edit)
-  }
-}
-
-function messageContent(event: SessionEvent | undefined): readonly ContentBlock[] {
-  switch (event?.type) {
-    case 'user/message':
-      return event.data.content
-    case 'developer/message':
-    case 'system/message':
-    case 'assistant/message':
-    case 'tool/result':
-      return event.data.message.content
-    // Other events carry no message; the rewrite transform rejects edits aimed at them.
-    default:
-      return []
-  }
-}
-
-function toContentBlock(block: SessionEditBlock, original: readonly ContentBlock[], seq: SessionSeq): ContentBlock {
-  switch (block.type) {
-    case 'text':
-    case 'reasoning':
-      return { type: block.type, text: block.text }
-    case 'tool-call':
-      return { type: 'tool-call', id: ToolCallId(block.id), name: block.name, arguments: block.arguments }
-    case 'keep': {
-      const kept = original[block.index]
-      if (kept === undefined) {
-        throw new SessionRewriteError(`event ${seq} has no content block ${block.index} to keep`, 'NOT_A_MESSAGE', seq)
-      }
-      return kept
-    }
-    default:
-      return assertNever(block)
   }
 }
 

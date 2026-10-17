@@ -1,16 +1,30 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
+import { SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import {
   SessionAlreadyOwnedError, SessionPersistenceNotFoundError,
   type SessionPersistence,
 } from '@deepseek-ai/dsh-session-persistence'
 import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { meta, oneTurnLog } from '../../session-persistence/tests/contract.ts'
-import { sessionDir } from '../src/format.ts'
+import { generationLogFilename, sessionDir } from '../src/format.ts'
+
+const renameFailure = vi.hoisted(() => ({ error: undefined as Error | undefined }))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return {
+    ...actual,
+    rename: (from: string, to: string) => {
+      const error = renameFailure.error
+      renameFailure.error = undefined
+      return error === undefined ? actual.rename(from, to) : Promise.reject(error)
+    },
+  }
+})
 import type { JsonlCompression } from '../src/format.ts'
 
 const cleanups: Array<() => Promise<void>> = []
@@ -55,6 +69,18 @@ describe('JsonlSessionPersistence.replace', () => {
     expect((await handle.read()).events).toHaveLength(3)
   })
 
+  it('stores a seeded replacement with its inherited cut', async () => {
+    const { persistence } = await mount('none')
+    await store(persistence, 'seeded')
+    const prefix = oneTurnLog()
+    const marker = { type: 'session/end-seed' as const, seq: SessionSeq(prefix.length), time: 9, data: { inherited: true as const } }
+    const header = { ...meta('seeded', '/work'), isSeeded: true, parentSession: SessionId('parent') }
+    await persistence.replace({ meta: header, inheritedEventCount: SessionLogOffset(prefix.length), events: [...prefix, marker] })
+    await using handle = await persistence.open(SessionId('seeded'), 'read')
+    expect(handle.inheritedEventCount).toBe(prefix.length)
+    expect(handle.header).toMatchObject({ isSeeded: true, parentSession: 'parent' })
+  })
+
   it('refuses while a write handle is active and leaves the log unchanged', async () => {
     const { persistence } = await mount('none')
     await store(persistence, 'owned')
@@ -72,6 +98,28 @@ describe('JsonlSessionPersistence.replace', () => {
     await store(persistence, 'gap')
     await expect(persistence.replace({ meta: meta('gap', '/work'), inheritedEventCount: SessionLogOffset(0), events: oneTurnLog().slice(1) }))
       .rejects.toThrow(/seq mismatch/)
+  })
+
+  it('refuses a log stored at a historical format without touching it', async () => {
+    const { root, persistence } = await mount('none')
+    const dir = sessionDir(root, '/work', SessionId('historical'))
+    await mkdir(dir, { recursive: true })
+    await writeFile(join(dir, generationLogFilename(1, 'none')), '{}\n')
+    await expect(persistence.replace({ meta: meta('historical', '/work'), inheritedEventCount: SessionLogOffset(0), events: [] }))
+      .rejects.toThrow(/open it for write once to migrate/)
+    expect(await readdir(dir)).toEqual([generationLogFilename(1, 'none')])
+  })
+
+  it('removes its temporary file and keeps the old log when publication fails', async () => {
+    const { root, persistence } = await mount('none')
+    await store(persistence, 'unpublished')
+    renameFailure.error = new Error('rename failed')
+    await expect(persistence.replace({ meta: meta('unpublished', '/work'), inheritedEventCount: SessionLogOffset(0), events: [] }))
+      .rejects.toThrow('rename failed')
+    const entries = await readdir(sessionDir(root, '/work', SessionId('unpublished')))
+    expect(entries.some(name => name.endsWith('.tmp'))).toBe(false)
+    await using handle = await persistence.open(SessionId('unpublished'), 'read')
+    expect((await handle.read()).events).toHaveLength(oneTurnLog().length)
   })
 
   it('observes cancellation before publication', async () => {

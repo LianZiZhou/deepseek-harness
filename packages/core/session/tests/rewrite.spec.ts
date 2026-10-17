@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createMessage, createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
+import { createDeveloperMessage, createMessage, createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { buildForkSeed } from '@deepseek-ai/dsh-session/fork'
 import { buildRewriteLog, SessionRewriteError } from '@deepseek-ai/dsh-session/rewrite'
 import { Session, SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
@@ -158,5 +158,94 @@ describe('buildRewriteLog', () => {
     expect(edited).toMatchObject({ isSeeded: false, inheritedEventCount: 0 })
     expect(edited.events.at(-1)).toMatchObject({ type: 'session/end-seed', data: {} })
     expect(() => Session.create(SessionId('copy'), edited.events)).not.toThrow()
+  })
+})
+
+describe('buildRewriteLog edge cases', () => {
+  it('rejects an edit addressing a message deleted by an earlier edit', () => {
+    const log = events(toolTurn())
+    expect(() => rewrite(log, { throughSeq: SessionSeq(log.length - 1), edits: [{ kind: 'delete', seq: SessionSeq(8) }, { kind: 'delete', seq: SessionSeq(8) }] }))
+      .toThrow(expect.objectContaining({ code: 'INVALID_BOUNDARY', seq: 8 }))
+  })
+
+  it('replaces system and developer message content inside the message envelope', () => {
+    const session = Session.create(SessionId('system'))
+    session.append('turn/start', { turn: 1 })
+    session.append('step/start', { turn: 1, step: 1 })
+    session.append('system/message', { turn: 1, step: 1, message: createMessage({ role: 'system', content: [{ type: 'text', text: 'old' }], source: { kind: 'system-prompt' } }) }, { surfaceOp: 'append' })
+    session.append('developer/message', { turn: 1, step: 1, message: createMessage({ role: 'developer', content: [{ type: 'text', text: 'dev' }], source: { kind: 'user' } }) }, { surfaceOp: 'append' })
+    const log = events(session)
+    const result = rewrite(log, {
+      throughSeq: SessionSeq(3),
+      edits: [
+        { kind: 'replace-content', seq: SessionSeq(2), content: [{ type: 'text', text: 'new' }] },
+        { kind: 'replace-content', seq: SessionSeq(3), content: [{ type: 'text', text: 'dev2' }] },
+      ],
+    })
+    expect(result.events[2]).toMatchObject({ data: { message: { content: [{ type: 'text', text: 'new' }] } } })
+    expect(result.events[3]).toMatchObject({ data: { message: { content: [{ type: 'text', text: 'dev2' }] } } })
+    expect(result.events.slice(4).map(e => e.type)).toEqual(['step/end', 'turn/end'])
+  })
+
+  it('keeps failure identity on a failed tool result edited without a new flag', () => {
+    const log = events(toolTurn())
+    const result = rewrite(log, { throughSeq: SessionSeq(log.length - 1), edits: [{ kind: 'replace-content', seq: SessionSeq(5), content: [{ type: 'text', text: 'b' }] }] })
+    expect(result.events[5]).toMatchObject({ data: { error: { code: 'E' }, message: { isError: true } } })
+  })
+
+  it('remaps a replacement surface operation across a deletion', () => {
+    const session = Session.create(SessionId('replace'))
+    const prompt = (text: string) => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
+    session.append('turn/start', { turn: 1 })
+    session.append('user/message', prompt('a'), { surfaceOp: 'append' })
+    session.append('user/message', prompt('b'), { surfaceOp: 'append' })
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    session.append('user/message', prompt('summary'), { surfaceOp: { op: 'replace', startSeq: SessionSeq(2), endSeq: SessionSeq(2) }, sourceEventSeqs: [SessionSeq(2)] })
+    const log = events(session)
+    const result = rewrite(log, { throughSeq: SessionSeq(4), edits: [{ kind: 'delete', seq: SessionSeq(1) }] })
+    expect(result.events[3]).toMatchObject({ surfaceOp: { op: 'replace', startSeq: 1, endSeq: 1 }, sourceEventSeqs: [1] })
+    expect(() => Session.create(SessionId('copy'), result.events)).not.toThrow()
+  })
+
+  it('rejects a user message inserted between a tool call and its result', () => {
+    const log = events(toolTurn())
+    expect(() => rewrite(log, { throughSeq: SessionSeq(log.length - 1), edits: [{ kind: 'insert-user', afterSeq: SessionSeq(4), content: [{ type: 'text', text: 'x' }] }] }))
+      .toThrow(expect.objectContaining({ code: 'INVALID_RESULT' }))
+  })
+
+  it('rejects an assistant edit that drops a tool call whose result remains', () => {
+    const log = events(toolTurn())
+    expect(() => rewrite(log, { throughSeq: SessionSeq(log.length - 1), edits: [{ kind: 'replace-content', seq: SessionSeq(3), content: [{ type: 'text', text: 'no tools' }] }] }))
+      .toThrow(expect.objectContaining({ code: 'INVALID_RESULT', seq: 5 }))
+  })
+
+  it('rejects a deleted tool result whose call step then closes unanswered', () => {
+    const log = events(toolTurn())
+    expect(() => rewrite(log, { throughSeq: SessionSeq(log.length - 1), edits: [{ kind: 'delete', seq: SessionSeq(5) }] }))
+      .toThrow(expect.objectContaining({ code: 'INVALID_RESULT', seq: 3 }))
+  })
+
+  it('refuses to delete boundary and system events', () => {
+    const log = events(toolTurn())
+    expect(() => rewrite(log, { throughSeq: SessionSeq(log.length - 1), edits: [{ kind: 'delete', seq: SessionSeq(0) }] }))
+      .toThrow(expect.objectContaining({ code: 'NOT_A_MESSAGE', seq: 0 }))
+  })
+
+  it('remaps a developer message request-header reference across an insertion', () => {
+    const session = Session.create(SessionId('developer'))
+    session.append('turn/start', { turn: 1 })
+    session.append('user/message', createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }), { surfaceOp: 'append' })
+    session.append('step/start', { turn: 1, step: 1 })
+    const headerSeq = session.append('request/header', {
+      reason: 'initial', header: { config: { provider: 'test', model: 'test' }, tools: [{ name: 'search', description: 'Search', parameters: {} }] },
+    }).seq
+    session.append('developer/message', {
+      turn: 1, step: 1, headerSeq,
+      message: createDeveloperMessage({ source: { kind: 'test' }, content: [{ type: 'tool-addition', toolName: 'search' }] }),
+    }, { surfaceOp: 'append' })
+    const log = events(session)
+    const result = rewrite(log, { throughSeq: SessionSeq(4), edits: [{ kind: 'insert-user', afterSeq: SessionSeq(1), content: [{ type: 'text', text: 'also' }] }] })
+    expect(result.events[5]).toMatchObject({ type: 'developer/message', data: { headerSeq: 4 } })
+    expect(() => Session.create(SessionId('copy'), result.events)).not.toThrow()
   })
 })
