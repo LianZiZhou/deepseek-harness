@@ -29,6 +29,7 @@
   "dsh": {
     "client": {
       "inject": [
+        "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-api-session-controller",
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-conversation",
@@ -68,7 +69,9 @@
     "@deepseek-ai/dsh-llm": "workspace:*",
     "@deepseek-ai/dsh-attachment": "workspace:*",
     "@tanstack/react-virtual": "3.14.10",
-    "diff": "^9.0.0"
+    "diff": "^9.0.0",
+    "@deepseek-ai/dsh-api-remotes": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-workspace": "workspace:*"
   },
   "files": [
     "locale/*.json",

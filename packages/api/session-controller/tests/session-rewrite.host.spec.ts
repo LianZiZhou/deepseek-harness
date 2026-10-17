@@ -9,8 +9,8 @@ import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentHandle, ResumeAgentOptions } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import SessionStore, { SessionLogOffset } from '@deepseek-ai/dsh-session'
-import type { Session, SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { Session, SESSION_FORMAT_VERSION, SessionLogOffset } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
 import { SessionPersistenceRevision, type SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import { createSessionTestRemote, installSessionReadTestServices, testSessionPersistence } from './test-remote.ts'
 
@@ -59,20 +59,27 @@ async function composed(options: { status?: 'idle' | 'running' } = {}) {
     replace,
   }) as never)
   const resumes: Array<ReturnType<typeof vi.fn>> = []
+  const cancels: Array<ReturnType<typeof vi.fn>> = []
   const live = (
     id: SessionId, seed: readonly SessionEvent[], meta: SessionHeader,
   ): Promise<AgentHandle> => new Promise((resolve, reject) => {
     let session: Session | undefined
     const resume = vi.fn()
     resumes.push(resume)
-    ctx.plugin({
-      inject: ['sessions', 'agents'],
-      apply: async (inner: Context) => {
-        session = inner.sessions.create(id, { seed: [...seed], meta: { cwd: meta.cwd ?? '/proj' } })
-        const agent = {} as Agent
-        Object.assign(agent, { id, session, status: options.status ?? 'idle', ctx: inner, resume, cancel: vi.fn(), whenIdle: () => Promise.resolve() })
-        await inner.agents.register(agent)
-      } }).then((fiber) => {
+    const cancel = vi.fn()
+    cancels.push(cancel)
+    void (async () => {
+      const fiber = await ctx.plugin({
+        inject: ['sessions', 'agents'],
+        apply: async (inner: Context) => {
+          session = inner.sessions.create(id, { seed: [...seed], meta: { cwd: meta.cwd ?? '/proj' } })
+          const agent = {} as Agent
+          Object.assign(agent, {
+            id, session, status: options.status ?? 'idle', ctx: inner, resume, cancel, whenIdle: () => Promise.resolve(),
+          })
+          await inner.agents.register(agent)
+        },
+      })
       const agent = ctx.agents.get(id)
       if (agent === undefined) throw new Error('fake agent was not registered')
       // Like the real write path, the stored log holds every live append once the Agent stops.
@@ -81,7 +88,7 @@ async function composed(options: { status?: 'idle' | 'running' } = {}) {
         await fiber.dispose()
         write(id, { meta, events })
       } })
-    }).catch(reject)
+    })().catch(reject)
   })
   ctx.agents.setFactory({
     createAgent: () => Promise.reject(new Error('rewrite tests resume stored sessions')),
@@ -91,22 +98,21 @@ async function composed(options: { status?: 'idle' | 'running' } = {}) {
       return live(request.resumeSessionId, entry.events, entry.meta)
     },
   })
-  return { ctx, stored, replace, invalidate, resumes }
+  return { ctx, stored, replace, invalidate, resumes, cancels }
 }
 
 /** Store one closed two-turn conversation for `id`. */
 function storeConversation(stored: Map<SessionId, Stored>, id: SessionId): SessionEvent[] {
-  const prompt = (text: string) => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
-  const events: SessionEvent[] = []
-  const push = (event: Omit<SessionEvent, 'seq' | 'time'>) => {
-    events.push({ ...event, seq: events.length, time: events.length } as SessionEvent)
-  }
+  const session = Session.create(id)
   for (const turn of [1, 2]) {
-    push({ type: 'turn/start', data: { turn } } as SessionEvent)
-    push({ type: 'user/message', data: prompt(`prompt ${turn}`), surfaceOp: 'append' } as SessionEvent)
-    push({ type: 'turn/end', data: { turn, reason: { kind: 'completed' } } } as SessionEvent)
+    session.append('turn/start', { turn })
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: `prompt ${turn}` }], source: { kind: 'user' },
+    }), { surfaceOp: 'append' })
+    session.append('turn/end', { turn, reason: { kind: 'completed' } })
   }
-  stored.set(id, { meta: { version: 4, id, createdAt: 1, cwd: '/proj', isSeeded: false } as SessionHeader, events })
+  const events = [...session.snapshotEvents()]
+  stored.set(id, { meta: { version: SESSION_FORMAT_VERSION, id, createdAt: 1, cwd: '/proj', isSeeded: false, delegationDepth: 0 }, events })
   return events
 }
 
@@ -179,17 +185,17 @@ describe('session.rewrite', () => {
   })
 
   it('refuses a running Session unless asked to interrupt it', async () => {
-    const { ctx, stored } = await composed({ status: 'running' })
+    const { ctx, stored, cancels } = await composed({ status: 'running' })
     const id = sid('running')
     storeConversation(stored, id)
     await remote(ctx).resume({ sessionId: id })
     const refused = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 6, throughSeq: 1, edits: [] })
     expect(refused).toMatchObject({ ok: false, error: { code: 'session/agent-busy' } })
-    const live = ctx.agents.get(id)
+    const cancel = cancels.at(-1)
     const accepted = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 6, throughSeq: 1, edits: [], interrupt: true })
     if (!accepted.ok) throw accepted.error
     expect(accepted.ok).toBe(true)
-    expect(live?.cancel).toHaveBeenCalledWith({ kind: 'user' }, { keepInbox: true })
+    expect(cancel).toHaveBeenCalledWith({ kind: 'user' }, { keepInbox: true })
     await ctx.fiber.dispose()
   })
 

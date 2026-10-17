@@ -300,13 +300,20 @@ async function bench(snapshot = historySnapshot(NODES)) {
   ctx.provide('connection', { api: { settings: {} }, isLoopback: false } as never)
   ctx.provide('configForms', { developerTools: { enabled: createSnapshotStore(true) }, get: () => stubConfigForm().scope } as never)
   await runtime.mount(localePlugin)
+  const sessionRemote = {
+    context: vi.fn(() => Promise.resolve({ ok: true as const, value: { cursor: -1, messages: [] } })),
+    rewrite: vi.fn(() => Promise.resolve({ ok: true as const, value: { sessionId: SID, cursor: -1 } })),
+  }
+  ctx.provide('remote.session', sessionRemote as never)
+  // The generated Remote face reaches namespaces as properties of `ctx.remote`.
+  Object.assign(ctx.get('remote') ?? {}, { session: sessionRemote })
   const provide = vi.spyOn(ctx.uiSession, 'provide')
   const feature = await runtime.mount({ inject: [...inject], apply })
   const sourceDescriptor = provide.mock.calls[0]?.[0]
   if (sourceDescriptor === undefined) throw new Error('ui-trajectory did not provide its standard source')
   return {
     runtime, ctx, slots, feature, loadOlder, trajectoryStore, conversationStore,
-    events, views, sourceDescriptor, reference,
+    events, views, sourceDescriptor, reference, sessionRemote,
   }
 }
 
@@ -394,7 +401,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
           t: tZh,
         }
       })()
-      : injected
+      : { ...injected, t: tZh }
     const viewProps: ConvViewProps & Pick<PropsRenderSlots<'conversation.trajectory.images'>, 'renderSlot'> = {
       ...owner, ...standardProps, renderSlot: () => null,
     }
@@ -434,11 +441,12 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
 }
 
 describe('plugin registration', () => {
-  it('registers trajectory after chat on the ring', async () => {
+  it('registers trajectory and context after chat on the ring', async () => {
     const b = await bench()
     expect(tabsOf(b.slots)).toEqual([
       { id: 'chat', label: 'Chat' },
       { id: 'trajectory', label: 'Trajectory' },
+      { id: 'context', label: 'Context' },
     ])
   })
 
@@ -517,11 +525,11 @@ describe('plugin registration', () => {
 })
 
 describe('tab switching in ConversationRoot', () => {
-  it('renders two tabs, defaults to chat, and switches to the trajectory ledger', async () => {
+  it('renders three tabs, defaults to chat, and switches to the trajectory ledger', async () => {
     const b = await bench()
     const view = mount(b)
     expect(screen.getByTestId('chat-body')).toBeTruthy()
-    expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(['Chat', 'Trajectory'])
+    expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(['Chat', 'Trajectory', 'Context'])
 
     fireEvent.click(screen.getByRole('tab', { name: 'Trajectory' }))
     expect(screen.queryByText(/turns ·/)).toBeNull()
@@ -538,6 +546,15 @@ describe('tab switching in ConversationRoot', () => {
     expect(b.loadOlder).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('tab', { name: 'Chat' }))
     expect(b.loadOlder).not.toHaveBeenCalled()
+  })
+
+  it('switches to the context view and reads the Session model context', async () => {
+    const b = await bench()
+    mount(b)
+    fireEvent.click(screen.getByRole('tab', { name: 'Context' }))
+    await waitFor(() => { expect(b.sessionRemote.context).toHaveBeenCalledWith({ sessionId: SID }) })
+    expect(screen.getByRole('toolbar', { name: '上下文工具栏' })).toBeTruthy()
+    expect(screen.queryByTestId('chat-body')).toBeNull()
   })
 
   it('labels the trajectory tab in the active locale', async () => {
