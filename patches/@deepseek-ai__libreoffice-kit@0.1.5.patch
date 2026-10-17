@@ -1,0 +1,14 @@
+diff --git a/lib/index.js b/lib/index.js
+index aac18a01c09916f51a76ceb81e47f75109d8497b..40aa1265b3363690f4fa2f343f8bb4096090ec18 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -1481,7 +1481,8 @@ const ENGINE_PREFIX = "@deepseek-ai/libreoffice-kit";
+ * @returns true when at least one resolution directory holds the package.
+ */
+ function installedPackageExists(name) {
+-	return (require.resolve.paths(name) ?? []).some((directory) => lstatSync(join(directory, name), { throwIfNoEntry: false }) !== void 0);
++	// Electron's asar fs reports a missing entry as null rather than undefined.
++	return (require.resolve.paths(name) ?? []).some((directory) => lstatSync(join(directory, name), { throwIfNoEntry: false }) != null);
+ }
+ /**
+ * Return the optional package target for the current process ABI.
