@@ -45,8 +45,8 @@
   en: 45d1a9ee6d610ac5
   zh: 79c061252fde4ceb
 /sessions/live-session-fork-api:
-  en: ca0d36f7b3d428f0
-  zh: 97001810f449eb42
+  en: 83ea5014072e63a0
+  zh: f8deb4c1832372b2
 /sessions/why-a-turn-ended-turnendreasonmap:
   en: 966cc60273fb3911
   zh: de5123ea9dbb0df2
@@ -68,3 +68,6 @@
 /sessions/remote-catalog-and-workspace-opening:
   en: dd27307e0d7c893c
   zh: b77d2a749b7b641c
+/sessions/session-log-upload-exclusions:
+  en: cfe3323aade972be
+  zh: 8423b490c47c5013

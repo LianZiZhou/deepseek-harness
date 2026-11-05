@@ -84,7 +84,7 @@ describe('previewing a preset', () => {
     const agent = bench.agent()
     await bench.store.preview(agent, PRESETS.takeover, SIGNAL)
 
-    expect(bench.ctx.sessionProjections.stateOf(agent.session, 'promptPreset')).toBeNull()
+    expect(bench.presetOf(agent.session)).toBeNull()
   })
 
   it('previews against the session\'s own selection when asked for it', async () => {

@@ -18,9 +18,10 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { ContextView, type ContextViewInjected } from './ContextView.tsx'
+import { createToolResultWatcher } from './watch-tool-result.ts'
 import { createTrajectoryDurationStore } from './duration-store.ts'
 import { createTrajectoryStringWrappingStore } from './string-wrapping-store.ts'
-import { en, NS, zh } from './locales.ts'
+import { en, ja, es, fr, de, ru, pt, NS, zh } from './locales.ts'
 import { registerTrajectoryAssistantDefinition } from './trajectory-assistant-definition.ts'
 import { registerTrajectoryCompactionDefinitions } from './trajectory-compaction-definition.ts'
 import { registerTrajectoryMessageDefinitions } from './trajectory-message-definitions.ts'
@@ -41,8 +42,8 @@ export type {
   UseTrajectory,
 } from './trajectory-contract.ts'
 
-/** Required services: the conversation slot, registries, ordinary Session paging, the Session Remote, and the locale service. */
-export const inject = ['slots', 'sessions', 'uiSession', 'uiConversation', 'locale', 'remote', 'remote.session']
+/** Required services: conversation slot, registries, Session paging, the Session and tool-result Remotes, and locale. */
+export const inject = ['slots', 'sessions', 'uiSession', 'uiConversation', 'locale', 'remote', 'remote.session', 'remote.toolResults']
 
 /**
  * Client plugin body: register the trajectory view tab. The registration
@@ -63,7 +64,7 @@ export function apply(ctx: Context): void {
     }
     return source
   }
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-trajectory: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'ui-trajectory: dictionaries')
   // Registration-time text (the view tab label) reads through the bound
   // translate as a thunk, so it follows the active locale without
   // re-registration.
@@ -95,6 +96,9 @@ export function apply(ctx: Context): void {
       const trajectory = ctx.uiConversation.binding(sessionId).target('trajectory')
       return {
         hooks: { duration },
+        watchToolResult: createToolResultWatcher(ctx.remote, sessionId, (error) => {
+          ctx.logger.warn('live tool result unavailable: %s', error)
+        }),
         jsonStringWrapping: {
           getDefault: () => stringWrapping.getSnapshot(),
           setDefault: (value) => { stringWrapping.set(value) },

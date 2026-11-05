@@ -48,7 +48,7 @@ describe('the promptPreset projection', () => {
     await bench.store.select(agent, 'b')
     await bench.store.select(agent, null)
     await bench.store.select(agent, 'a')
-    expect(bench.ctx.sessionProjections.stateOf(agent.session, 'promptPreset')).toBe('a')
+    expect(bench.presetOf(agent.session)).toBe('a')
   })
 })
 
@@ -74,7 +74,7 @@ describe('selecting a preset', () => {
       bench.store.select(agent, null),
     ])
     expect(recorded).toEqual(['a', 'b', null])
-    expect(bench.ctx.sessionProjections.stateOf(agent.session, 'promptPreset')).toBeNull()
+    expect(bench.presetOf(agent.session)).toBeNull()
   })
 
   it('leaves the next caller unaffected when one selection is refused', async () => {

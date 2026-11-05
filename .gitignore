@@ -40,6 +40,7 @@ apps/web/dist/
 .artifacts/
 .dsh-build/
 .dsh-report/
+.ui-review/
 .playwright-mcp/
 .orig
 .worktrees/
@@ -51,3 +52,6 @@ native/system/test/bin/
 # A runtime DSH_HOME that lands beside the checkout: session logs and
 # attachments, never repository content.
 .dsh/
+
+# Generated company-signed CUA release record.
+/packages/experimental/cua-macos/cua-helper.json

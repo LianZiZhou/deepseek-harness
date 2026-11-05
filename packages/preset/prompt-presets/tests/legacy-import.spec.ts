@@ -70,6 +70,6 @@ describe('importing the removed settings document', () => {
     const agent = bench.agent()
     await bench.ctx.parallel('agent/created', { agent, source: 'startup' })
 
-    expect(bench.ctx.sessionProjections.stateOf(agent.session, 'promptPreset')).toBe('terse')
+    expect(bench.presetOf(agent.session)).toBe('terse')
   })
 })

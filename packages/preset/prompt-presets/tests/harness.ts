@@ -19,10 +19,11 @@ import CommandRuntime from '@deepseek-ai/dsh-commands'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import type { Session } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent-loop'
+import { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent/src/projection.ts'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { Agent, AgentRegistry } from '@deepseek-ai/dsh-agent'
 import PromptPresetStore from '@deepseek-ai/dsh-prompt-presets'
+import { promptPresetProjectionDefinition } from '@deepseek-ai/dsh-prompt-presets/src/session.ts'
 import type { PromptPreset } from '@deepseek-ai/dsh-prompt-presets'
 
 /** Temp homes this file created, removed by {@link cleanup}. */
@@ -66,6 +67,10 @@ export interface Harness {
   agent: (id?: string) => Agent
   /** Mint one subagent child of `parent`, with the durable lineage a driver writes. */
   child: (parent: Agent, id?: string) => Agent
+  /** The preset a session currently records, read through the store's projection unit. */
+  presetOf: (session: Session) => string | null
+  /** Release the harness's own reference to that unit before a disposal check. */
+  releasePresetOf: () => Promise<void>
 }
 
 /** The id the shipped bundles give this package, which writes address. */
@@ -129,9 +134,10 @@ export async function harness(
     })
   })
   roots.push(ctx)
-  // The loop's own unit, registered here so blankness reads the way it does in
-  // a real composition without dragging the whole agent loop into the suite.
-  ctx.sessionProjections.register(turnBoundaryProjectionDefinition)
+  // The Agent registry's own unit, registered here so blankness reads the way
+  // it does in a real composition without dragging the agent loop into the suite.
+  const turnBoundary = await ctx.sessionProjections.register(turnBoundaryProjectionDefinition)
+  ctx.provide('agents', { turnBoundaryOf: (session: Session) => turnBoundary.stateOf(session) } as Pick<AgentRegistry, 'turnBoundaryOf'> as AgentRegistry)
   for (const section of sections) ctx.systemPrompt.section(section)
 
   const entry = [...ctx.loader.entries()].find(row => row.options.id === ENTRY)
@@ -153,7 +159,12 @@ export async function harness(
     })
     return { id: session.id, session, options: {} } as Agent
   }
-  return { ctx, store: ctx.promptPresets, fiber, home, patchPath: profile.patchPath, agent, child }
+  // A second reference to the store's unit, so specs read the selection the same way it does.
+  const presets = await ctx.sessionProjections.register(promptPresetProjectionDefinition)
+  const presetOf = (session: Session): string | null => presets.stateOf(session)
+  // Drops that reference, so a disposal spec observes the store's own release.
+  const releasePresetOf = (): Promise<void> => presets.dispose()
+  return { ctx, store: ctx.promptPresets, fiber, home, patchPath: profile.patchPath, agent, child, presetOf, releasePresetOf }
 }
 
 /**

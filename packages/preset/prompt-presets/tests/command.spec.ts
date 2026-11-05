@@ -29,7 +29,7 @@ async function run(bench: Harness, agent: Agent, line: string) {
 
 /** The preset one agent's session currently records. */
 function selected(bench: Harness, agent: Agent): string | null | undefined {
-  return bench.ctx.sessionProjections.stateOf(agent.session, 'promptPreset')
+  return bench.presetOf(agent.session)
 }
 
 describe('/prompt-preset', () => {

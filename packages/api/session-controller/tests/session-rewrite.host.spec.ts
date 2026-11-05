@@ -4,6 +4,7 @@
  * Session under the same id. `session.context` reads the derived model
  * history those edits address.
  */
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
@@ -37,6 +38,7 @@ interface Stored {
 async function composed(options: { status?: 'idle' | 'running'; persistence?: false } = {}) {
   const ctx = new Context()
   await ctx.plugin(SessionStore)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(AgentRegistry)
   installSessionReadTestServices(ctx)
   const stored = new Map<SessionId, Stored>()
@@ -142,7 +144,7 @@ describe('session.rewrite', () => {
     storeConversation(stored, id)
     const order: string[] = []
     ctx.on('api-session/rewritten', () => { order.push(`rewritten:${String(ctx.agents.get(id) === undefined)}`) })
-    const response = await remote(ctx).rewrite({
+    const response = await (await remote(ctx)).rewrite({
       sessionId: id,
       expectedCursor: 5,
       throughSeq: 1,
@@ -166,10 +168,10 @@ describe('session.rewrite', () => {
     const { ctx, stored, replace } = await composed()
     const id = sid('live-owned')
     storeConversation(stored, id)
-    const first = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 5, edits: [] })
+    const first = await (await remote(ctx)).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 5, edits: [] })
     expect(first.ok).toBe(true)
     const before = ctx.agents.get(id)
-    const second = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 6, throughSeq: 2, edits: [] })
+    const second = await (await remote(ctx)).rewrite({ sessionId: id, expectedCursor: 6, throughSeq: 2, edits: [] })
     if (!second.ok) throw second.error
     expect(second).toMatchObject({ ok: true, value: { cursor: 2 } })
     expect(replace).toHaveBeenCalledTimes(2)
@@ -181,7 +183,7 @@ describe('session.rewrite', () => {
     const { ctx, stored, replace } = await composed()
     const id = sid('stale')
     const events = storeConversation(stored, id)
-    const response = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 2, throughSeq: 1, edits: [] })
+    const response = await (await remote(ctx)).rewrite({ sessionId: id, expectedCursor: 2, throughSeq: 1, edits: [] })
     expect(response).toMatchObject({ ok: false, error: { code: 'session/rewrite-conflict', details: { cursor: 5 } } })
     expect(replace).not.toHaveBeenCalled()
     expect(stored.get(id)?.events).toEqual(events)
@@ -193,7 +195,7 @@ describe('session.rewrite', () => {
     const { ctx, stored } = await composed()
     const id = sid('invalid')
     storeConversation(stored, id)
-    const response = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 5, edits: [{ kind: 'delete', seq: 0 }] })
+    const response = await (await remote(ctx)).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 5, edits: [{ kind: 'delete', seq: 0 }] })
     expect(response).toMatchObject({ ok: false, error: { code: 'session/rewrite-invalid', details: { code: 'NOT_A_MESSAGE', seq: 0 } } })
     await ctx.fiber.dispose()
   })
@@ -202,11 +204,11 @@ describe('session.rewrite', () => {
     const { ctx, stored, cancels } = await composed({ status: 'running' })
     const id = sid('running')
     storeConversation(stored, id)
-    await remote(ctx).resume({ sessionId: id })
-    const refused = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 6, throughSeq: 1, edits: [] })
+    await (await remote(ctx)).resume({ sessionId: id })
+    const refused = await (await remote(ctx)).rewrite({ sessionId: id, expectedCursor: 6, throughSeq: 1, edits: [] })
     expect(refused).toMatchObject({ ok: false, error: { code: 'session/agent-busy' } })
     const cancel = cancels.at(-1)
-    const accepted = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 6, throughSeq: 1, edits: [], interrupt: true })
+    const accepted = await (await remote(ctx)).rewrite({ sessionId: id, expectedCursor: 6, throughSeq: 1, edits: [], interrupt: true })
     if (!accepted.ok) throw accepted.error
     expect(accepted.ok).toBe(true)
     expect(cancel).toHaveBeenCalledWith({ kind: 'user' }, { keepInbox: true })
@@ -217,16 +219,16 @@ describe('session.rewrite', () => {
     const { ctx, stored } = await composed()
     const id = sid('refusals')
     storeConversation(stored, id)
-    expect(await remote(ctx).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: -1, edits: [] }))
+    expect(await (await remote(ctx)).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: -1, edits: [] }))
       .toMatchObject({ ok: false, error: { code: 'gateway/bad-request' } })
     const child = sid('subagent-child')
     const session = ctx.sessions.create(child, { meta: { cwd: '/proj', origin: 'subagent' } })
     await ctx.agents.register({ id: child, session, status: 'idle', ctx } as Agent)
-    expect(await remote(ctx).rewrite({ sessionId: child, expectedCursor: 0, throughSeq: 0, edits: [] }))
+    expect(await (await remote(ctx)).rewrite({ sessionId: child, expectedCursor: 0, throughSeq: 0, edits: [] }))
       .toMatchObject({ ok: false, error: { code: 'session/agent-busy' } })
     await ctx.fiber.dispose()
     const bare = await composed({ persistence: false })
-    expect(await remote(bare.ctx).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 1, edits: [] }))
+    expect(await (await remote(bare.ctx)).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 1, edits: [] }))
       .toMatchObject({ ok: false, error: { code: 'session/rewrite-unavailable', details: { reason: 'no-persistence' } } })
     await bare.ctx.fiber.dispose()
   })
@@ -236,8 +238,8 @@ describe('session.rewrite', () => {
     const id = sid('failures')
     storeConversation(stored, id)
     failures.resume.add(id)
-    const failedOpen = remote(ctx).context({ sessionId: id })
-    const rewritten = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 2, edits: [] })
+    const failedOpen = (await remote(ctx)).context({ sessionId: id })
+    const rewritten = await (await remote(ctx)).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 2, edits: [] })
     expect(await failedOpen).toMatchObject({ ok: false })
     expect(rewritten).toMatchObject({ ok: true, value: { cursor: 2 } })
 
@@ -245,7 +247,7 @@ describe('session.rewrite', () => {
     storeConversation(stored, other)
     failures.replace.add(other)
     failures.resume.add(other)
-    const response = await remote(ctx).rewrite({ sessionId: other, expectedCursor: 5, throughSeq: 2, edits: [] })
+    const response = await (await remote(ctx)).rewrite({ sessionId: other, expectedCursor: 5, throughSeq: 2, edits: [] })
     expect(response).toMatchObject({ ok: false, error: { code: 'gateway/internal' } })
     if (!response.ok) expect(response.error.message).toMatch(/disk full/)
     expect(replace).toHaveBeenCalledTimes(2)
@@ -259,12 +261,12 @@ describe('session.rewrite', () => {
     storeConversation(stored, id)
     const bystander = sid('bystander')
     storeConversation(stored, bystander)
-    const frames = remote(ctx).follow({ address: { kind: 'session', sessionId: id } })[Symbol.asyncIterator]()
+    const frames = (await remote(ctx)).follow({ address: { kind: 'session', sessionId: id } })[Symbol.asyncIterator]()
     expect((await frames.next()).value).toMatchObject({ type: 'snapshot' })
     const controller = new AbortController()
-    const other = remote(ctx).follow({ address: { kind: 'session', sessionId: bystander } }, controller.signal)[Symbol.asyncIterator]()
+    const other = (await remote(ctx)).follow({ address: { kind: 'session', sessionId: bystander } }, controller.signal)[Symbol.asyncIterator]()
     expect((await other.next()).value).toMatchObject({ type: 'snapshot' })
-    const response = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 2, edits: [] })
+    const response = await (await remote(ctx)).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 2, edits: [] })
     if (!response.ok) throw response.error
     await expect(frames.next()).resolves.toMatchObject({ done: true })
     const pending = other.next()
@@ -279,7 +281,7 @@ describe('session.rewrite', () => {
     storeConversation(stored, id)
     const session = ctx.sessions.create(id, { meta: { cwd: '/proj' } })
     await ctx.agents.register({ id, session, status: 'idle', ctx } as Agent)
-    const response = await remote(ctx).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 1, edits: [] })
+    const response = await (await remote(ctx)).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 1, edits: [] })
     expect(response).toMatchObject({ ok: false, error: { code: 'session/rewrite-unavailable', details: { reason: 'foreign-owner' } } })
     await ctx.fiber.dispose()
   })
@@ -290,7 +292,7 @@ describe('session.context', () => {
     const { ctx, stored } = await composed()
     const id = sid('context')
     storeConversation(stored, id)
-    const response = await remote(ctx).context({ sessionId: id })
+    const response = await (await remote(ctx)).context({ sessionId: id })
     if (!response.ok) throw response.error
     expect(response.value.cursor).toBe(6)
     expect(response.value.messages).toEqual([
@@ -356,7 +358,7 @@ describe('session.context', () => {
       events: [...session.snapshotEvents()],
     })
 
-    const response = await remote(ctx).context({ sessionId: id })
+    const response = await (await remote(ctx)).context({ sessionId: id })
     if (!response.ok) throw response.error
     expect(response.value.messages).toEqual([
       { seq: 2, event: 'system/message', role: 'system', content: [{ type: 'text', text: 'be brief' }] },
@@ -371,7 +373,7 @@ describe('session.context', () => {
 
   it('reports a missing Session', async () => {
     const { ctx } = await composed()
-    const response = await remote(ctx).context({ sessionId: sid('missing') })
+    const response = await (await remote(ctx)).context({ sessionId: sid('missing') })
     expect(response).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
     await ctx.fiber.dispose()
   })

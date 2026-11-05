@@ -3,6 +3,7 @@
  * new message. Only an ending short of a reply resumes; anything else, a
  * running session, or an Agent without a turn driver is refused.
  */
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
@@ -17,6 +18,7 @@ const sid = (id: string): SessionId => id as SessionId
 async function composed(): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(SessionStore)
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(AgentRegistry)
   installSessionReadTestServices(ctx)
   return ctx
@@ -59,7 +61,7 @@ describe('session.resume', () => {
   ])('resumes a turn that ended $kind', async (ending) => {
     const ctx = await composed()
     const { session, resume } = await agentEndingWith(ctx, `resume-${ending.kind}`, ending)
-    await expect(remote(ctx).resume({ sessionId: session.id })).resolves.toEqual({ ok: true, value: { accepted: true } })
+    await expect((await remote(ctx)).resume({ sessionId: session.id })).resolves.toEqual({ ok: true, value: { accepted: true } })
     expect(resume).toHaveBeenCalledOnce()
     await ctx.fiber.dispose()
   })
@@ -73,7 +75,7 @@ describe('session.resume', () => {
   ])('refuses %s', async (_label, ending, options, message) => {
     const ctx = await composed()
     const { session, resume } = await agentEndingWith(ctx, 'resume-refused', ending, options)
-    const response = await remote(ctx).resume({ sessionId: session.id })
+    const response = await (await remote(ctx)).resume({ sessionId: session.id })
     expect(response).toMatchObject({ ok: false, error: { code: 'session/resume-unavailable', details: { sessionId: session.id } } })
     if (!response.ok) expect(response.error.message).toMatch(message)
     expect(resume ?? vi.fn()).not.toHaveBeenCalled()
@@ -85,7 +87,7 @@ describe('session.resume', () => {
     const { session } = await agentEndingWith(ctx, 'resume-raced', { kind: 'interrupted' }, {
       resume: () => { throw new Error('already has active work') },
     })
-    const response = await remote(ctx).resume({ sessionId: session.id })
+    const response = await (await remote(ctx)).resume({ sessionId: session.id })
     expect(response).toMatchObject({ ok: false, error: { code: 'session/agent-busy' } })
     await ctx.fiber.dispose()
   })

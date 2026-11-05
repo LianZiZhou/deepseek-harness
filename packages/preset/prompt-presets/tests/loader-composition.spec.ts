@@ -129,6 +129,7 @@ describe('real Loader composition', () => {
     expect(await committedPrompt(ctx, agent)).toBe('You are the deployment assistant.')
 
     await ctx.parallel('agent/created', { agent, source: 'startup' })
+    // oxlint-disable-next-line typescript/no-deprecated -- This suite boots a real composition without the test harness handle.
     expect(ctx.sessionProjections.stateOf(session, 'promptPreset')).toBe('takeover')
     expect(await committedPrompt(ctx, agent)).toBe('You are a calculator.')
   })

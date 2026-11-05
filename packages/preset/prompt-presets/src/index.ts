@@ -16,8 +16,9 @@
  */
 
 import { createHash } from 'node:crypto'
-import { Context } from '@deepseek-ai/cordis'
+import { Context, Service } from '@deepseek-ai/cordis'
 import type { Volatile } from '@deepseek-ai/cordis'
+import type { ProjectionHandle } from '@deepseek-ai/dsh-session-projection'
 import z from '@deepseek-ai/schemastery'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent'
@@ -182,6 +183,9 @@ export default class PromptPresetStore extends TypertRemoteService {
   /** Sessions already reported as diverging, so one mismatch warns once. */
   private readonly diverged = new Set<string>()
 
+  /** Reads each Session's selected preset; assigned before the service starts. */
+  private presetProjection!: ProjectionHandle<string | null>
+
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'promptPresets')
     this.selfCtx = ctx
@@ -227,7 +231,6 @@ export default class PromptPresetStore extends TypertRemoteService {
       }))
     })
 
-    ctx.sessionProjections.register(promptPresetProjectionDefinition)
     ctx.systemPrompt.finalize((assembly, context) => this.finalize(assembly, context))
 
     ctx.on('agent/created', ({ agent }) => { this.stampInitial(agent) })
@@ -239,6 +242,10 @@ export default class PromptPresetStore extends TypertRemoteService {
       if (event.type !== 'prompt-preset/selected') return
       ctx.emit('prompt-preset/selected', session.id, event.data.promptPreset)
     })
+  }
+
+  protected async [Service.init](): Promise<void> {
+    this.presetProjection = await this.selfCtx.sessionProjections.register(promptPresetProjectionDefinition)
   }
 
   /**
@@ -324,8 +331,8 @@ export default class PromptPresetStore extends TypertRemoteService {
   /** The preset one agent's session runs, or null when it overrides nothing. */
   private presetForAgent(agent: Agent | undefined): ResolvedPreset | null {
     if (agent === undefined) return null
-    const id = this.selfCtx.sessionProjections.stateOf(agent.session, 'promptPreset')
-    if (id === undefined || id === null || id === '') return null
+    const id = this.presetProjection.stateOf(agent.session)
+    if (id === null || id === '') return null
     const preset = this.stored().presets[id]
     if (preset === undefined) {
       this.warn(agent, id, { code: 'unknown-preset' })
@@ -361,9 +368,9 @@ export default class PromptPresetStore extends TypertRemoteService {
    */
   private stampInitial(agent: Agent): void {
     try {
-      const current = this.selfCtx.sessionProjections.stateOf(agent.session, 'promptPreset')
-      if (current !== null && current !== undefined) return
-      const boundary = this.selfCtx.sessionProjections.stateOf(agent.session, 'turnBoundary')
+      const current = this.presetProjection.stateOf(agent.session)
+      if (current !== null) return
+      const boundary = this.selfCtx.get('agents')?.turnBoundaryOf(agent.session)
       if (boundary !== undefined && (boundary.openTurnStartSeq !== null || boundary.lastTurn > 0)) return
       const stored = this.stored()
       const wanted = this.inheritedPreset(agent) ?? stored.default
@@ -397,8 +404,8 @@ export default class PromptPresetStore extends TypertRemoteService {
     if (header.origin !== 'subagent' || header.parentSession === undefined) return undefined
     const parent = this.selfCtx.sessions.get(header.parentSession)
     if (parent === undefined) return undefined
-    const inherited = this.selfCtx.sessionProjections.stateOf(parent, 'promptPreset')
-    return inherited === null || inherited === undefined || inherited === '' ? undefined : inherited
+    const inherited = this.presetProjection.stateOf(parent)
+    return inherited === null || inherited === '' ? undefined : inherited
   }
 
   /** The roster as a client reads it. */
@@ -639,7 +646,7 @@ export default class PromptPresetStore extends TypertRemoteService {
     const roster = ids.length === 0 ? 'none stored' : `available: ${ids.join(', ')}`
     const unknown = (id: string): CommandResult => ({ kind: 'error', text: `unknown preset "${id}" (${roster})` })
     if (verb === undefined) {
-      const current = this.selfCtx.sessionProjections.stateOf(agent.session, 'promptPreset') ?? ''
+      const current = this.presetProjection.stateOf(agent.session) ?? ''
       return { kind: 'success', text: `current ${current || 'off'}, default ${stored.default || 'off'} (${roster})` }
     }
     if (verb === 'default') {
@@ -669,7 +676,7 @@ export default class PromptPresetStore extends TypertRemoteService {
   private async swap(agent: Agent, promptPreset: string | null): Promise<string | null> {
     await Promise.resolve()
     if (promptPreset !== null) this.checkExists(promptPreset)
-    const current = this.selfCtx.sessionProjections.stateOf(agent.session, 'promptPreset') ?? null
+    const current = this.presetProjection.stateOf(agent.session) ?? null
     if (current === promptPreset) return promptPreset
     agent.session.append('prompt-preset/selected', { promptPreset })
     return promptPreset

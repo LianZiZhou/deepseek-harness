@@ -17,9 +17,9 @@ declare module '@deepseek-ai/cordis' {
 
   interface Events {
     /**
-     * Expert waterfall over the assembled sections, contexts, tools, and variables.
+     * Presentation waterfall over assembled sections, contexts, and variables.
      * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): scoped listeners
-     * receive only that scope's assemblies. The returned value is authoritative.
+     * receive only that scope's assemblies. The returned text is authoritative; tool declarations remain provider-owned.
      * A supplied signal controls only this explicit assembly request and must not
      * be retained to control later turns. A registered complete section is
      * restored after this waterfall, so listeners cannot add to or replace
@@ -29,7 +29,7 @@ declare module '@deepseek-ai/cordis' {
      * @param context - the caller's per-assembly context.
      * @mode waterfall
      */
-    'system-prompt/assemble'(this: Scoped<SystemPrompt>, assembly: PromptAssembly, context: AssembleContext, next: () => Promise<PromptAssembly>): Promise<PromptAssembly>
+    'system-prompt/assemble'(this: Scoped<SystemPrompt>, assembly: PromptPresentation, context: AssembleContext, next: () => Promise<PromptPresentation>): Promise<PromptPresentation>
     /**
      * Emitted when any prompt provider changes. This registry notification is
      * unfiltered because a global change affects every scope.
@@ -127,14 +127,19 @@ export interface ToolProviderResult {
 }
 
 /**
- * Merge-extensible assembled model input. Sections and contexts remain
- * uninterpolated until rendered; tools are already in canonical order.
+ * Prompt text contributions that the assembly waterfall may transform.
+ * Sections and contexts remain uninterpolated until rendered; tool
+ * declarations are owned by their providers.
  */
-export interface PromptAssembly {
+export interface PromptPresentation {
   sections: AssembledSection[]
   contexts: AssembledContext[]
-  tools: ToolSchema[]
   variables: Record<string, string | undefined>
+}
+
+/** Completed model inputs: the presentation plus tool declarations in canonical order. */
+export interface PromptAssembly extends PromptPresentation {
+  tools: ToolSchema[]
 }
 
 const SECTION_ORDERS = {
@@ -149,6 +154,7 @@ const SECTION_ORDERS = {
   TOOL_READ: 1100,
   TOOL_WRITE: 1200,
   TOOL_EDIT: 1300,
+  TOOL_APPLY_PATCH: 1350,
   TOOL_GLOB: 1400,
   TOOL_GREP: 1500,
   TOOL_JOBS: 1600,
@@ -158,6 +164,7 @@ const SECTION_ORDERS = {
   TOOL_LSP: 2200,
   TOOL_SESSION_QUERY: 2300,
   TOOL_GOAL: 2400,
+  TOOL_SCHEDULE: 2500,
   TOOL_WORKFLOW: 2600,
   TOOL_RALPH: 2700,
   TOOL_SUBAGENT: 2800,
@@ -181,7 +188,6 @@ const CONTEXT_ORDERS = {
   SANDBOX_POLICY: 110,
   APPROVAL_POLICY: 115,
   SUBAGENT_DELEGATION: 120,
-  TEAM_IDENTITY: 125,
   // Process-specific paths and endpoints stay out of the cached system prompt.
   HARNESS_SOURCE: 200,
   WEB_SURFACE: 210,
@@ -655,13 +661,13 @@ export class SystemPrompt extends Service {
 
   /**
    * Assemble global and scoped providers, detach tool parameters, apply
-   * canonical ordering, then run the assembly waterfall. Scoped sections and
-   * variables shadow globals. The returned waterfall value is authoritative
-   * except that an effective complete section is restored afterwards as the
-   * sole prompt section, and that a registered {@link finalize} override then
-   * has the last word over all of it.
-   * @param context - the optional scope and plugin-defined assembly fields.
-   * @returns the finalized assembly with any complete prompt enforced first.
+   * canonical ordering, then run the presentation waterfall. Scoped sections
+   * and variables shadow globals. The waterfall's text is authoritative except
+   * that an effective complete section is restored afterwards as the sole
+   * prompt section, and that a registered {@link finalize} override then has
+   * the last word over all of it; tool declarations stay provider-owned.
+   * @param context - the optional scope, step tool set, and plugin-defined assembly fields.
+   * @returns the finalized assembly with ordered tool declarations and any complete prompt enforced first.
    */
   // Keep configuration failures on the declared asynchronous error path.
   async assemble(context: AssembleContext = {}): Promise<PromptAssembly> {
@@ -718,13 +724,13 @@ export class SystemPrompt extends Service {
         if (section.complete === true) completeSection = { ...assembled }
         return assembled
       })
-    const assembly: PromptAssembly = {
+    const tools = orderTools(collected, this.toolOrder, knownNames)
+    const assembly: PromptPresentation = {
       sections,
       contexts: [...contextByName.values()]
         .filter(entry => !runtimeContextSuppressed || entry.required === true)
         .sort((a, b) => a.order - b.order)
         .map(entry => resolveContext(entry, context)),
-      tools: orderTools(collected, this.toolOrder, knownNames),
       variables,
     }
     const transformed = await this.ctx.waterfall(
@@ -733,9 +739,10 @@ export class SystemPrompt extends Service {
     )
     const requiredContexts = new Set([...contextByName.values()].filter(entry => entry.required === true).map(entry => entry.name))
     const resolved = completeSection === undefined && !runtimeContextSuppressed
-      ? transformed
+      ? { ...transformed, tools }
       : {
         ...transformed,
+        tools,
         sections: completeSection === undefined ? transformed.sections : [completeSection],
         contexts: runtimeContextSuppressed ? transformed.contexts.filter(entry => requiredContexts.has(entry.name)) : transformed.contexts,
       }

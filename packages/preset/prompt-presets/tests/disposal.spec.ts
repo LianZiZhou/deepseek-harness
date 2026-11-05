@@ -18,15 +18,18 @@ describe('disposing the store', () => {
     expect(renderPrompt(await bench.ctx.systemPrompt.assemble(assembleContextFor(agent))))
       .toContain('BE LOUD.')
     expect(bench.ctx.settings.describe().some(entry => entry.ns === 'prompt-presets')).toBe(true)
+    // oxlint-disable-next-line typescript/no-deprecated -- Disposal is observed through the registry: a released key reads as absent.
     expect(bench.ctx.sessionProjections.stateOf(agent.session, 'promptPreset')).toBe('shout')
     expect(bench.ctx.get('promptPresets')).toBeDefined()
 
+    await bench.releasePresetOf()
     await bench.fiber.dispose()
 
     // Gone: the prompt is untransformed and nothing this package owned remains.
     expect(renderPrompt(await bench.ctx.systemPrompt.assemble(assembleContextFor(agent))))
       .toBe(IDENTITY)
     expect(bench.ctx.settings.describe().some(entry => entry.ns === 'prompt-presets')).toBe(false)
+    // oxlint-disable-next-line typescript/no-deprecated -- Disposal is observed through the registry: a released key reads as absent.
     expect(bench.ctx.sessionProjections.stateOf(agent.session, 'promptPreset')).toBeUndefined()
     expect(bench.ctx.get('promptPresets')).toBeUndefined()
   })

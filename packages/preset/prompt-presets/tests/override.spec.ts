@@ -135,7 +135,7 @@ describe('the blank-session default', () => {
     const agent = bench.agent()
     await bench.ctx.parallel('agent/created', { agent, source: 'startup' })
 
-    expect(bench.ctx.sessionProjections.stateOf(agent.session, 'promptPreset')).toBe('shout')
+    expect(bench.presetOf(agent.session)).toBe('shout')
     expect(await promptFor(bench, agent)).toContain('BE LOUD.')
   })
 
@@ -145,7 +145,7 @@ describe('the blank-session default', () => {
     startTurn(agent.session)
     await bench.ctx.parallel('agent/created', { agent, source: 'startup' })
 
-    expect(bench.ctx.sessionProjections.stateOf(agent.session, 'promptPreset')).toBeNull()
+    expect(bench.presetOf(agent.session)).toBeNull()
   })
 
   it('leaves a session that already chose alone, and stamps nothing without a default', async () => {
@@ -153,12 +153,12 @@ describe('the blank-session default', () => {
     const agent = chosen.agent()
     await chosen.store.select(agent, 'takeover')
     await chosen.ctx.parallel('agent/created', { agent, source: 'startup' })
-    expect(chosen.ctx.sessionProjections.stateOf(agent.session, 'promptPreset')).toBe('takeover')
+    expect(chosen.presetOf(agent.session)).toBe('takeover')
 
     const none = await harness({ presets: PRESETS })
     const other = none.agent()
     await none.ctx.parallel('agent/created', { agent: other, source: 'startup' })
-    expect(none.ctx.sessionProjections.stateOf(other.session, 'promptPreset')).toBeNull()
+    expect(none.presetOf(other.session)).toBeNull()
   })
 
   it('starts the session rather than failing it when stamping cannot finish', async () => {
@@ -183,7 +183,7 @@ describe('a delegated child', () => {
 
     // Recorded, not resolved on the fly: the child's own log is what a cold
     // read replays, so its history stays reconstructable.
-    expect(bench.ctx.sessionProjections.stateOf(child.session, 'promptPreset')).toBe('shout')
+    expect(bench.presetOf(child.session)).toBe('shout')
     expect(await promptFor(bench, child)).toContain('BE LOUD.')
   })
 
@@ -207,7 +207,7 @@ describe('a delegated child', () => {
     const child = bench.child(parent)
     await bench.ctx.parallel('agent/created', { agent: child, source: 'startup' })
 
-    expect(bench.ctx.sessionProjections.stateOf(child.session, 'promptPreset')).toBe('takeover')
+    expect(bench.presetOf(child.session)).toBe('takeover')
   })
 
   it('stamps nothing when neither the parent nor the deployment names one', async () => {
@@ -216,7 +216,7 @@ describe('a delegated child', () => {
     const child = bench.child(parent)
     await bench.ctx.parallel('agent/created', { agent: child, source: 'startup' })
 
-    expect(bench.ctx.sessionProjections.stateOf(child.session, 'promptPreset')).toBeNull()
+    expect(bench.presetOf(child.session)).toBeNull()
   })
 
   it('ignores a parent the runtime no longer holds', async () => {
@@ -230,6 +230,6 @@ describe('a delegated child', () => {
 
     // The deployment default still applies; a parent this process cannot read
     // is not a reason to leave the child with no override at all.
-    expect(bench.ctx.sessionProjections.stateOf(orphan, 'promptPreset')).toBe('shout')
+    expect(bench.presetOf(orphan)).toBe('shout')
   })
 })
