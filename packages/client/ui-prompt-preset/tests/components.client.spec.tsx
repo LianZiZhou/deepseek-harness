@@ -4,7 +4,7 @@
  * settings page with its rule editor and preview.
  */
 
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
@@ -22,6 +22,9 @@ import { en } from '../src/client/locales.ts'
 afterEach(cleanup)
 
 const SESSION = SessionId('task')
+
+/** The chip's accessible name: what it is, then what the task runs. */
+const SEAT_NAME = new RegExp(`^${en['seat.label']}: `)
 
 /** The runtime's own `{name}` substitution, so a test reads the shown text. */
 function translate(key: keyof typeof en, params?: Record<string, unknown>): string {
@@ -96,6 +99,7 @@ function renderSeat(state: Partial<PromptPresetSeatState> = {}, overrides: Parti
     load: () => Promise.resolve(),
     select,
     clearError: vi.fn(),
+    variant: 'hero',
     t: translate,
     ...overrides,
   } as PromptPresetSeatProps
@@ -123,7 +127,7 @@ function renderSection(state: Partial<PromptPresetSectionState> = {}, overrides:
     patchRule: vi.fn(),
     setRuleEnabled: vi.fn(),
     save: vi.fn(() => Promise.resolve()),
-    discard: vi.fn(),
+    closeEditor: vi.fn(),
     setDefault: vi.fn(() => Promise.resolve()),
     confirmDelete: vi.fn(),
     remove: vi.fn(() => Promise.resolve()),
@@ -132,6 +136,7 @@ function renderSection(state: Partial<PromptPresetSectionState> = {}, overrides:
     ...overrides,
   }
   const props = {
+    // The settings shell's own close, which the page must not take for its editor's.
     close: vi.fn(),
     usePromptPresetSection: bindSnapshotSelector(store),
     t: translate,
@@ -144,7 +149,7 @@ function renderSection(state: Partial<PromptPresetSectionState> = {}, overrides:
 describe('the task switcher', () => {
   it('names the preset the task runs, and offers the stored ones', () => {
     const { select } = renderSeat()
-    fireEvent.click(screen.getByRole('button', { name: en['seat.label'] }))
+    fireEvent.click(screen.getByRole('button', { name: SEAT_NAME }))
     expect(screen.getByText('Terse')).toBeTruthy()
 
     fireEvent.click(screen.getByText('Terse'))
@@ -153,7 +158,7 @@ describe('the task switcher', () => {
 
   it('says a change applies from the next turn', () => {
     renderSeat()
-    fireEvent.click(screen.getByRole('button', { name: en['seat.label'] }))
+    fireEvent.click(screen.getByRole('button', { name: SEAT_NAME }))
     expect(screen.getByText(en['seat.appliesNextTurn'])).toBeTruthy()
   })
 
@@ -161,7 +166,7 @@ describe('the task switcher', () => {
     // The Hero seat is session-maybe: before a task exists there is no log to
     // read a selection from, and the control still offers the roster.
     renderSeat({}, { sessionId: undefined })
-    expect(screen.getByRole('button', { name: en['seat.label'] }).textContent)
+    expect(screen.getByRole('button', { name: SEAT_NAME }).textContent)
       .toContain(en['seat.none'])
   })
 
@@ -170,7 +175,7 @@ describe('the task switcher', () => {
       useSessions: <Selected,>(selector: (value: never) => Selected): Selected =>
         selector({ byId: { [SESSION]: { projectionValues: {} } } } as never),
     })
-    expect(screen.getByRole('button', { name: en['seat.label'] }).textContent)
+    expect(screen.getByRole('button', { name: SEAT_NAME }).textContent)
       .toContain(en['seat.none'])
   })
 
@@ -178,16 +183,39 @@ describe('the task switcher', () => {
     const { container } = render(<div />)
     cleanup()
     renderSeat({ status: 'unavailable', options: [] })
-    expect(screen.queryByRole('button', { name: en['seat.label'] })).toBeNull()
+    expect(screen.queryByRole('button', { name: SEAT_NAME })).toBeNull()
     expect(container).toBeTruthy()
   })
 
-  it('surfaces a refused switch and clears it when read', () => {
-    const clearError = vi.fn()
-    renderSeat({ error: 'locked' }, { clearError })
-    const notice = screen.getByText(translate('seat.switchFailed', { message: 'locked' }))
-    fireEvent.click(notice)
-    expect(clearError).toHaveBeenCalledOnce()
+  it('banners a refused switch and clears it once the banner has run', () => {
+    vi.useFakeTimers()
+    try {
+      const clearError = vi.fn()
+      renderSeat({ error: 'locked' }, { clearError })
+      expect(screen.getByText(translate('seat.switchFailed', { message: 'locked' }))).toBeTruthy()
+      act(() => { vi.advanceTimersByTime(20_000) })
+      expect(clearError).toHaveBeenCalledOnce()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('names each preset over its summary, and says what no preset means', () => {
+    renderSeat({ options: [{ id: 'shout', name: 'Shout', description: 'Loud answers.' }, { id: 'terse', name: 'Terse' }] })
+    fireEvent.click(screen.getByRole('button', { name: SEAT_NAME }))
+    expect(screen.getByText('Loud answers.')).toBeTruthy()
+    expect(screen.getByText(en.noDescription)).toBeTruthy()
+    expect(screen.getByText(en['seat.noneHint'])).toBeTruthy()
+  })
+
+  it('takes the header label size in the task header and the full chip on the Hero', () => {
+    renderSeat({}, { variant: 'header' })
+    const header = screen.getByRole('button', { name: SEAT_NAME })
+    cleanup()
+    renderSeat({}, { variant: 'hero' })
+    const hero = screen.getByRole('button', { name: SEAT_NAME })
+    expect(header.className).not.toBe(hero.className)
+    expect(header.textContent).toBe(hero.textContent)
   })
 })
 
@@ -207,19 +235,64 @@ describe('the settings page', () => {
 
   it('opens a preset, makes one default, and asks before deleting', () => {
     const actions = renderSection()
-    fireEvent.click(screen.getByText('Shout'))
+    fireEvent.click(screen.getByRole('button', { name: `${en.edit}: Shout` }))
     expect(actions.select).toHaveBeenCalledWith('shout')
 
-    fireEvent.click(screen.getAllByText(en.setDefault)[0]!)
+    fireEvent.click(screen.getByRole('button', { name: en.setDefault }))
     expect(actions.setDefault).toHaveBeenCalledWith('shout')
 
-    fireEvent.click(screen.getByRole('button', { name: en.deletePreset }))
+    fireEvent.click(screen.getByRole('button', { name: `${en.deletePreset}: Shout` }))
     expect(actions.confirmDelete).toHaveBeenCalledWith('shout')
+    // A preset the deployment ships cannot be deleted from here.
+    expect(screen.queryByRole('button', { name: `${en.deletePreset}: Shipped` })).toBeNull()
   })
 
-  it('says nothing is open until a preset is selected', () => {
-    renderSection()
-    expect(screen.getByText(en.editorEmpty)).toBeTruthy()
+  it('stops using the default preset by default', () => {
+    const actions = renderSection()
+    fireEvent.click(screen.getByRole('button', { name: en.clearDefault }))
+    expect(actions.setDefault).toHaveBeenCalledWith('')
+  })
+
+  it('closes the open editor from its card and from Cancel', () => {
+    const actions = renderSection({ selectedId: 'shout', draft: draftOf({ kind: 'append', text: 'x' }) })
+    const toggle = screen.getByRole('button', { name: `${en.edit}: Shout` })
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(toggle)
+    fireEvent.click(screen.getByRole('button', { name: en.cancel }))
+    expect(actions.closeEditor).toHaveBeenCalledTimes(2)
+    expect(actions.select).not.toHaveBeenCalled()
+  })
+
+  it('shows a read-only roster without write actions', () => {
+    renderSection({ writable: false })
+    expect(screen.getByText(en.readOnly)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: en.setDefault })).toBeNull()
+    expect(screen.queryByRole('button', { name: `${en.deletePreset}: Shout` })).toBeNull()
+    expect(screen.queryByText(en.newPreset)).toBeNull()
+  })
+
+  it('shows only the header until the first read answers', () => {
+    renderSection({ status: 'loading', rows: [] })
+    expect(screen.getByText(en.nav)).toBeTruthy()
+    expect(screen.queryByText(en.newPreset)).toBeNull()
+  })
+
+  it('offers a retry when the first read failed', () => {
+    const load = vi.fn(() => Promise.resolve())
+    renderSection({ status: 'error', rows: [], error: 'offline' }, { load })
+    expect(screen.getByRole('alert').textContent).toBe(translate('error', { message: 'offline' }))
+    fireEvent.click(screen.getByRole('button', { name: en.retry }))
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  it('words a failed first read that named no reason', () => {
+    renderSection({ status: 'error', rows: [], error: null })
+    expect(screen.getByRole('alert').textContent).toBe(translate('error', { message: '' }))
+  })
+
+  it('shows a preset’s description beside its rule count', () => {
+    renderSection({ rows: [{ ...SECTION_READY.rows[1]!, description: 'Loud answers.' }] })
+    expect(screen.getByText(`Loud answers. · ${translate('ruleCount', { count: '1' })}`)).toBeTruthy()
   })
 
   it('offers every rule kind and adds the chosen one', () => {
@@ -278,7 +351,7 @@ describe('the settings page', () => {
   })
 
   it('asks before discarding a dirty draft, and before deleting', () => {
-    const switching = renderSection({ pendingSwitch: 'other' })
+    const switching = renderSection({ pendingSwitch: { to: 'other' } })
     expect(screen.getByText(en.unsavedTitle)).toBeTruthy()
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: en.unsavedDiscard }))
     expect(switching.confirmSwitch).toHaveBeenCalledOnce()
@@ -295,8 +368,34 @@ describe('the settings page', () => {
       { createBlocker: () => ({ key: 'idInvalid' }) },
     )
     expect(screen.getByText(en.idInvalid)).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: en.presetId }).getAttribute('aria-invalid')).toBe('true')
     fireEvent.click(within(screen.getByRole('dialog')).getAllByRole('button', { name: en.cancel })[0]!)
     expect(actions.cancelCreate).toHaveBeenCalled()
+  })
+
+  it('waits for an id before calling a blank one wrong', () => {
+    renderSection(
+      { create: { id: '', name: '', saving: false, error: null } },
+      { createBlocker: () => ({ key: 'idRequired' }) },
+    )
+    expect(screen.queryByText(en.idRequired)).toBeNull()
+    expect(screen.getByRole('button', { name: en.create }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('creates from the keyboard, and only once the id is usable', () => {
+    const confirmCreate = vi.fn(() => Promise.resolve())
+    renderSection({ create: { id: 'terse', name: '', saving: false, error: null } }, { confirmCreate })
+    fireEvent.submit(screen.getByRole('textbox', { name: en.presetId }))
+    expect(confirmCreate).toHaveBeenCalledOnce()
+
+    cleanup()
+    const blocked = vi.fn(() => Promise.resolve())
+    renderSection(
+      { create: { id: 'Bad', name: '', saving: false, error: null } },
+      { confirmCreate: blocked, createBlocker: () => ({ key: 'idInvalid' }) },
+    )
+    fireEvent.submit(screen.getByRole('textbox', { name: en.presetId }))
+    expect(blocked).not.toHaveBeenCalled()
   })
 })
 
@@ -351,7 +450,7 @@ describe('the preview pane', () => {
     expect(screen.getByText('FINAL PROMPT')).toBeTruthy()
     fireEvent.click(screen.getByText(en['preview.sections']))
     expect(screen.getByText('identity')).toBeTruthy()
-    fireEvent.click(screen.getByText(en['preview.refresh']))
+    fireEvent.click(screen.getByRole('button', { name: en['preview.refresh'] }))
     expect(onRefresh).toHaveBeenCalledOnce()
   })
 
@@ -453,7 +552,7 @@ describe('the rule editor', () => {
     const cards = screen.getAllByRole('listitem').filter(item => item.getAttribute('aria-label') !== null)
 
     fireEvent.change(
-      within(cards[0]!).getByLabelText(en['rule.field.sections']),
+      within(cards[0]!).getByRole('textbox', { name: en['rule.field.sections'] }),
       { target: { value: 'a, b' } },
     )
     expect(actions.patchRule).toHaveBeenCalledWith(expect.any(String), { kind: 'remove', sections: ['a', 'b'] })
@@ -461,7 +560,7 @@ describe('the rule editor', () => {
     fireEvent.change(within(cards[1]!).getByLabelText(en['rule.field.pattern']), { target: { value: 'q' } })
     fireEvent.change(within(cards[1]!).getByLabelText(en['rule.field.flags']), { target: { value: 'gi' } })
     fireEvent.change(within(cards[1]!).getByLabelText(en['rule.field.replacement']), { target: { value: 's' } })
-    fireEvent.change(within(cards[1]!).getByLabelText(en['rule.field.sections']), { target: { value: 'x' } })
+    fireEvent.change(within(cards[1]!).getByRole('textbox', { name: en['rule.field.sections'] }), { target: { value: 'x' } })
     expect(actions.patchRule).toHaveBeenCalledTimes(5)
   })
 
@@ -485,12 +584,10 @@ describe('the rule editor', () => {
     })
   })
 
-  it('discards a draft, refreshes the preview, and says an empty stack is empty', () => {
+  it('refreshes the preview and says an empty stack is empty', () => {
     const actions = renderSection({ selectedId: 'shout', draft: draftOf() })
     expect(screen.getByText(en.rulesEmpty)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: en.discard }))
-    expect(actions.discard).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByText(en['preview.refresh']))
+    fireEvent.click(screen.getByRole('button', { name: en['preview.refresh'] }))
     expect(actions.refreshPreview).toHaveBeenCalledOnce()
   })
 
@@ -507,11 +604,15 @@ describe('the rule editor', () => {
     expect(screen.getByText(en.saving)).toBeTruthy()
   })
 
-  it('says the roster is empty when the deployment stores nothing yet', () => {
+  it('offers the first preset on an empty roster, and says a read-only one is empty', () => {
     const actions = renderSection({ rows: [] })
-    expect(screen.getByText(en.rosterEmpty)).toBeTruthy()
+    expect(screen.queryByText(en.rosterEmpty)).toBeNull()
     fireEvent.click(screen.getByText(en.newPreset))
     expect(actions.beginCreate).toHaveBeenCalledOnce()
+
+    cleanup()
+    renderSection({ rows: [], writable: false })
+    expect(screen.getByText(en.rosterEmpty)).toBeTruthy()
   })
 
   it('edits the create dialog and confirms it', () => {
@@ -526,7 +627,7 @@ describe('the rule editor', () => {
   })
 
   it('keeps editing when the unsaved question is dismissed', () => {
-    const actions = renderSection({ pendingSwitch: 'other' })
+    const actions = renderSection({ pendingSwitch: { to: null } })
     fireEvent.click(within(screen.getByRole('dialog')).getAllByRole('button', { name: en.unsavedKeep })[0]!)
     expect(actions.cancelSwitch).toHaveBeenCalled()
   })
@@ -544,7 +645,7 @@ describe('the rule editor', () => {
 describe('closing menus and dialogs', () => {
   it('closes the switcher menu without choosing', () => {
     const { select } = renderSeat()
-    fireEvent.click(screen.getByRole('button', { name: en['seat.label'] }))
+    fireEvent.click(screen.getByRole('button', { name: SEAT_NAME }))
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(select).not.toHaveBeenCalled()
   })
@@ -626,7 +727,7 @@ describe('the insert rule card', () => {
     })
     const card = screen.getAllByRole('listitem').find(item => item.getAttribute('aria-label') !== null)!
 
-    fireEvent.change(within(card).getByLabelText(en['rule.field.after']), {
+    fireEvent.change(within(card).getByRole('textbox', { name: en['rule.field.after'] }), {
       target: { value: '  tool:bash  ' },
     })
     expect(actions.patchRule).toHaveBeenCalledWith(
@@ -655,6 +756,24 @@ describe('the insert rule card', () => {
     )
   })
 
+  it('picks its anchor from the sections the preview names', () => {
+    const actions = renderSection({
+      selectedId: 'shout',
+      draft: draftOf({ kind: 'insert', after: 'harness:identity', text: 'HERE.' }),
+      preview: {
+        ...SECTION_READY.preview,
+        baseline: [{ name: 'harness:identity', text: 'identity' }, { name: 'tool:bash', text: 'bash' }],
+      },
+    })
+    const picker = screen.getByRole('group', { name: en['rule.field.after'] })
+    expect(within(picker).getByRole('button', { name: 'harness:identity' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(within(picker).getByRole('button', { name: 'tool:bash' }))
+    expect(actions.patchRule).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ kind: 'insert', after: 'tool:bash' }),
+    )
+  })
+
   it('says which of the two fields is missing', () => {
     renderSection({
       selectedId: 'shout',
@@ -670,5 +789,51 @@ describe('the insert rule card', () => {
     })
     expect(screen.getAllByRole('alert').map(node => node.textContent))
       .toContain(en['rule.error.textRequired'])
+  })
+})
+
+describe('picking sections', () => {
+  const PREVIEW = {
+    ...SECTION_READY.preview,
+    baseline: [{ name: 'harness:identity', text: 'identity' }, { name: 'tool:bash', text: 'bash' }],
+  }
+
+  it('toggles a removal target in and out of the list', () => {
+    const actions = renderSection({
+      selectedId: 'shout',
+      draft: draftOf({ kind: 'remove', sections: ['tool:bash'] }),
+      preview: PREVIEW,
+    })
+    const picker = screen.getByRole('group', { name: en['rule.field.sections'] })
+    fireEvent.click(within(picker).getByRole('button', { name: 'harness:identity' }))
+    expect(actions.patchRule).toHaveBeenLastCalledWith(
+      expect.any(String),
+      { kind: 'remove', sections: ['tool:bash', 'harness:identity'] },
+    )
+    fireEvent.click(within(picker).getByRole('button', { name: 'tool:bash' }))
+    expect(actions.patchRule).toHaveBeenLastCalledWith(expect.any(String), { kind: 'remove', sections: [] })
+  })
+
+  it('narrows a substitution to the picked sections', () => {
+    const actions = renderSection({
+      selectedId: 'shout',
+      draft: draftOf({ kind: 'substitute', pattern: 'p', replacement: 'r' }),
+      preview: PREVIEW,
+    })
+    const picker = screen.getByRole('group', { name: en['rule.field.sections'] })
+    fireEvent.click(within(picker).getByRole('button', { name: 'tool:bash' }))
+    expect(actions.patchRule).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({ kind: 'substitute', sections: ['tool:bash'] }),
+    )
+  })
+
+  it('offers nothing to pick before the preview names any section', () => {
+    renderSection({
+      selectedId: 'shout',
+      draft: draftOf({ kind: 'remove', sections: ['a'] }),
+      preview: { ...SECTION_READY.preview, baseline: [] },
+    })
+    expect(screen.queryByRole('group', { name: en['rule.field.sections'] })).toBeNull()
   })
 })

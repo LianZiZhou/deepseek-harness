@@ -11,7 +11,7 @@ import type { ComponentProps } from 'react'
 import type { SessionContextValue } from '@deepseek-ai/dsh-api-session-controller/types'
 import { ContextView } from '../src/client/ContextView.tsx'
 import {
-  blocksText, draftEdits, draftThrough, EMPTY_DRAFT, parseContextBlocks, toEditBlocks,
+  blocksText, draftEdits, draftThrough, EMPTY_DRAFT, parseContextBlocks, previewText, toEditBlocks,
 } from '../src/client/context-content.ts'
 import { t } from './locale.client.ts'
 
@@ -142,6 +142,32 @@ describe('ContextView', () => {
     expect(await screen.findByRole('alert')).toHaveProperty('textContent', t('context.error', { message: 'gone' }))
   })
 
+  it('counts the staged changes beside the apply action', async () => {
+    setup()
+    await screen.findByText('list files')
+    fireEvent.click(screen.getByRole('switch', { name: t('context.editMode') }))
+    fireEvent.click(within(row(6)).getByRole('button', { name: t('context.delete') }))
+    expect(screen.getByText(t('context.staged', { count: '1' }))).toBeTruthy()
+    fireEvent.click(within(row(4)).getByRole('button', { name: t('context.delete') }))
+    expect(screen.getByText(t('context.staged', { count: '2' }))).toBeTruthy()
+  })
+
+  it('collapses a long message to its first lines until expanded', async () => {
+    const long = Array.from({ length: 20 }, (_, index) => `line ${String(index + 1)}`).join('\n')
+    setup({
+      load: () => Promise.resolve({
+        ok: true as const,
+        value: { ...CONTEXT, messages: [{ seq: 2, event: 'user/message', role: 'user', content: [{ type: 'text', text: long }] }] },
+      }),
+    })
+    const more = await screen.findByRole('button', { name: t('context.showMore') })
+    expect(screen.queryByText(/line 20/u)).toBeNull()
+    fireEvent.click(more)
+    expect(screen.getByText(/line 20/u)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: t('context.showLess') }))
+    expect(screen.queryByText(/line 20/u)).toBeNull()
+  })
+
   it('discards staged changes when edit mode turns off', async () => {
     setup()
     await screen.findByText('list files')
@@ -156,6 +182,15 @@ describe('ContextView', () => {
 })
 
 describe('context content', () => {
+  it('previews long text by lines, then by characters', () => {
+    expect(previewText('short')).toBeUndefined()
+    const lines = Array.from({ length: 13 }, (_, index) => String(index)).join('\n')
+    expect(previewText(lines)).toBe(`${lines.split('\n').slice(0, 12).join('\n')}…`)
+    expect(previewText('x'.repeat(1201))).toBe(`${'x'.repeat(1200)}…`)
+    expect(previewText(`${'a\n'.repeat(11)}\n\nrest`)).toBe(`${'a\n'.repeat(10)}a…`)
+  })
+
+
   it('parses known blocks and keeps the rest as opaque blocks', () => {
     const blocks = parseContextBlocks([
       { type: 'text', text: 'a' },

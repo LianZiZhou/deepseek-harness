@@ -155,3 +155,20 @@ export interface ContextRow {
 export function contextRows(messages: readonly SessionContextMessage[]): ContextRow[] {
   return messages.map(message => ({ message, blocks: parseContextBlocks(message.content) }))
 }
+
+/** Lines a collapsed message block shows before offering the rest. */
+const PREVIEW_LINES = 12
+/** Characters a collapsed message block shows, for long text with few line breaks. */
+const PREVIEW_CHARS = 1200
+
+/**
+ * The collapsed form of one long text block.
+ * @param text - the block's full text.
+ * @returns the leading lines and characters a collapsed row shows, or `undefined` when the text fits whole.
+ */
+export function previewText(text: string): string | undefined {
+  const lines = text.split('\n')
+  const head = lines.length > PREVIEW_LINES ? lines.slice(0, PREVIEW_LINES).join('\n') : text
+  const preview = head.length > PREVIEW_CHARS ? head.slice(0, PREVIEW_CHARS) : head
+  return preview === text ? undefined : `${preview.trimEnd()}…`
+}

@@ -121,7 +121,7 @@ export function apply(ctx: ClientContext): void {
     patchRule: (key, rule) => { section.patchRule(key, rule) },
     setRuleEnabled: (key, enabled) => { section.setRuleEnabled(key, enabled) },
     save: () => section.save(),
-    discard: () => { section.discard() },
+    closeEditor: () => { section.close() },
     setDefault: id => section.setDefault(id),
     confirmDelete: (id) => { section.confirmDelete(id) },
     remove: () => section.remove(),
@@ -152,16 +152,18 @@ export function apply(ctx: ClientContext): void {
     // no task yet still has a store to read and allocates nothing per frame.
     const unboundSeat = new PromptPresetSeatController(scope, () => undefined)
 
-    const seatInjected = (sessionId: SessionId | undefined): PromptPresetSeatInjected => {
-      const binding = sessionId === undefined ? undefined : scope.sessions.binding(sessionId)
-      const seat = binding === undefined ? unboundSeat : seatFor(scope, binding)
-      return {
-        hooks: { promptPresetSeat: seat.store },
-        load: () => seat.load(),
-        select: (id: string) => seat.select(id),
-        clearError: () => { seat.clearError() },
+    const seatInjected = (variant: PromptPresetSeatInjected['variant']) =>
+      (sessionId: SessionId | undefined): PromptPresetSeatInjected => {
+        const binding = sessionId === undefined ? undefined : scope.sessions.binding(sessionId)
+        const seat = binding === undefined ? unboundSeat : seatFor(scope, binding)
+        return {
+          hooks: { promptPresetSeat: seat.store },
+          load: () => seat.load(),
+          select: (id: string) => seat.select(id),
+          clearError: () => { seat.clearError() },
+          variant,
+        }
       }
-    }
 
     // The same control on both surfaces: the Hero, where a task that has not
     // started yet picks what it will run under, and the header, where a
@@ -176,7 +178,7 @@ export function apply(ctx: ClientContext): void {
         // preset shapes the prompt that composition produces.
         order: 10,
         locale: 'settings.promptPreset',
-        inject: seatInjected,
+        inject: seatInjected('hero'),
       }, PromptPresetSeat)),
       scope.slots.inject('conversation.session.header.actions', () => scope.slots.register({
         name: 'conversation.session.header.actions',
@@ -185,7 +187,7 @@ export function apply(ctx: ClientContext): void {
         // leading band for what a task is running under.
         order: -9,
         locale: 'settings.promptPreset',
-        inject: seatInjected,
+        inject: seatInjected('header'),
       }, PromptPresetSeat)),
     ]
     return () => { for (const dispose of disposers) dispose() }

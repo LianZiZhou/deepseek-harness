@@ -1,5 +1,10 @@
-/* Scrolling host for the model-context inspector. */
+/* Model-context inspector. The toolbar and role tags reuse the Trajectory
+   view's own classes; this sheet owns the ledger rows, their editors and the
+   staged-change chrome. */
 .root {
+  --dsh-trajectory-toolbar-height: 32px;
+
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -9,30 +14,83 @@
   overflow: hidden;
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-bg-layer-1);
-  font-family: var(--dsw-font-family);
-}
-
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
-}
-
-.title {
-  font: var(--dsw-font-xs-strong-13);
 }
 
 .spacer {
   flex: 1;
 }
 
+.cursor {
+  padding: 0 5px;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-caption);
+  white-space: nowrap;
+}
+
+/* The Trajectory toolbar's 20px actions have no disabled look of their own;
+   a frozen refresh dims the same way its switches do. */
+.toolbarAction:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+/* The edit switch is the Trajectory toolbar control, sized to its label so
+   longer translations stay on one line. */
+.editToggle {
+  width: auto;
+  padding: 0 6px;
+}
+
+.staged {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stagedCount {
+  padding: 0 5px;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-state-warn-label);
+  white-space: nowrap;
+}
+
+/* Compact primary action for the 32px toolbar: compact-control height and radius. */
+.applyAction {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  color: var(--dsw-alias-label-primary-foreground);
+  background: var(--dsw-alias-button-primary-fill);
+  cursor: pointer;
+  font: var(--dsw-font-xxs-12);
+}
+
+@media (hover: hover) {
+  .applyAction:hover:not(:disabled) {
+    background: var(--dsw-alias-button-primary-hover);
+  }
+}
+
+.applyAction:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.applyAction:focus-visible {
+  outline: 1px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 1px;
+}
+
 .note,
+.status,
 .error {
   margin: 0;
-  padding: 6px 16px;
+  padding: 8px 12px 4px;
   font: var(--dsw-font-xxs-12);
   color: var(--dsw-alias-label-tertiary);
 }
@@ -45,23 +103,57 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 8px 16px calc(var(--dsh-composer-height, 152px) + 16px);
+  padding: 4px 0 calc(var(--dsh-composer-height, 152px) + 16px);
 }
 
+/* Request header and next-step tools: compact disclosure rows on the same
+   hairline rhythm as the messages below them. */
 .section {
-  margin-bottom: 8px;
-  padding: 6px 8px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-sm);
-  font: var(--dsw-font-xs-13);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .section > summary {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 12px;
+  list-style: none;
   cursor: pointer;
-  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.section > summary::-webkit-details-marker {
+  display: none;
+}
+
+@media (hover: hover) {
+  .section > summary:hover {
+    color: var(--dsw-alias-label-secondary);
+  }
+}
+
+.section > summary:focus-visible {
+  outline: 1px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -1px;
+}
+
+.chevron {
+  flex: none;
+  transition: transform 120ms var(--ds-ease-in-out);
+}
+
+.section[open] > summary .chevron {
+  transform: rotate(90deg);
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 10px 30px;
+  min-width: 0;
 }
 
 .messages {
@@ -71,19 +163,20 @@
 }
 
 .message {
-  padding: 8px;
-  margin-bottom: 6px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .message[data-edited] {
-  border-color: var(--dsw-alias-state-warn-label);
+  background: var(--dsw-alias-state-warn-tertiary);
 }
 
-.message[data-deleted] {
+.message[data-deleted] .blocks {
   opacity: 0.5;
+  text-decoration: line-through;
 }
 
 .messageHeader {
@@ -91,12 +184,68 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  margin-bottom: 6px;
+  min-height: 20px;
 }
 
 .meta {
   font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-caption);
+}
+
+/* Row actions stay quiet until the row is reached, as in the chat's message
+   actions; touch screens, which cannot hover, always show them. */
+.rowActions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 120ms var(--ds-ease-in-out);
+}
+
+.message:focus-within .rowActions {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .message:hover .rowActions {
+    opacity: 1;
+  }
+}
+
+@media (hover: none) {
+  .rowActions {
+    opacity: 1;
+  }
+}
+
+.rowAction {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 20px;
+  padding: 0 5px;
+  gap: 4px;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-label-tertiary);
+  background: transparent;
+  cursor: pointer;
+  font: var(--dsw-font-xxs-12);
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .rowAction:hover {
+    color: var(--dsw-alias-label-primary);
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.rowAction:focus-visible {
+  outline: 1px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 1px;
 }
 
 .blocks {
@@ -107,7 +256,8 @@
 }
 
 .text,
-.reasoning {
+.reasoning,
+.code {
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -116,7 +266,35 @@
 
 .reasoning {
   color: var(--dsw-alias-label-secondary);
-  font-style: italic;
+}
+
+.code {
+  font: 12px/18px var(--ds-font-family-code);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.more {
+  align-self: flex-start;
+  height: 20px;
+  margin-left: -5px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  color: var(--dsw-alias-state-business-primary);
+  background: transparent;
+  cursor: pointer;
+  font: var(--dsw-font-xxs-12);
+}
+
+@media (hover: hover) {
+  .more:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.more:focus-visible {
+  outline: 1px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 1px;
 }
 
 .toolCall {
@@ -125,30 +303,42 @@
   gap: 4px;
 }
 
+/* Text fields follow the shared input material: hairline, R12, business focus. */
 .editor {
   width: 100%;
   min-height: 72px;
   box-sizing: border-box;
   resize: vertical;
-  padding: 6px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-xs);
+  padding: 8px 10px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   font: var(--dsw-font-xs-13);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.editor:focus {
+  outline: none;
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.codeEditor {
+  font: 12px/18px var(--ds-font-family-code);
 }
 
 .editorActions {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 8px;
 }
 
 .inserted {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px dashed var(--dsw-alias-border-l2);
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 0.5px dashed var(--dsw-alias-border-l3);
 }

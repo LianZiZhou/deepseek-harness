@@ -90,7 +90,8 @@ describe('acting with nothing open', () => {
     controller.moveRule('nope', 1)
     controller.patchRule('nope', { kind: 'append', text: 'x' })
     controller.setRuleEnabled('nope', false)
-    controller.discard()
+    controller.close()
+    controller.confirmSwitch()
     await controller.save()
 
     expect(controller.store.getSnapshot()).toMatchObject({ draft: null, saving: false })
@@ -162,12 +163,13 @@ describe('acting on an open draft', () => {
   })
 
   it('runs one save at a time', async () => {
-    const { controller } = bench()
+    const { controller, sent } = bench()
     await controller.load()
     controller.select('shout')
     controller.setName('Louder')
     await Promise.all([controller.save(), controller.save()])
-    expect(controller.store.getSnapshot().draft?.dirty).toBe(false)
+    expect(sent).toHaveLength(1)
+    expect(controller.store.getSnapshot().draft).toBeNull()
   })
 
   it('sends a description only once there is one', async () => {
@@ -188,12 +190,14 @@ describe('acting on an open draft', () => {
     expect(described.sent[0]).toMatchObject({ description: 'Loud and proud' })
   })
 
-  it('re-seeds the editor from the roster on discard', async () => {
+  it('re-seeds the editor from the roster when the open preset is opened again', async () => {
     const { controller } = bench()
     await controller.load()
     controller.select('shout')
     controller.setName('Louder')
-    controller.discard()
+    controller.close()
+    controller.confirmSwitch()
+    controller.select('shout')
     expect(controller.store.getSnapshot().draft).toMatchObject({ name: 'Shout', dirty: false })
   })
 })

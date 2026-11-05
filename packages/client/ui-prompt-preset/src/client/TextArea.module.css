@@ -1,25 +1,30 @@
-/* Package-local multi-line field for rule bodies. */
+/* Package-local multi-line field, drawn as the shared Input primitive draws
+   its single line: hairline, R12, layer-1 fill, business focus. */
 
 .field {
   width: 100%;
   box-sizing: border-box;
-  padding: 6px 8px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-sm);
+  padding: 5px 8px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   font: inherit;
-  font-size: 13px;
-  line-height: 20px;
+  font-size: 14px;
+  line-height: 22px;
   resize: none;
   overflow-y: auto;
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
+.field::placeholder {
+  color: var(--dsw-alias-label-dimmed);
+}
+
 .field:focus {
   outline: none;
-  border-color: var(--dsw-alias-brand-primary);
+  border-color: var(--dsw-alias-state-business-primary);
 }
 
 .field:disabled {
@@ -27,9 +32,12 @@
 }
 
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 18px;
 }
 
-.invalid {
+.invalid,
+.invalid:focus {
   border-color: var(--dsw-alias-state-error-primary);
 }

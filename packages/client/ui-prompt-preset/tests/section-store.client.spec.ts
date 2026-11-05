@@ -131,7 +131,9 @@ describe('editing one preset', () => {
 
     await controller.save()
     expect(calls).toContain('update:shout:1')
-    expect(controller.store.getSnapshot().draft?.dirty).toBe(false)
+    // A stored draft is finished, so the editor closes on the updated row.
+    expect(controller.store.getSnapshot()).toMatchObject({ draft: null, selectedId: null })
+    expect(controller.store.getSnapshot().rows[0]).toMatchObject({ name: 'Louder' })
   })
 
   it('refuses to save while a rule is unusable', async () => {
@@ -153,7 +155,7 @@ describe('editing one preset', () => {
     controller.setName('Louder')
 
     controller.select('other')
-    expect(controller.store.getSnapshot()).toMatchObject({ pendingSwitch: 'other', selectedId: 'shout' })
+    expect(controller.store.getSnapshot()).toMatchObject({ pendingSwitch: { to: 'other' }, selectedId: 'shout' })
     controller.cancelSwitch()
     expect(controller.store.getSnapshot().selectedId).toBe('shout')
 
@@ -185,6 +187,46 @@ describe('editing one preset', () => {
     expect(controller.store.getSnapshot().draft?.rules[0]?.rule.enabled).toBe(false)
     controller.removeRule(key)
     expect(controller.store.getSnapshot().draft?.rules).toEqual([])
+  })
+})
+
+describe('closing the editor', () => {
+  it('closes a clean draft at once', async () => {
+    const { controller } = bench()
+    await controller.load()
+    controller.select('shout')
+    controller.close()
+    expect(controller.store.getSnapshot()).toMatchObject({ draft: null, selectedId: null, pendingSwitch: null })
+  })
+
+  it('asks before dropping unsaved edits, and honours either answer', async () => {
+    const { controller } = bench()
+    await controller.load()
+    controller.select('shout')
+    controller.setName('Louder')
+
+    controller.close()
+    expect(controller.store.getSnapshot()).toMatchObject({ pendingSwitch: { to: null }, selectedId: 'shout' })
+    controller.cancelSwitch()
+    expect(controller.store.getSnapshot().draft).toMatchObject({ name: 'Louder', dirty: true })
+
+    controller.close()
+    controller.confirmSwitch()
+    expect(controller.store.getSnapshot()).toMatchObject({ draft: null, selectedId: null, pendingSwitch: null })
+  })
+
+  it('drops a preview still pending for the closed draft', async () => {
+    const { controller, calls } = bench()
+    await controller.load()
+    controller.setPreviewSession(SESSION)
+    controller.select('shout')
+    // The opening redraw is in flight; a rule edit queues a debounced one.
+    controller.addRule('append')
+    controller.close()
+    controller.confirmSwitch()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(calls.filter(call => call.startsWith('preview'))).toHaveLength(1)
+    expect(controller.store.getSnapshot().preview).toMatchObject({ status: 'idle', prompt: '' })
   })
 })
 

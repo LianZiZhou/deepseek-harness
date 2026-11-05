@@ -1,5 +1,6 @@
 /**
- * The per-session prompt-preset switcher, beside the mode chip.
+ * The per-session prompt-preset switcher, beside the mode chip and drawn as
+ * that chip is.
  *
  * It offers a live choice rather than a label: the system prompt is re-rendered
  * every step, so a switch reaches the model on the next turn and rewrites
@@ -7,8 +8,9 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Button, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
-import { IconContextInjectionOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  IconChevronDownOutlineRegular, IconContextInjectionOutlineRegular, IconWarningOutlineRegular, Menu, Toast,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the ui-conversation SlotMap merge (the header actions).
@@ -16,6 +18,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-prompt-presets/types'
 import type { PromptPresetSeatState } from './seat-store.ts'
 import css from './PromptPresetSeat.module.css'
+
+/** How long a refused switch stays on screen, matching the agent-preset chip's refusal. */
+const REFUSAL_HOLD_MS = 8000
 
 /** Registration-side business face for the switcher. */
 export interface PromptPresetSeatInjected {
@@ -27,8 +32,13 @@ export interface PromptPresetSeatInjected {
   load: () => Promise<void>
   /** Switch this session's preset; `''` runs none. */
   select: (id: string) => Promise<void>
-  /** Clear the last refusal. */
+  /** Clear the last refusal once its banner has run. */
   clearError: () => void
+  /**
+   * Which surface the control sits on: the new-task screen's chip row, or
+   * the task header, where it takes the header's quieter preset-label size.
+   */
+  variant: 'hero' | 'header'
 }
 
 /**
@@ -49,7 +59,7 @@ export type PromptPresetSeatProps =
  * @returns the control, or null while this deployment stores no presets.
  */
 export function PromptPresetSeat({
-  sessionId, useSessions, usePromptPresetSeat, load, select, clearError, t,
+  sessionId, useSessions, usePromptPresetSeat, load, select, clearError, variant, t,
 }: PromptPresetSeatProps) {
   const [open, setOpen] = useState(false)
   const state = usePromptPresetSeat(value => value)
@@ -66,27 +76,44 @@ export function PromptPresetSeat({
 
   const current = state.options.find(option => option.id === selected)
   const label = current?.name ?? t('seat.none')
+  // Name over summary, as the agent-preset menu beside it lists its presets.
+  const item = (name: string, description: string) => (
+    <span className={css.item}>
+      <span className={css.itemName}>{name}</span>
+      <span className={css.itemDesc}>{description}</span>
+    </span>
+  )
 
   return (
-    <span className={css.root}>
+    <>
       <Menu
         open={open}
+        align="start"
+        portal
+        className={css.menuAnchor}
         anchor={(
-          <Button
-            size="sm"
-            icon={<IconContextInjectionOutlineRegular size={14} />}
+          <button
+            type="button"
+            className={variant === 'header' ? `${css.seat} ${css.header}` : css.seat}
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-label={`${t('seat.label')}: ${label}`}
             title={t('seat.hint')}
-            aria-label={t('seat.label')}
             disabled={state.switching}
-            onClick={() => { setOpen(true) }}
+            onClick={() => { setOpen(value => !value) }}
           >
-            {label}
-          </Button>
+            <IconContextInjectionOutlineRegular size={variant === 'header' ? 14 : 16} className={css.seatIcon} />
+            <span className={css.seatLabel}>{label}</span>
+            <IconChevronDownOutlineRegular size={variant === 'header' ? 12 : 14} className={css.chevron} />
+          </button>
         )}
         selectedId={selected}
         items={[
-          { id: '', label: t('seat.none') },
-          ...state.options.map(option => ({ id: option.id, label: option.name })),
+          { id: '', label: item(t('seat.none'), t('seat.noneHint')) },
+          ...state.options.map(option => ({
+            id: option.id,
+            label: item(option.name, option.description ?? t('noDescription')),
+          })),
         ]}
         footer={[{ type: 'label' as const, id: 'note', text: t('seat.appliesNextTurn') }]}
         onSelect={(id) => {
@@ -96,10 +123,16 @@ export function PromptPresetSeat({
         onClose={() => { setOpen(false) }}
       />
       {state.error !== null && (
-        <button type="button" className={css.error} onClick={clearError}>
-          {t('seat.switchFailed', { message: state.error })}
-        </button>
+        <Toast
+          text={t('seat.switchFailed', { message: state.error })}
+          icon={<IconWarningOutlineRegular />}
+          holdMs={REFUSAL_HOLD_MS}
+          // The composer card this control sits above or beside; absent, the
+          // banner centers on the window.
+          anchor={document.querySelector<HTMLElement>('[data-composer-card]')}
+          onDone={clearError}
+        />
       )}
-    </span>
+    </>
   )
 }

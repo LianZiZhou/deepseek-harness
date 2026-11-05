@@ -1,26 +1,20 @@
-/* One rule of the stack: head chrome plus the fields its kind owns. */
+/* One rule of the stack, nested in the editor module the way the Models
+   editor nests a model entry: a hairline R16 group on the module fill. */
 
 .card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-2);
+  gap: 10px;
+  padding: 10px 12px 12px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-lg);
   list-style: none;
 }
 
 .head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-}
-
-.order {
-  display: inline-flex;
-  flex: none;
-  gap: 2px;
 }
 
 .title {
@@ -28,23 +22,82 @@
   flex: 1 1 auto;
   min-width: 0;
   flex-direction: column;
+  gap: 2px;
+}
+
+.kindLine {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
 }
 
 .kind {
   font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
   color: var(--dsw-alias-label-primary);
+}
+
+.card[data-off] .kind {
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .hint {
   font-size: 12px;
+  line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.controls {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+/* The Models editor's compact icon actions. */
+.iconButton {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .iconButton:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-primary);
+  }
+
+  .iconButtonDanger:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover-danger);
+    color: var(--dsw-alias-state-error-primary);
+  }
+}
+
+.iconButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.iconButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
 }
 
 .toggle {
   flex: none;
+  margin-left: 6px;
 }
 
 .fields {
@@ -59,28 +112,53 @@
   align-items: flex-end;
 }
 
-.label {
+.label,
+.flags {
   display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
   color: var(--dsw-alias-label-secondary);
 }
 
+.label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .flags {
-  display: flex;
   flex: none;
   width: 96px;
-  flex-direction: column;
+}
+
+/* The shared Input has no invalid look of its own; a refused field shows red
+   until it takes focus. */
+.invalid {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+/* Section names from the preview, picked instead of typed. */
+.picker {
+  display: flex;
+  flex-wrap: wrap;
   gap: 4px;
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary);
+}
+
+.pick {
+  font-family: var(--ds-font-family-code);
+  font-size: 11px;
+}
+
+.pick:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .error {
   margin: 0;
   font-size: 12px;
+  line-height: 18px;
   color: var(--dsw-alias-state-error-primary);
 }

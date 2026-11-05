@@ -1,11 +1,11 @@
 /**
  * One rule in the stack: its position, its on/off state, and its own fields.
  *
- * Reordering is explicit buttons rather than dragging: there is no shared
- * drag affordance to reuse, and a keyboard reaches these directly.
+ * Reordering is explicit buttons rather than dragging, so a keyboard reaches
+ * every move directly.
  */
 
-import { Button, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
   IconChevronDownOutlineRegular, IconChevronUpOutlineRegular, IconTrashOutlineRegular, IconWarningOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -61,50 +61,61 @@ export function RuleCard({
   const kindName = t(`rule.${entry.rule.kind}.name`)
 
   return (
-    <li className={css.card} aria-label={`${String(position)}. ${kindName}`}>
+    <li className={css.card} aria-label={`${String(position)}. ${kindName}`} data-off={enabled ? undefined : true}>
       <div className={css.head}>
-        <span className={css.order}>
-          <Button
-            size="sm"
-            icon={<IconChevronUpOutlineRegular />}
-            aria-label={t('rule.moveUp', { position: String(position), total: String(total) })}
-            disabled={disabled || position === 1}
-            onClick={() => { onMove(-1) }}
-          />
-          <Button
-            size="sm"
-            icon={<IconChevronDownOutlineRegular />}
-            aria-label={t('rule.moveDown', { position: String(position), total: String(total) })}
-            disabled={disabled || position === total}
-            onClick={() => { onMove(1) }}
-          />
-        </span>
         <span className={css.title}>
-          <span className={css.kind}>{kindName}</span>
+          <span className={css.kindLine}>
+            <span className={css.kind}>{kindName}</span>
+            {invalid && (
+              <Tag tone="danger">
+                <IconWarningOutlineRegular size={12} />
+                {t('rule.badge.invalid')}
+              </Tag>
+            )}
+            {!enabled && <Tag tone="quiet">{t('rule.badge.disabled')}</Tag>}
+            {enabled && shadowed && <Tag tone="quiet">{t('rule.badge.shadowed')}</Tag>}
+          </span>
           <span className={css.hint}>{t(`rule.${entry.rule.kind}.hint`)}</span>
         </span>
-        {invalid && (
-          <Tag tone="danger">
-            <IconWarningOutlineRegular size={12} />
-            {t('rule.badge.invalid')}
-          </Tag>
-        )}
-        {!enabled && <Tag>{t('rule.badge.disabled')}</Tag>}
-        {enabled && shadowed && <Tag>{t('rule.badge.shadowed')}</Tag>}
-        <Switch
-          checked={enabled}
-          onChange={onToggle}
-          label={t('rule.enabled')}
-          disabled={disabled}
-          className={css.toggle}
-        />
-        <Button
-          size="sm"
-          icon={<IconTrashOutlineRegular />}
-          aria-label={t('rule.delete')}
-          disabled={disabled}
-          onClick={onDelete}
-        />
+        <span className={css.controls}>
+          <button
+            type="button"
+            className={css.iconButton}
+            aria-label={t('rule.moveUp', { position: String(position), total: String(total) })}
+            title={t('rule.moveUp', { position: String(position), total: String(total) })}
+            disabled={disabled || position === 1}
+            onClick={() => { onMove(-1) }}
+          >
+            <IconChevronUpOutlineRegular size={16} />
+          </button>
+          <button
+            type="button"
+            className={css.iconButton}
+            aria-label={t('rule.moveDown', { position: String(position), total: String(total) })}
+            title={t('rule.moveDown', { position: String(position), total: String(total) })}
+            disabled={disabled || position === total}
+            onClick={() => { onMove(1) }}
+          >
+            <IconChevronDownOutlineRegular size={16} />
+          </button>
+          <button
+            type="button"
+            className={`${css.iconButton} ${css.iconButtonDanger}`}
+            aria-label={t('rule.delete')}
+            title={t('rule.delete')}
+            disabled={disabled}
+            onClick={onDelete}
+          >
+            <IconTrashOutlineRegular size={16} />
+          </button>
+          <Switch
+            checked={enabled}
+            onChange={onToggle}
+            label={t('rule.enabled')}
+            disabled={disabled}
+            className={css.toggle}
+          />
+        </span>
       </div>
       <RuleFields
         rule={entry.rule}

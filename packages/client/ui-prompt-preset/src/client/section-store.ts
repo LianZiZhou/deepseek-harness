@@ -74,8 +74,11 @@ export interface PromptPresetSectionState {
   create: CreateDraft | null
   pendingDelete: string | null
   deleting: boolean
-  /** Set while switching presets would discard unsaved edits. */
-  pendingSwitch: string | null
+  /**
+   * Set while leaving the open draft would discard unsaved edits: `to` names
+   * the preset being opened instead, or is `null` when the editor is closing.
+   */
+  pendingSwitch: { readonly to: string | null } | null
   preview: PreviewState
 }
 
@@ -212,10 +215,30 @@ export class PromptPresetSectionController {
   select(id: string): void {
     const state = this.store.getSnapshot()
     if (state.draft?.dirty === true && state.draft.id !== id) {
-      this.set({ pendingSwitch: id })
+      this.set({ pendingSwitch: { to: id } })
       return
     }
     this.open(id)
+  }
+
+  /** Close the editor, asking first when the draft has unsaved edits. */
+  close(): void {
+    const draft = this.store.getSnapshot().draft
+    if (draft === null) return
+    if (draft.dirty) {
+      this.set({ pendingSwitch: { to: null } })
+      return
+    }
+    this.shut()
+  }
+
+  /** Drop the open draft and its preview without asking. */
+  private shut(): void {
+    if (this.previewTimer !== undefined) clearTimeout(this.previewTimer)
+    this.previewTimer = undefined
+    // A preview reply still in flight belongs to the draft being dropped.
+    this.previewGeneration += 1
+    this.set({ selectedId: null, draft: null, pendingSwitch: null, saveError: null, preview: EMPTY_PREVIEW })
   }
 
   /** Seed the editor from the roster row. */
@@ -240,11 +263,12 @@ export class PromptPresetSectionController {
     this.schedulePreview({ immediate: true })
   }
 
-  /** Discard the open draft and follow through on a blocked switch. */
+  /** Discard the open draft and follow through on a blocked switch or close. */
   confirmSwitch(): void {
-    const target = this.store.getSnapshot().pendingSwitch
-    if (target === null) return
-    this.open(target)
+    const pending = this.store.getSnapshot().pendingSwitch
+    if (pending === null) return
+    if (pending.to === null) this.shut()
+    else this.open(pending.to)
   }
 
   /** Keep editing after a blocked switch. */
@@ -365,16 +389,11 @@ export class PromptPresetSectionController {
       this.set({ saving: false, saveError: result.error.message })
       return
     }
-    this.set({ saving: false, draft: { ...draft, dirty: false } })
+    // A stored draft is finished: the editor closes on the row it updated.
+    this.set({ saving: false })
+    this.shut()
     await this.load()
     this.rosterChanged()
-  }
-
-  /** Throw away the open draft and re-seed it from the roster. */
-  discard(): void {
-    const id = this.store.getSnapshot().selectedId
-    if (id === null) return
-    this.open(id)
   }
 
   /** Open the create dialog. */

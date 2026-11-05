@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包是提示词预设的浏览器一半：一个设置区块，在实时预览旁编辑某个预设的有序规则栈；以及任务标题栏中的切换器，用于改变正在运行的任务所使用的预设。编辑先暂存、仅在保存时写入，因此无法使用的规则在其字段旁就被拒绝，而不是在一次往返之后。预览始终是 Host 自己的回答，并针对主视图正在展示的任务绘制，因为存在哪些小节取决于该任务的组合。不存储任何预设的部署两个界面都不渲染。
+本包是提示词预设的浏览器一半：一个设置页面，其中的预设卡片可就地展开为有序规则栈与所得提示词的实时预览；以及新任务界面与任务标题栏中的切换器。编辑先暂存、仅在保存时写入，因此无法使用的规则在其字段旁就被拒绝，而不是在一次往返之后。预览始终是 Host 自己的回答，并针对主视图正在展示的任务绘制，因为存在哪些小节取决于该任务的组合。不存储任何预设的部署两个界面都不渲染。
 
 ## 目录
 
@@ -30,13 +30,14 @@ kind: "package-reference"
 | 界面 | 插槽 | 位置 |
 |---|---|---|
 | 设置区块 | `settings.section` | `id: 'prompt-presets'`、`order: 22`——在 Agent 预设之后、已归档任务之前 |
+| 新任务切换器 | `conversation.hero.controls` | `id: 'prompt-preset'`、`order: 10`——在 agent-preset chip 之后 |
 | 任务切换器 | `conversation.session.header.actions` | `id: 'prompt-preset'`、`order: -9`——紧随 agent-preset 标签之后 |
 
-两者都通过 `ctx.remote.promptPresets` 读取同一份名册，并在 `prompt-presets` 命名空间的 `settings/document-updated`、Host 自己的 `prompt-preset/changed`，以及 `connection/reset` 时一起刷新。
+保存后编辑器在其卡片上收起；「取消」、再次点击「编辑」或打开另一个预设时，若有未保存的修改会先询问。所有界面都通过 `ctx.remote.promptPresets` 读取同一份名册，并在 `prompt-presets` 命名空间的 `settings/document-updated`、Host 自己的 `prompt-preset/changed`，以及 `connection/reset` 时一起刷新。
 
 ### 切换器是控件，不是标签
 
-agent-preset 的界面分成事前的 chip 与只读的标题栏标签，因为任务的组合一旦开始就被固定。提示词预设不是：系统提示词每一步都会重新渲染，因此标题栏提供实时菜单，文案也明说改动自下一轮起生效、已发送的消息不受影响。
+agent-preset 的界面分成事前的 chip 与只读的标题栏标签，因为任务的组合一旦开始就被固定。提示词预设不是：系统提示词每一步都会重新渲染，因此标题栏提供实时菜单，文案也明说改动自下一轮起生效、已发送的消息不受影响。该控件沿用相邻元素的几何：在新任务界面上与 agent-preset chip 一致，在标题栏中则采用 agent-preset 标签较小的尺寸。
 
 -----
 
@@ -54,8 +55,8 @@ agent-preset 的界面分成事前的 chip 与只读的标题栏标签，因为�
 | [`src/client/section-store.ts`](src/client/section-store.ts) | 设置区块的控制器：名册、一份草稿、对话框、防抖预览 |
 | [`src/client/seat-store.ts`](src/client/seat-store.ts) | 切换器的控制器：菜单名册与写入 |
 | [`src/client/preset-model.ts`](src/client/preset-model.ts) | 纯草稿模型，以及决定是否提供「保存」的检查 |
-| [`src/client/PromptPresetSection.tsx`](src/client/PromptPresetSection.tsx) | 页面：名册栏、编辑器、对话框 |
-| [`src/client/RuleCard.tsx`](src/client/RuleCard.tsx) / [`RuleFields.tsx`](src/client/RuleFields.tsx) | 单条规则的外框，以及各类型各自的字段 |
+| [`src/client/PromptPresetSection.tsx`](src/client/PromptPresetSection.tsx) | 页面：沿用模型页面列表形式的预设卡片、就地编辑器、对话框 |
+| [`src/client/RuleCard.tsx`](src/client/RuleCard.tsx) / [`RuleFields.tsx`](src/client/RuleFields.tsx) | 单条规则的外框，以及各类型各自的字段；预览给出的小节名以 chip 形式供选取 |
 | [`src/client/PromptPreview.tsx`](src/client/PromptPreview.tsx) | 警告、小节列表与最终提示词 |
 | [`src/client/TextArea.tsx`](src/client/TextArea.tsx) | 包内自有的多行字段 |
 | [`src/client/locales.ts`](src/client/locales.ts) | 本界面文案的唯一归属地 |

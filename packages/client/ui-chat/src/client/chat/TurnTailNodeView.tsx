@@ -79,6 +79,9 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
       data-actions-reveal={endsWithResponse ? 'always' : 'hover'}
     >
       {tail}
+      {/* Directly under the cut-off or failure notice it answers, ahead of the
+        message's own action row. */}
+      {resumeAction}
       <MessageIconActions
         text={assistantText(closing.blocks)}
         time={closing.time}
@@ -94,7 +97,6 @@ export const TurnTailNodeView = memo(function TurnTailNodeView({
           : null}
         t={t}
       />
-      {resumeAction}
     </div>
   )
 })

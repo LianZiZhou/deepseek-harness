@@ -1,119 +1,222 @@
-/* The prompt-preset settings page: roster rail plus one draft and its preview. */
+/* The prompt-preset settings page. Header from the neighboring Agent presets
+   and Built-in plugins pages; cards, the in-place editor and the dashed add
+   entry follow the Models page, the other settings page that edits entries. */
 
-.root {
+.section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-height: 0;
-}
-
-.title {
-  margin: 0;
-  font-size: 16px;
+  gap: 12px;
+  max-width: 720px;
   color: var(--dsw-alias-label-primary);
 }
 
+/* The settings page title as Agent presets and Built-in plugins set it. */
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .intro {
+  margin: 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.notice {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.muted {
   margin: 0;
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
 }
 
-.columns {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  min-height: 0;
+.error {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-error-primary);
 }
 
-.rail {
+.retry {
+  align-self: flex-start;
+}
+
+.rows {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
   display: flex;
-  flex: none;
-  width: 240px;
   flex-direction: column;
   gap: 8px;
 }
 
-.railHeading {
-  margin: 0;
-  font-size: 13px;
-  color: var(--dsw-alias-label-secondary);
-}
-
-.rows {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.row {
-  display: flex;
-  flex-direction: column;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-2);
-  overflow: hidden;
-}
-
-.rowMain {
+/* Settings card material (docs/ui-radius.md#settings-cards). */
+.card {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px;
-  border: none;
-  background: none;
-  text-align: start;
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
+  padding: 12px 14px;
+  border: 0.5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-xl);
+  background: var(--dsw-alias-settings-card-fill);
 }
 
-.rowMain[aria-pressed='true'] {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.rowName {
-  font-size: 13px;
-  color: var(--dsw-alias-label-primary);
-}
-
-.rowMeta {
+.cardHead {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.identity {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardActions {
+  display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 4px;
+  margin-left: auto;
 }
 
-.rowFoot {
+.cardMeta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+  overflow-wrap: anywhere;
+}
+
+/* The Models page's row Remove: compact, transparent, danger-tinted. */
+.dangerButton {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-state-error-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .dangerButton:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover-danger);
+  }
+}
+
+.dangerButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dangerButton:focus-visible,
+.addButton:focus-visible,
+.addRule:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+}
+
+/* The dialog's destructive confirmation, as the Models delete dialog draws it. */
+.dangerConfirm:not(:disabled) {
+  --dsh-button-outline-color: var(--dsw-alias-state-error-primary);
+  color: var(--dsw-alias-state-error-primary);
+}
+
+/* The last slot of the list: full width, dashed, the rows' own corner. */
+.addButton {
+  box-sizing: border-box;
   display: flex;
-  justify-content: flex-end;
-  gap: 4px;
-  padding: 0 6px 6px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  border: 1px dashed var(--dsw-alias-border-l3);
+  border-radius: var(--dsw-radius-lg);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
 }
 
+@media (hover: hover) {
+  .addButton:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.addButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Editing surface: the Models page's filled module inside the card. */
 .editor {
   display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
   flex-direction: column;
-  gap: 10px;
+  gap: 16px;
+  margin-top: 8px;
+  padding: 14px 16px;
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+}
+
+.fieldLabel {
   font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
   color: var(--dsw-alias-label-secondary);
 }
 
-.rulesHeading {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--dsw-alias-label-secondary);
+.invalid {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .rules {
@@ -125,20 +228,66 @@
   list-style: none;
 }
 
-.actions {
+/* The Models editor's compact add control. */
+.addRule {
+  box-sizing: border-box;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  border: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .addRule:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.addRule:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Menu rows carry the rule's name over what it does, like the agent-preset menu. */
+.menuItem {
   display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 280px;
+}
+
+.menuItemName {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.menuItemDesc {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-caption);
+  white-space: normal;
+}
+
+.editorFoot {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
 
-.muted {
-  margin: 0;
-  font-size: 12px;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.error {
-  margin: 0;
-  font-size: 12px;
-  color: var(--dsw-alias-state-error-primary);
+.editorActions {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: auto;
 }

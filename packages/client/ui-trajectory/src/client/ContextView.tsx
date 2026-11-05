@@ -10,14 +10,20 @@ import type {
 } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { Button, InlineEditor, JsonTree, RiskConfirmation, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  Button, IconBranchOutlineRegular, IconChevronRightOutlineRegular, IconRefreshOutlineRegular,
+  InlineEditor, JsonTree, RiskConfirmation, Tag,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { jsonTreeLabels } from './TrajectoryTable.tsx'
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import {
-  blocksText, contextRows, draftEdits, draftIsEmpty, draftThrough, EMPTY_DRAFT,
+  blocksText, contextRows, draftEdits, draftIsEmpty, draftThrough, EMPTY_DRAFT, previewText,
   type ContextBlock, type ContextDraft, type ContextRow,
 } from './context-content.ts'
+import type { TrajectoryKey } from './locales.ts'
+import bar from './TrajectoryToolbar.module.css'
+import ledger from './TrajectoryTable.module.css'
 import css from './context-view.module.css'
 
 /** Delay before refetching after the log grows, so a streaming turn refetches at most this often. */
@@ -52,13 +58,14 @@ interface Editing {
   readonly blocks: readonly ContextBlock[]
 }
 
-const ROLE_TONE = {
-  system: 'info',
-  developer: 'neutral',
-  user: 'solid',
-  assistant: 'outline',
-  tool: 'quiet',
-} as const
+/** Each role wears the Trajectory ledger's tag for the same kind of row. */
+const ROLE_TAG = {
+  system: { label: 'kind.system', className: ledger.systemNeutral },
+  developer: { label: 'kind.context', className: ledger.contextGreen },
+  user: { label: 'kind.user', className: ledger.user },
+  assistant: { label: 'kind.assistant', className: ledger.assistantVioletBright },
+  tool: { label: 'kind.tool', className: ledger.toolAmber },
+} as const satisfies Record<string, { label: TrajectoryKey; className: string | undefined }>
 
 export function ContextView({
   useSession, useAccess, useTrajectory, load, rewrite, forkAt, t,
@@ -151,51 +158,81 @@ export function ContextView({
 
   return (
     <div className={css.root} data-context-view>
-      <div className={css.toolbar} role="toolbar" aria-label={t('context.toolbar')}>
-        <span className={css.title}>{t('context.title')}</span>
-        {value !== null && <Tag tone="quiet">{t('context.cursor', { seq: String(value.cursor) })}</Tag>}
-        <Button size="sm" variant="toolbar" disabled={frozen} onClick={() => { void refresh() }}>{t('context.refresh')}</Button>
-        <span className={css.spacer} />
-        {canRewrite && (
-          <Switch
-            checked={editMode}
-            label={t('context.editMode')}
-            onChange={(next) => {
-              setEditMode(next)
-              if (!next) {
-                setDraft(EMPTY_DRAFT)
-                setEditing(null)
-                setInserting(null)
-              }
-            }}
-          />
-        )}
-        {editMode && !draftIsEmpty(draft) && (
-          <>
-            <Button size="sm" variant="outline" onClick={() => { setDraft(EMPTY_DRAFT) }}>{t('context.discard')}</Button>
-            <Button size="sm" variant="primary" disabled={busy} onClick={() => { setPending({ kind: 'apply' }) }}>{t('context.apply')}</Button>
-          </>
-        )}
+      <div className={bar.root}>
+        <div className={bar.inner} role="toolbar" aria-label={t('context.toolbar')}>
+          <div className={bar.actions}>
+            <button
+              type="button"
+              className={`${bar.action} ${css.toolbarAction}`}
+              disabled={frozen}
+              onClick={() => { void refresh() }}
+            >
+              <IconRefreshOutlineRegular size={12} />
+              {t('context.refresh')}
+            </button>
+            {value !== null && <span className={css.cursor}>{t('context.cursor', { seq: String(value.cursor) })}</span>}
+          </div>
+          <span className={css.spacer} />
+          {editMode && !draftIsEmpty(draft) && (
+            <span className={css.staged}>
+              <span className={css.stagedCount}>{t('context.staged', { count: String(draftEdits(draft).length) })}</span>
+              <button type="button" className={bar.action} onClick={() => { setDraft(EMPTY_DRAFT) }}>{t('context.discard')}</button>
+              <button type="button" className={css.applyAction} disabled={busy} onClick={() => { setPending({ kind: 'apply' }) }}>
+                {t('context.apply')}
+              </button>
+            </span>
+          )}
+          {canRewrite && (
+            <button
+              type="button"
+              className={`${bar.control} ${css.editToggle}`}
+              role="switch"
+              aria-checked={editMode}
+              onClick={() => {
+                const next = !editMode
+                setEditMode(next)
+                if (!next) {
+                  setDraft(EMPTY_DRAFT)
+                  setEditing(null)
+                  setInserting(null)
+                }
+              }}
+            >
+              <span>{t('context.editMode')}</span>
+              <span className={bar.controlTrack} data-on={editMode || undefined} aria-hidden="true">
+                <span className={bar.controlThumb} />
+              </span>
+            </button>
+          )}
+        </div>
       </div>
       <p className={css.note}>{t('context.note')}</p>
       {error !== null && <p className={css.error} role="alert">{t('context.error', { message: error })}</p>}
-      {value === null && error === null && <p className={css.note}>{t('context.loading')}</p>}
+      {value === null && error === null && <p className={css.status}>{t('context.loading')}</p>}
       {value !== null && (
         <div className={css.body}>
           {value.request !== undefined && (
             <details className={css.section}>
-              <summary>{t('context.request')}</summary>
-              <ContextJson value={value.request} label={t('context.request')} t={t} />
+              <summary>
+                <IconChevronRightOutlineRegular size={12} className={css.chevron} />
+                {t('context.request')}
+              </summary>
+              <div className={css.sectionBody}>
+                <ContextJson value={value.request} label={t('context.request')} t={t} />
+              </div>
             </details>
           )}
           {value.next !== undefined && (
             <details className={css.section}>
               <summary>
+                <IconChevronRightOutlineRegular size={12} className={css.chevron} />
                 {t('context.nextTools')}
                 {promptChanges && <Tag tone="warning">{t('context.promptChanges')}</Tag>}
               </summary>
-              {promptChanges && <pre className={css.text}>{value.next.systemPrompt}</pre>}
-              <ContextJson value={value.next.tools} label={t('context.nextTools')} t={t} />
+              <div className={css.sectionBody}>
+                {promptChanges && <LongText text={value.next.systemPrompt} className={css.text} t={t} />}
+                <ContextJson value={value.next.tools} label={t('context.nextTools')} t={t} />
+              </div>
             </details>
           )}
           <ol className={css.messages} aria-label={t('context.messages')}>
@@ -278,32 +315,43 @@ function ContextMessageRow({
   const { message } = row
   const blocks = draftBlocks ?? row.blocks
   const deletable = message.role !== 'system'
+  const role = ROLE_TAG[message.role]
   return (
     <li className={css.message} data-deleted={deleted || undefined} data-edited={draftBlocks !== undefined || undefined}>
       <div className={css.messageHeader}>
-        <Tag tone={ROLE_TONE[message.role]}>{t(`context.role.${message.role}`)}</Tag>
+        <span className={`${ledger.kindTag} ${role.className}`}>{t(role.label)}</span>
         <span className={css.meta}>{t('context.seq', { seq: String(message.seq), event: message.event })}</span>
         {message.projected === true && <Tag tone="info">{t('context.projected')}</Tag>}
         {message.isError === true && <Tag tone="danger">{t('context.toolError')}</Tag>}
         {draftBlocks !== undefined && <Tag tone="warning">{t('context.edited')}</Tag>}
         {deleted && <Tag tone="danger">{t('context.deleted')}</Tag>}
-        <span className={css.spacer} />
-        {canFork && <Button size="sm" variant="ghost" onClick={onFork}>{t('context.fork')}</Button>}
-        {editMode && (
-          <>
-            <Button size="sm" variant="ghost" onClick={onEdit}>{t('context.edit')}</Button>
-            {deletable && <Button size="sm" variant="ghost" onClick={onDelete}>{deleted ? t('context.undelete') : t('context.delete')}</Button>}
-            <Button size="sm" variant="ghost" onClick={onInsert}>{t('context.insertAfter')}</Button>
-            <Button size="sm" variant="ghost" onClick={onRestart}>{t('context.restartHere')}</Button>
-          </>
-        )}
+        <span className={css.rowActions}>
+          {canFork && (
+            <button type="button" className={css.rowAction} onClick={onFork}>
+              <IconBranchOutlineRegular size={12} />
+              {t('context.fork')}
+            </button>
+          )}
+          {editMode && (
+            <>
+              <button type="button" className={css.rowAction} onClick={onEdit}>{t('context.edit')}</button>
+              {deletable && (
+                <button type="button" className={css.rowAction} onClick={onDelete}>
+                  {deleted ? t('context.undelete') : t('context.delete')}
+                </button>
+              )}
+              <button type="button" className={css.rowAction} onClick={onInsert}>{t('context.insertAfter')}</button>
+              <button type="button" className={css.rowAction} onClick={onRestart}>{t('context.restartHere')}</button>
+            </>
+          )}
+        </span>
       </div>
       {editing === null
         ? <ContextBlocks blocks={blocks} t={t} />
         : <BlockEditor blocks={editing.blocks} onChange={onEditChange} onSave={onEditSave} onCancel={onEditCancel} t={t} />}
       {inserted.map((insert, index) => (
         <div key={index} className={css.inserted}>
-          <Tag tone="warning">{t('context.insertedUser')}</Tag>
+          <span className={css.meta}>{t('context.insertedUser')}</span>
           <pre className={css.text}>{insert.text}</pre>
         </div>
       ))}
@@ -326,14 +374,14 @@ function ContextBlocks({ blocks, t }: { blocks: readonly ContextBlock[] } & Prop
       {blocks.map((block, index) => {
         switch (block.kind) {
           case 'text':
-            return <pre key={index} className={css.text}>{block.text}</pre>
+            return <LongText key={index} text={block.text} className={css.text} t={t} />
           case 'reasoning':
-            return <pre key={index} className={css.reasoning} aria-label={t('context.reasoning')}>{block.text}</pre>
+            return <LongText key={index} text={block.text} className={css.reasoning} label={t('context.reasoning')} t={t} />
           case 'tool-call':
             return (
               <div key={index} className={css.toolCall}>
                 <span className={css.meta}>{t('context.toolCall', { name: block.name, id: block.id })}</span>
-                <pre className={css.text}>{block.arguments}</pre>
+                <LongText text={block.arguments} className={css.code} t={t} />
               </div>
             )
           case 'other':
@@ -373,7 +421,7 @@ function BlockEditor({ blocks, onChange, onSave, onCancel, t }: {
               <div key={index} className={css.toolCall}>
                 <span className={css.meta}>{t('context.toolCall', { name: block.name, id: block.id })}</span>
                 <textarea
-                  className={css.editor}
+                  className={`${css.editor} ${css.codeEditor}`}
                   aria-label={t('context.editArguments')}
                   value={block.arguments}
                   onChange={(event) => { update(index, { ...block, arguments: event.currentTarget.value }) }}
@@ -389,6 +437,25 @@ function BlockEditor({ blocks, onChange, onSave, onCancel, t }: {
         <Button size="sm" variant="primary" onClick={onSave}>{t('context.stage')}</Button>
       </div>
     </div>
+  )
+}
+
+/** One text block, collapsed to its first lines when long. */
+function LongText({ text, className, label, t }: {
+  text: string
+  className: string | undefined
+  label?: string
+} & PropsLocale<'trajectory'>) {
+  const [expanded, setExpanded] = useState(false)
+  const preview = previewText(text)
+  if (preview === undefined) return <pre className={className} aria-label={label}>{text}</pre>
+  return (
+    <>
+      <pre className={className} aria-label={label}>{expanded ? text : preview}</pre>
+      <button type="button" className={css.more} aria-expanded={expanded} onClick={() => { setExpanded(!expanded) }}>
+        {expanded ? t('context.showLess') : t('context.showMore')}
+      </button>
+    </>
   )
 }
 

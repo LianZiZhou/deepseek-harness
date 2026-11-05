@@ -261,7 +261,9 @@ describe('the section face', () => {
     section.moveRule(key, 1)
     section.removeRule(key)
     await section.save()
-    section.discard()
+    section.select('terse')
+    section.closeEditor()
+    expect(section.hooks.promptPresetSection.getSnapshot().draft).toBeNull()
     await section.setDefault('shout')
     section.confirmDelete('shout')
     await section.remove()
@@ -325,6 +327,9 @@ describe('the switcher face', () => {
     const { slots, calls } = await mounted({ byId: { task: { id: 'task' } } })
 
     const seat = seatFace(slots, 'task')
+    // The header seat takes the header's quieter size; the Hero's is the full chip.
+    expect(seat.variant).toBe('header')
+    expect(seatFace(slots, 'task', 'conversation.hero.controls').variant).toBe('hero')
     await seat.load()
     await seat.select('shout')
     seat.clearError()

@@ -1,18 +1,108 @@
-/* The per-session prompt-preset control in the task header. */
+/* The prompt-preset chip. Geometry and states are the agent-preset chip's, so
+   the two read as one row on the new-task screen and in the task header. */
 
-.root {
+/* The Menu anchor wrapper: its flex auto-minimum would hold the full label
+   width. The floor is the icon-only end state — 8px paddings + 16px icon +
+   two 4px gaps + 14px chevron. */
+.menuAnchor {
+  min-width: 54px;
+  max-width: 100%;
+}
+
+.seat {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
+  max-width: min(100%, 240px);
+  min-height: 28px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.error {
-  border: none;
-  background: none;
-  padding: 0;
-  font: inherit;
+.seat[aria-expanded='true'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+@media (hover: hover) {
+  .seat:not(:disabled):hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.seat:disabled {
+  cursor: default;
+  color: var(--dsw-alias-label-quaternary);
+}
+
+/* In the task header the control takes the agent-preset label's geometry —
+   22px, 12px tertiary text on the translucent fill — so the two read as one
+   pair of facts about the task; only the hover and chevron say it opens. */
+.header {
+  min-height: 22px;
+  height: 22px;
+  max-width: 180px;
+  padding: 0 4px 0 2px;
+  border-radius: var(--dsw-radius-xs);
+  background: var(--dsw-alias-fill-tsp-secondary);
+  color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
-  color: var(--dsw-alias-state-error-primary);
-  cursor: pointer;
+  line-height: 22px;
+  font-weight: 400;
+}
+
+.header[aria-expanded='true'] {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+@media (hover: hover) {
+  .header:not(:disabled):hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-secondary);
+  }
+}
+
+.seatIcon {
+  flex: none;
+}
+
+.seatLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex: none;
+  color: var(--dsw-alias-label-caption);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 280px;
+}
+
+.itemName {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.itemDesc {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-caption);
+  white-space: normal;
 }

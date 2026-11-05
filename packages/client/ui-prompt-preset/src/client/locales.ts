@@ -5,8 +5,8 @@ export type PromptPresetKey =
   // section chrome
   | 'nav' | 'intro' | 'error' | 'retry' | 'unavailable'
   // roster
-  | 'presetsHeading' | 'newPreset' | 'builtIn' | 'defaultTag' | 'setDefault'
-  | 'deletePreset' | 'ruleCount' | 'rosterEmpty' | 'noDescription'
+  | 'newPreset' | 'builtIn' | 'defaultTag' | 'setDefault' | 'clearDefault' | 'edit'
+  | 'deletePreset' | 'ruleCount' | 'rosterEmpty' | 'noDescription' | 'readOnly'
   // create dialog
   | 'createTitle' | 'createIntro' | 'presetId' | 'presetIdPlaceholder'
   | 'displayName' | 'displayNamePlaceholder' | 'create' | 'creating' | 'cancel'
@@ -14,7 +14,7 @@ export type PromptPresetKey =
   // editor
   | 'presetName' | 'presetNamePlaceholder' | 'presetDescription'
   | 'presetDescriptionPlaceholder' | 'rulesHeading' | 'rulesEmpty' | 'addRule'
-  | 'save' | 'saving' | 'discard' | 'saveBlocked' | 'editorEmpty'
+  | 'save' | 'saving' | 'saveBlocked'
   | 'unsavedTitle' | 'unsavedDescription' | 'unsavedDiscard' | 'unsavedKeep'
   | 'deleteTitle' | 'deleteDescription' | 'deleteConfirm' | 'deleting'
   // rule kinds
@@ -39,7 +39,7 @@ export type PromptPresetKey =
   | 'rule.error.patternSyntax' | 'rule.error.replaceDuplicate'
   // preview
   | 'preview.heading' | 'preview.sections' | 'preview.prompt' | 'preview.loading'
-  | 'preview.error' | 'preview.empty' | 'preview.needsSession' | 'preview.refresh'
+  | 'preview.error' | 'preview.needsSession' | 'preview.refresh'
   | 'preview.tag.added' | 'preview.tag.removed' | 'preview.tag.changed'
   | 'preview.tag.protected'
   | 'preview.warn.invalidPattern' | 'preview.warn.patternTooLong'
@@ -48,8 +48,8 @@ export type PromptPresetKey =
   | 'preview.warn.renderFailed' | 'preview.warn.unknownPreset'
   | 'preview.warn.emptyPrompt' | 'preview.warn.unknown'
   // seat
-  | 'seat.label' | 'seat.none' | 'seat.hint' | 'seat.appliesNextTurn'
-  | 'seat.switchFailed' | 'seat.manage'
+  | 'seat.label' | 'seat.none' | 'seat.noneHint' | 'seat.hint' | 'seat.appliesNextTurn'
+  | 'seat.switchFailed'
 
 /** English copy. */
 export const en: Record<PromptPresetKey, string> = {
@@ -61,16 +61,17 @@ export const en: Record<PromptPresetKey, string> = {
   error: 'Something went wrong: {message}',
   retry: 'Try again',
   unavailable: 'This deployment stores no prompt presets.',
-
-  presetsHeading: 'Presets',
   newPreset: 'New preset',
   builtIn: 'Built-in',
   defaultTag: 'Default',
   setDefault: 'Use by default',
+  clearDefault: 'Stop using by default',
+  edit: 'Edit',
   deletePreset: 'Delete',
   ruleCount: '{count} rules',
   rosterEmpty: 'No presets yet.',
   noDescription: 'No description',
+  readOnly: 'This deployment’s presets are read-only here.',
 
   createTitle: 'New prompt preset',
   createIntro: 'The id becomes the preset’s storage key and cannot change later.',
@@ -94,9 +95,7 @@ export const en: Record<PromptPresetKey, string> = {
   addRule: 'Add rule',
   save: 'Save',
   saving: 'Saving…',
-  discard: 'Discard',
   saveBlocked: 'Fix the highlighted rule before saving.',
-  editorEmpty: 'Select a preset to edit it.',
   unsavedTitle: 'Discard unsaved changes?',
   unsavedDescription: 'This preset has edits that were never saved. Leaving loses them.',
   unsavedDiscard: 'Discard',
@@ -153,7 +152,6 @@ export const en: Record<PromptPresetKey, string> = {
   'preview.prompt': 'Prompt',
   'preview.loading': 'Building the preview…',
   'preview.error': 'The preview failed: {message}',
-  'preview.empty': 'This preset leaves the task with no system prompt at all.',
   'preview.needsSession': 'Open a task to preview this preset against it.',
   'preview.refresh': 'Refresh',
   'preview.tag.added': 'Added',
@@ -173,10 +171,10 @@ export const en: Record<PromptPresetKey, string> = {
 
   'seat.label': 'Prompt',
   'seat.none': 'No preset',
+  'seat.noneHint': 'Use the system prompt exactly as the task assembles it.',
   'seat.hint': 'Prompt preset applied to this task’s system prompt',
   'seat.appliesNextTurn': 'Applies from the next turn; messages already sent are unchanged.',
   'seat.switchFailed': 'Could not switch: {message}',
-  'seat.manage': 'Manage presets…',
 }
 
 /** Chinese copy. */
@@ -188,16 +186,17 @@ export const zh: Record<PromptPresetKey, string> = {
   error: '出错了：{message}',
   retry: '重试',
   unavailable: '本部署不存储提示词预设。',
-
-  presetsHeading: '预设',
   newPreset: '新建预设',
   builtIn: '内置',
   defaultTag: '默认',
   setDefault: '设为默认',
+  clearDefault: '取消默认',
+  edit: '编辑',
   deletePreset: '删除',
   ruleCount: '{count} 条规则',
   rosterEmpty: '还没有预设。',
   noDescription: '没有描述',
+  readOnly: '此部署的预设在这里为只读。',
 
   createTitle: '新建提示词预设',
   createIntro: 'id 将作为该预设的存储键，之后无法修改。',
@@ -221,9 +220,7 @@ export const zh: Record<PromptPresetKey, string> = {
   addRule: '添加规则',
   save: '保存',
   saving: '保存中…',
-  discard: '放弃修改',
   saveBlocked: '请先修正标红的规则再保存。',
-  editorEmpty: '选择一个预设以进行编辑。',
   unsavedTitle: '放弃未保存的修改？',
   unsavedDescription: '该预设有从未保存的修改，离开将会丢失。',
   unsavedDiscard: '放弃',
@@ -280,7 +277,6 @@ export const zh: Record<PromptPresetKey, string> = {
   'preview.prompt': '提示词',
   'preview.loading': '正在生成预览…',
   'preview.error': '预览失败：{message}',
-  'preview.empty': '该预设会让任务完全没有系统提示词。',
   'preview.needsSession': '打开一个任务，以针对它预览该预设。',
   'preview.refresh': '刷新',
   'preview.tag.added': '新增',
@@ -300,8 +296,8 @@ export const zh: Record<PromptPresetKey, string> = {
 
   'seat.label': '提示词',
   'seat.none': '不使用预设',
+  'seat.noneHint': '按任务组装的原样使用系统提示词。',
   'seat.hint': '作用于本任务系统提示词的提示词预设',
   'seat.appliesNextTurn': '自下一轮起生效，已发送的消息不受影响。',
   'seat.switchFailed': '切换失败：{message}',
-  'seat.manage': '管理预设…',
 }

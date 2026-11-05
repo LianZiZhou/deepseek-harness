@@ -1,0 +1,77 @@
+/* The Models page's sign-in group. Rows, buttons, fields and status text use
+   the page's own classes; this sheet adds only the group's separation and the
+   parts the provider cards have no counterpart for. */
+
+/* A second block on the page: its title and intro repeat the page header's
+   treatment, and the extra air reads it as a group of its own. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+/* Long method labels ("Sign in with SuperGrok or X Premium") move the actions
+   under the name instead of squeezing it. */
+.head {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+/* A flow's step-by-step guidance is information, not a warning. */
+.notice {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  color: var(--dsw-alias-state-business-primary);
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .link:hover {
+    text-decoration: underline;
+  }
+}
+
+/* The code a person types on another page: easy to read and to select whole. */
+.code {
+  padding: 1px 6px;
+  border-radius: var(--dsw-radius-xs);
+  background: var(--dsw-alias-fill-tsp-secondary);
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  user-select: all;
+}
+
+.answer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Row-sized buttons outside the row head, matching the compact actions. */
+.choices .compact,
+.answer .compact {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--dsw-radius-md);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.decline {
+  align-self: flex-start;
+  margin-left: -10px;
+}

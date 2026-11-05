@@ -1,74 +1,132 @@
-/* The Host's answer about the open draft: warnings, sections, final prompt. */
+/* The Host's answer about the open draft: warnings, sections, final prompt.
+   Its sections share one hairline R16 list, as code and preview cards do. */
 
 .root {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-height: 0;
+  min-width: 0;
 }
 
 .head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 6px 8px;
 }
 
 .heading {
-  flex: 1 1 auto;
-  margin: 0;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
   color: var(--dsw-alias-label-secondary);
 }
 
-.warnings,
-.sections {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 0;
+.views {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.refresh {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   padding: 0;
-  list-style: none;
-}
-
-.warning {
-  padding: 6px 8px;
+  border: none;
   border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-fill-tsp-secondary);
-  font-size: 12px;
-  color: var(--dsw-alias-label-secondary);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
 }
 
-.status,
-.empty {
+@media (hover: hover) {
+  .refresh:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-primary);
+  }
+}
+
+.refresh:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+}
+
+.status {
   margin: 0;
   font-size: 12px;
+  line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
 }
 
 .error {
   margin: 0;
   font-size: 12px;
+  line-height: 18px;
   color: var(--dsw-alias-state-error-primary);
+}
+
+.warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-warn-label);
+}
+
+.warningIcon {
+  flex: none;
+  margin-top: 2px;
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-bg-layer-1);
+  overflow: hidden;
 }
 
 .section {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 8px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-2);
+  padding: 8px 12px;
+}
+
+.section + .section {
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .sectionHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
 
 .sectionName {
+  font-family: var(--ds-font-family-code);
   font-size: 12px;
+  line-height: 18px;
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -76,11 +134,11 @@
 .removedText,
 .prompt {
   margin: 0;
-  max-height: 240px;
+  max-height: 160px;
   overflow: auto;
   white-space: pre-wrap;
-  word-break: break-word;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+  font-family: var(--ds-font-family-code);
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-primary);
@@ -93,10 +151,21 @@
   text-decoration: line-through;
 }
 
+.oneLine {
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .prompt {
-  max-height: 420px;
-  padding: 8px;
-  border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: var(--dsw-radius-sm);
-  background: var(--dsw-alias-bg-layer-2);
+  max-height: 360px;
+  padding: 10px 12px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-lg);
+  background: var(--dsw-alias-bg-layer-1);
 }

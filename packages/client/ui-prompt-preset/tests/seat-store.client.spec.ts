@@ -8,7 +8,11 @@ import { PromptPresetSeatController } from '../src/client/seat-store.ts'
 const SESSION = SessionId('task')
 
 const ROSTER: PromptPresetRoster = {
-  presets: [{ promptPreset: 'shout', name: 'Shout', rules: [], source: 'user', isDefault: false }],
+  presets: [
+    { promptPreset: 'shout', name: 'Shout', rules: [], source: 'user', isDefault: false },
+    { promptPreset: 'terse', name: 'Terse', description: 'Short answers.', rules: [], source: 'user', isDefault: false },
+    { promptPreset: 'blank', name: 'Blank', description: '', rules: [], source: 'user', isDefault: false },
+  ],
   default: '',
   revision: 1,
   writable: true,
@@ -45,10 +49,13 @@ describe('the switcher controller', () => {
     const { ctx } = bench()
     const seat = new PromptPresetSeatController(ctx, () => SESSION)
     await seat.load()
-    expect(seat.store.getSnapshot()).toMatchObject({
-      status: 'ready',
-      options: [{ id: 'shout', name: 'Shout' }],
-    })
+    // A summary rides along only when the preset has one to show.
+    expect(seat.store.getSnapshot()).toMatchObject({ status: 'ready' })
+    expect(seat.store.getSnapshot().options).toEqual([
+      { id: 'shout', name: 'Shout' },
+      { id: 'terse', name: 'Terse', description: 'Short answers.' },
+      { id: 'blank', name: 'Blank' },
+    ])
   })
 
   it('renders nothing when the deployment composes no store', async () => {
@@ -64,7 +71,7 @@ describe('the switcher controller', () => {
     const first = seat.load()
     const second = seat.load()
     await Promise.all([first, second])
-    expect(seat.store.getSnapshot().options).toHaveLength(1)
+    expect(seat.store.getSnapshot().options).toHaveLength(ROSTER.presets.length)
   })
 
   it('writes a switch straight through, and clears a selection with the empty id', async () => {

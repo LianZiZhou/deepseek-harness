@@ -18,6 +18,8 @@ export interface PresetOption {
   id: string
   /** What the menu shows. */
   name: string
+  /** The preset's own one-sentence summary, shown under its name. */
+  description?: string
 }
 
 /** Everything the switcher renders. */
@@ -73,7 +75,11 @@ export class PromptPresetSeatController {
     }
     this.set({
       status: 'ready',
-      options: result.value.presets.map(row => ({ id: row.promptPreset, name: row.name })),
+      options: result.value.presets.map(row => ({
+        id: row.promptPreset,
+        name: row.name,
+        ...row.description === undefined || row.description === '' ? {} : { description: row.description },
+      })),
     })
   }
 

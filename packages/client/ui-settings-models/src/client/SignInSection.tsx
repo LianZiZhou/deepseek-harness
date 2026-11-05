@@ -20,6 +20,7 @@ import type { AuthorizationEntryView } from '@deepseek-ai/dsh-api-settings-contr
 import type { SignInAttempt, SignInStore } from './sign-in-store.ts'
 import type { en } from './locales.ts'
 import styles from './ModelsSection.module.css'
+import own from './SignInSection.module.css'
 
 /** Props of {@link SignInSection}. */
 export interface SignInSectionProps {
@@ -69,12 +70,12 @@ function Question(props: {
       <label className={styles['fieldLabel']} htmlFor={`sign-in-${prompt.prompt}`}>{prompt.message}</label>
       {prompt.kind === 'select'
         ? (
-          <div className={styles['candidateActions']}>
+          <div className={own['choices']} role="group" aria-label={prompt.message}>
             {(prompt.options ?? []).map(option => (
               <button
                 key={option.id}
                 type="button"
-                className={styles['secondaryButton']}
+                className={`${styles['secondaryButton']} ${own['compact']}`}
                 title={option.description}
                 onClick={() => { answer(option.id) }}
               >
@@ -84,7 +85,7 @@ function Question(props: {
           </div>
         )
         : (
-          <div className={styles['rowActions']}>
+          <div className={own['answer']}>
             <input
               id={`sign-in-${prompt.prompt}`}
               className={styles['input']}
@@ -99,7 +100,7 @@ function Question(props: {
             />
             <button
               type="button"
-              className={styles['primaryButton']}
+              className={`${styles['primaryButton']} ${own['compact']}`}
               disabled={state.draft.length === 0}
               onClick={() => { answer(state.draft) }}
             >
@@ -109,7 +110,7 @@ function Question(props: {
         )}
       <button
         type="button"
-        className={styles['linkButton']}
+        className={`${styles['linkButton']} ${own['decline']}`}
         onClick={() => { void controller.decline(flow.key) }}
       >
         {t('cancel')}
@@ -132,8 +133,8 @@ function SignInRow(props: {
   const { controller, flow, state, t } = props
   const running = state.busy || state.prompt !== undefined
   return (
-    <div className={styles['rowCard']}>
-      <div className={styles['rowHead']}>
+    <li className={styles['rowCard']}>
+      <div className={`${styles['rowHead']} ${own['head']}`}>
         <div className={styles['rowIdentity']}>
           <span className={styles['rowName']}>{flow.label}</span>
           <span className={styles['rowTag']}>{flow.key}</span>
@@ -163,19 +164,19 @@ function SignInRow(props: {
         </div>
       </div>
       {state.notices.map((notice, index) => (
-        <p key={`${notice.attempt}-${index}`} className={styles['notice']}>
+        <p key={`${notice.attempt}-${index}`} className={own['notice']}>
           {notice.message}
           {notice.url === undefined
             ? null
             : (
               <>
                 {' '}
-                <a className={styles['linkButton']} href={notice.url} target="_blank" rel="noreferrer noopener">
+                <a className={own['link']} href={notice.url} target="_blank" rel="noreferrer noopener">
                   {t('signInOpenPage')}
                 </a>
               </>
             )}
-          {notice.code === undefined ? null : <> <code>{notice.code}</code></>}
+          {notice.code === undefined ? null : <> <code className={own['code']}>{notice.code}</code></>}
         </p>
       ))}
       <Question flow={flow} state={state} controller={controller} t={t} />
@@ -186,8 +187,8 @@ function SignInRow(props: {
             {withFlow(state.outcome === 'authorized' ? t('signInDone') : t('signInCancelled'), flow.label)}
           </p>
         )}
-      {state.error === undefined ? null : <p className={styles['error']}>{state.error}</p>}
-    </div>
+      {state.error === undefined ? null : <p className={styles['error']} role="alert">{state.error}</p>}
+    </li>
   )
 }
 
@@ -210,13 +211,13 @@ export function SignInSection(props: SignInSectionProps): ReactNode {
   const flows = state.flows.filter(isSignIn)
   if (flows.length === 0 && state.error === undefined) return null
   return (
-    <div className={styles['section']}>
-      <h3 className={styles['modelCatalogTitle']}>{t('signInTitle')}</h3>
+    <section className={own['group']} aria-label={t('signInTitle')}>
+      <h3 className={styles['title']}>{t('signInTitle')}</h3>
       <p className={styles['intro']}>{t('signInIntro')}</p>
       {state.error === undefined
         ? null
-        : <p className={styles['error']}>{`${t('signInLoadFailed')}: ${state.error}`}</p>}
-      <div className={styles['rows']}>
+        : <p className={styles['error']} role="alert">{`${t('signInLoadFailed')}: ${state.error}`}</p>}
+      <ul className={styles['rows']}>
         {flows.map(flow => (
           <SignInRow
             key={flow.key}
@@ -226,7 +227,7 @@ export function SignInSection(props: SignInSectionProps): ReactNode {
             t={t}
           />
         ))}
-      </div>
-    </div>
+      </ul>
+    </section>
   )
 }
