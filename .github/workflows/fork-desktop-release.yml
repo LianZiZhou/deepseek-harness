@@ -1,6 +1,7 @@
-# Fork-only: build unsigned Desktop packages for Windows, macOS, and Linux on
-# every push to the default branch and publish them together as a GitHub
-# release named after the commit's short hash.
+# Fork-only: build unsigned Desktop packages for Windows, macOS (Apple Silicon
+# only), and Linux on every push to the default branch and publish them together
+# as a GitHub release named after the commit's short hash. The packages keep the
+# official sidebar branding (`--official-branding`) beside the fork's edition label.
 #
 # Nothing is signed or notarized (CI holds no EV token or Apple credentials) and
 # no build carries an update feed, so installed copies never auto-update;
@@ -80,7 +81,7 @@ jobs:
           EOF
 
       - name: Package unsigned installer
-        run: pnpm run package:desktop:win:x64:unsigned -- --build-version ${{ needs.version.outputs.build }}
+        run: pnpm run package:desktop:win:x64:unsigned -- --build-version ${{ needs.version.outputs.build }} --official-branding
 
       - uses: actions/upload-artifact@v7
         with:
@@ -96,13 +97,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Each architecture builds on native hardware: the packaged-runtime smoke
-        # converts a document through LibreOffice, which times out under Rosetta.
+        # Apple Silicon only; Intel Macs get no fork release.
         include:
           - arch: arm64
             runner: macos-latest
-          - arch: x64
-            runner: macos-15-intel
     steps:
       - uses: actions/checkout@v6
 
@@ -120,7 +118,7 @@ jobs:
         run: pnpm run build
 
       - name: Package unsigned DMG
-        run: pnpm run package:desktop:mac:${{ matrix.arch }}:unsigned -- --build-version ${{ needs.version.outputs.build }}
+        run: pnpm run package:desktop:mac:${{ matrix.arch }}:unsigned -- --build-version ${{ needs.version.outputs.build }} --official-branding
 
       - uses: actions/upload-artifact@v7
         with:
@@ -154,7 +152,7 @@ jobs:
         run: pnpm run build
 
       - name: Package unsigned AppImage
-        run: pnpm run package:desktop:linux:x64:unsigned -- --build-version ${{ needs.version.outputs.build }}
+        run: pnpm run package:desktop:linux:x64:unsigned -- --build-version ${{ needs.version.outputs.build }} --official-branding
 
       - uses: actions/upload-artifact@v7
         with:
@@ -185,8 +183,8 @@ jobs:
         run: |
           shopt -s nullglob
           files=(packages/*.exe packages/*.dmg packages/*.AppImage)
-          if [ ${#files[@]} -ne 4 ]; then
-            echo "expected 4 packages, found ${#files[@]}" >&2
+          if [ ${#files[@]} -ne 3 ]; then
+            echo "expected 3 packages, found ${#files[@]}" >&2
             ls -la packages || true
             exit 1
           fi
@@ -194,7 +192,7 @@ jobs:
           Unsigned Desktop build $BUILD from $GITHUB_SHA.
 
           - Windows x64: \`.exe\` installer. SmartScreen warns because it is unsigned.
-          - macOS Apple Silicon (\`arm64\`) and Intel (\`x64\`): \`.dmg\`. Not notarized; approve it in System Settings → Privacy & Security on first launch.
+          - macOS Apple Silicon (\`arm64\`): \`.dmg\`. Not notarized; approve it in System Settings → Privacy & Security on first launch. Intel Macs are not supported.
           - Linux x64: \`.AppImage\`. Run \`chmod +x\` on it first; requires FUSE 2.
 
           No auto-update; install newer releases by hand.
