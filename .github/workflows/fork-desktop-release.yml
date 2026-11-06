@@ -15,7 +15,7 @@ name: Fork desktop release
 
 on:
   push:
-    branches: [merge/upstream-0.2.0]
+    branches: [merge/upstream-0.2.2-rc.1]
   workflow_dispatch:
     inputs:
       publish:
