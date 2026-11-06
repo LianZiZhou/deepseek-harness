@@ -230,6 +230,17 @@ it.each(['mac-arm64', 'mac-x64', 'win-x64'] as const)('selects branding from the
   }
 })
 
+it.each(['mac-arm64', 'win-x64'] as const)('builds and packs the official profile for an unsigned %s package with official branding', async (target) => {
+  const { run, stages } = supervisor()
+  const platform = target === 'win-x64' ? 'win32' : 'darwin'
+  await packageTarget(parseDesktopPackageInvocation([target, '--unsigned', '--official-branding'], platform,
+    platform === 'darwin' ? 'arm64' : 'x64'), { ...environment, APPLE_KEYCHAIN_PROFILE: 'fixture' }, run)
+  expect(stages.find(stage => stage.startsWith('run build'))).toBe('run build --profile official')
+  expect(stages.find(stage => stage.startsWith('exec tsx apps/desktop/scripts/pack-local-packages.ts')))
+    .toMatch(/^exec tsx apps\/desktop\/scripts\/pack-local-packages\.ts --profile official --out /u)
+  expect(stages.some(stage => stage.startsWith('run release:pack --family dsh'))).toBe(false)
+})
+
 it.each([
   ['mac-arm64', 'run build --profile local'],
   ['win-x64', 'run build --profile local'],

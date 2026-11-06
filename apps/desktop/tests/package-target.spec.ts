@@ -49,6 +49,14 @@ describe('desktop package target', () => {
       .toThrow(/at most one target/u)
   })
 
+  it('keeps official branding only for an unsigned package that asks for it', () => {
+    expect(parseDesktopPackageInvocation(['mac-arm64', '--unsigned'], 'darwin', 'arm64').officialBranding).toBe(false)
+    expect(parseDesktopPackageInvocation(['linux-x64', '--unsigned', '--', '--official-branding'], 'linux', 'x64'))
+      .toMatchObject({ unsigned: true, officialBranding: true })
+    expect(() => parseDesktopPackageInvocation(['win-x64', '--official-branding'], 'win32', 'x64'))
+      .toThrow(/--official-branding requires --unsigned/u)
+  })
+
   it('parses a build version, including the separator a pnpm run script forwards', () => {
     expect(parseDesktopPackageInvocation(['mac-arm64'], 'darwin', 'arm64').requestedBuildVersion).toBeUndefined()
     expect(parseDesktopPackageInvocation(['mac-arm64', '--build-version', '0.1.6-alpha.2.20260921.1'], 'darwin', 'arm64')

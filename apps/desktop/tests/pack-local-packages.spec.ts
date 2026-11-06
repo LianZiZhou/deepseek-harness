@@ -93,6 +93,17 @@ it.each(['official', 'stale', 'missing'] as const)('rejects %s client artifacts 
   expect(readFileSync(join(root, 'packed/retained.txt'), 'utf8')).toBe('previous output\n')
 }, testTimeout)
 
+it('packs official client artifacts when the unsigned build asks for official branding', async () => {
+  const root = fixture('official')
+  const result = await pack(root, false, ['--profile', 'official'])
+  expect(result.code, result.output).toBe(0)
+  expect(readdirSync(join(root, 'packed'))).toEqual(['deepseek-ai-dsh-probe-1.2.3.tgz'])
+  const local = fixture()
+  const refused = await pack(local, false, ['--profile', 'official'])
+  expect(refused.code).not.toBe(0)
+  expect(refused.output).toMatch(/DSH_CLIENT_BUILD_PROFILE/)
+}, testTimeout)
+
 it('rejects local client artifacts in the release packing command', async () => {
   const root = fixture()
   const result = await pack(root, true)

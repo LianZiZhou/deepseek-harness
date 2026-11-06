@@ -213,6 +213,8 @@ interface DesktopPackageInvocation {
   readonly directory: boolean
   readonly prepareOnly: boolean
   readonly unsigned: boolean
+  /** Whether an unsigned package keeps the official client branding instead of the local-build label. */
+  readonly officialBranding: boolean
   readonly skipNotarization: boolean
   readonly check: boolean
   /** Build identifier to publish under, when this build does not publish the product version. */
@@ -246,6 +248,7 @@ export function parseDesktopPackageInvocation(
       dir: { type: 'boolean', default: false },
       'prepare-only': { type: 'boolean', default: false },
       unsigned: { type: 'boolean', default: false },
+      'official-branding': { type: 'boolean', default: false },
       'skip-notarization': { type: 'boolean', default: false },
       check: { type: 'boolean', default: false },
       'build-version': { type: 'string' },
@@ -254,6 +257,9 @@ export function parseDesktopPackageInvocation(
   if (positionals.length > 1) throw new Error('desktop package: expected at most one target')
   const name = positionals[0] ?? hostTargetName(hostPlatform, hostArch)
   if (values.unsigned && values['prepare-only']) throw new Error('desktop package: --unsigned cannot use --prepare-only')
+  if (values['official-branding'] && !values.unsigned) {
+    throw new Error('desktop package: --official-branding requires --unsigned; signed packages already use official branding')
+  }
   // Linux has no signing, update feed, or release record, so only the unsigned packaging modes apply.
   if (name === 'linux-x64' && !values.unsigned && !values['prepare-only']) {
     throw new Error('desktop package: linux-x64 packages only with --unsigned')
@@ -270,6 +276,7 @@ export function parseDesktopPackageInvocation(
     directory: values.dir,
     prepareOnly: values['prepare-only'],
     unsigned: values.unsigned,
+    officialBranding: values['official-branding'],
     skipNotarization: values['skip-notarization'],
     check: values.check,
     requestedBuildVersion,
@@ -498,7 +505,8 @@ export async function packageTarget(
         { cwd: APP_ROOT, env: electronBuilderEnv, timeoutMs: 60_000 })
     })
   }
-  await execute(invocation.unsigned ? ['run', 'build', '--profile', 'local'] : ['run', 'build:official'], buildEnv, REPOSITORY_ROOT)
+  const unsignedProfile = invocation.officialBranding ? 'official' : 'local'
+  await execute(invocation.unsigned ? ['run', 'build', '--profile', unsignedProfile] : ['run', 'build:official'], buildEnv, REPOSITORY_ROOT)
   let preparationFailure: { error: unknown } | undefined
   const executePreparation = async (args: readonly string[], env: NodeJS.ProcessEnv, cwd?: string): Promise<void> => {
     if (preparationFailure !== undefined) throw preparationFailure.error
@@ -508,7 +516,7 @@ export async function packageTarget(
   const pack = async (): Promise<void> => {
     await executePreparation([
       ...(invocation.unsigned
-        ? ['exec', 'tsx', 'apps/desktop/scripts/pack-local-packages.ts']
+        ? ['exec', 'tsx', 'apps/desktop/scripts/pack-local-packages.ts', ...invocation.officialBranding ? ['--profile', 'official'] : []]
         : ['run', 'release:pack', '--family', 'dsh']),
       '--out', buildPaths.packedDsh, ...packArguments,
     ], buildEnv, REPOSITORY_ROOT)
