@@ -87,8 +87,11 @@ export function prepareRuntimePatches(
   for (const entry of selected) writeFileSync(join(projectRoot, entry.path), entry.bytes)
   writeFileSync(targetPath, yaml.dump({ ...target, overrides: { ...target.overrides, ...overrides },
     patchedDependencies: Object.fromEntries(selected.map(entry => [entry.spec, entry.path])), allowUnusedPatches: false }))
+  // A name that also has a selected patch may enter the runtime; verification then requires its version to match one.
+  const runtimeNames = new Set(selected.map(entry => entry.name))
   return { patches: selected.map(({ bytes: _bytes, ...entry }) => entry),
-    workspaceOnly: Object.entries(policy).filter(([, rule]) => rule.scope === 'workspace-only').map(([spec]) => patchIdentity(spec).name) }
+    workspaceOnly: Object.entries(policy).filter(([, rule]) => rule.scope === 'workspace-only')
+      .map(([spec]) => patchIdentity(spec).name).filter(name => !runtimeNames.has(name)) }
 }
 
 /**

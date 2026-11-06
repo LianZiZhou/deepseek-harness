@@ -1954,7 +1954,7 @@ export interface Config extends ProtocolConfig, ModelListingConfig {
 
 - `inject`: `llm`
 - `refs`: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/llm/llm-pi-ai/src/config.ts:251`](../packages/llm/llm-pi-ai/src/config.ts)
+- `source`: [`packages/llm/llm-pi-ai/src/config.ts:252`](../packages/llm/llm-pi-ai/src/config.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the provider routes this instance owns. */
@@ -2178,9 +2178,9 @@ export interface PiAiCompatProfile {
    * entry or from pi-ai's own baseURL detection, neither of which resolution
    * can read, so kwargs set beside another format are sent nowhere.
    */
-  chatTemplateKwargs?: NonNullable<OpenAICompletionsCompat['chatTemplateKwargs']>
+  chatTemplateKwargs?: Record<string, PiAiChatTemplateKwarg>
   /** Arguments sent as `chat_template_args` under the `baseten` thinking format; `openai-completions`. */
-  chatTemplateArgs?: NonNullable<OpenAICompletionsCompat['chatTemplateArgs']>
+  chatTemplateArgs?: Record<string, PiAiChatTemplateKwarg>
   /** Alias for `thinkingTokenBudgetField: "thinking_token_budget"`; an explicit field wins. `openai-completions`. */
   supportsThinkingTokenBudget?: boolean
   /** Request field carrying the reasoning budget from `thinkingBudgets`; omitted unless configured. `openai-completions`. */
@@ -2231,8 +2231,27 @@ export type PiAiReasoningEfforts = Partial<Record<ModelThinkingLevel, string | n
 /** One reasoning-dispatch wire format a profile may name. */
 export type PiAiThinkingFormat = NonNullable<OpenAICompletionsCompat['thinkingFormat']>
 
+/**
+ * One `chat_template_kwargs` or `chat_template_args` value as a profile spells
+ * it: pi-ai's `ChatTemplateKwargValue` without its optional members' explicit
+ * `undefined`. {@link ChatTemplateKwargMatchesUpstream} fails compilation when
+ * upstream adds a placeholder or a member.
+ */
+export type PiAiChatTemplateKwarg = string | number | boolean | null | PiAiChatTemplatePlaceholder
+
 /** The reasoning-budget field spellings pi-ai accepts. */
 export type PiAiThinkingTokenBudgetField = NonNullable<OpenAICompletionsCompat['thinkingTokenBudgetField']>
+
+/** A `chat_template_kwargs` or `chat_template_args` value that dispatch fills from the request's thinking state. */
+export interface PiAiChatTemplatePlaceholder {
+  /** The request-state value sent in this argument's place. */
+  $var: PiAiChatTemplateVar
+  /** Leave the argument out while the request has no reasoning effort; it is sent by default. */
+  omitWhenOff?: boolean
+}
+
+/** The request-state placeholders a `chat_template_kwargs` value may name. */
+export type PiAiChatTemplateVar = 'thinking.enabled' | 'thinking.effort' | 'thinking.budget'
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-pi-ai -->
 

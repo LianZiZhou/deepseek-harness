@@ -42,13 +42,15 @@ it('classifies the current workspace and shares only runtime patch bytes', () =>
   const repository = resolve(import.meta.dirname, '../../..')
   const before = readFileSync(join(repository, 'pnpm-lock.yaml'))
   const plan = prepareRuntimePatches(project, repository)
-  expect(plan.patches.map(entry => entry.spec)).toEqual(['@deepseek-ai/libreoffice-kit@0.1.5', '@earendil-works/pi-ai@1.3.0', 'node-pty@1.2.0-beta.15'])
+  expect(plan.patches.map(entry => entry.spec)).toEqual(['@deepseek-ai/libreoffice-kit@0.1.5', '@earendil-works/pi-ai@1.5.0', 'node-pty@1.2.0-beta.15'])
+  // pi-ai@1.3.0 is workspace-only, but its name stays allowed because 1.5.0 is shared.
   expect(plan.workspaceOnly).toHaveLength(10)
+  expect(plan.workspaceOnly).not.toContain('@earendil-works/pi-ai')
   expect(plan.workspaceOnly).toContain('@botiverse/oar')
   expect(plan.workspaceOnly).toContain('lexical')
   const settings = yaml.load(readFileSync(join(project, 'pnpm-workspace.yaml'), 'utf8')) as { overrides: Record<string, string> }
   expect(settings.overrides['@earendil-works/pi-ai']).toBeUndefined()
-  expect(settings.overrides['@earendil-works/pi-ai@^1.3.0']).toBe('1.3.0')
+  expect(settings.overrides['@earendil-works/pi-ai@^1.5.0']).toBe('1.5.0')
   expect(readFileSync(join(repository, 'pnpm-lock.yaml'))).toEqual(before)
   writeFileSync(join(project, 'pnpm-lock.yaml'), yaml.dump({
     patchedDependencies: Object.fromEntries(plan.patches.map(entry => [entry.spec, entry.hash])),
@@ -59,6 +61,26 @@ it('classifies the current workspace and shares only runtime patch bytes', () =>
   }))
   expect(() => { verifyRuntimePatches(project, plan) })
     .toThrow('workspace-only dependency entered the runtime: @botiverse/oar@0.67.0')
+})
+
+it('admits only the shared version of a package whose other version is workspace-only', () => {
+  const { source, project } = fixture()
+  const hash = createHash('sha256').update(patch).digest('hex')
+  writeFileSync(join(source, 'pnpm-workspace.yaml'), yaml.dump({
+    patchedDependencies: { 'fixture@1.0.0': 'shared.patch', 'fixture@2.0.0': 'shared.patch' },
+  }))
+  writeFileSync(join(source, 'pnpm-lock.yaml'), yaml.dump({ patchedDependencies: { 'fixture@1.0.0': hash, 'fixture@2.0.0': hash } }))
+  const plan = prepareRuntimePatches(project, source, { 'fixture@1.0.0': excluded, 'fixture@2.0.0': shared }, {})
+  expect(plan.patches.map(entry => entry.spec)).toEqual(['fixture@2.0.0'])
+  expect(plan.workspaceOnly).toEqual([])
+  const lockWith = (version: string): string => yaml.dump({
+    patchedDependencies: { 'fixture@2.0.0': hash },
+    packages: { [`fixture@${version}`]: {} },
+  })
+  writeFileSync(join(project, 'pnpm-lock.yaml'), lockWith('2.0.0'))
+  verifyRuntimePatches(project, plan)
+  writeFileSync(join(project, 'pnpm-lock.yaml'), lockWith('1.0.0'))
+  expect(() => { verifyRuntimePatches(project, plan) }).toThrow('fixture@1.0.0 has no matching patch')
 })
 
 it('does not infer version overrides from selected patches', () => {

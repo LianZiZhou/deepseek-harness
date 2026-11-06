@@ -151,9 +151,25 @@ const CACHE_CONTROL_FORMAT_GATE: Record<PiAiCacheControlFormat, true> = {
 export const CACHE_CONTROL_FORMATS = Object.keys(CACHE_CONTROL_FORMAT_GATE) as readonly PiAiCacheControlFormat[]
 
 /** The request-state placeholders a `chat_template_kwargs` value may name. */
-export type PiAiChatTemplateVar = Extract<ChatTemplateKwargValue, { $var: string }>['$var']
+export type PiAiChatTemplateVar = 'thinking.enabled' | 'thinking.effort' | 'thinking.budget'
 
-/** Drift gate over {@link PiAiChatTemplateVar}; a new upstream placeholder fails compilation until named. */
+/** A `chat_template_kwargs` or `chat_template_args` value that dispatch fills from the request's thinking state. */
+export interface PiAiChatTemplatePlaceholder {
+  /** The request-state value sent in this argument's place. */
+  $var: PiAiChatTemplateVar
+  /** Leave the argument out while the request has no reasoning effort; it is sent by default. */
+  omitWhenOff?: boolean
+}
+
+/**
+ * One `chat_template_kwargs` or `chat_template_args` value as a profile spells
+ * it: pi-ai's `ChatTemplateKwargValue` without its optional members' explicit
+ * `undefined`. {@link ChatTemplateKwargMatchesUpstream} fails compilation when
+ * upstream adds a placeholder or a member.
+ */
+export type PiAiChatTemplateKwarg = string | number | boolean | null | PiAiChatTemplatePlaceholder
+
+/** Every {@link PiAiChatTemplateVar}, so {@link CHAT_TEMPLATE_VARS} lists each one. */
 const CHAT_TEMPLATE_VAR_GATE: Record<PiAiChatTemplateVar, true> = {
   'thinking.enabled': true,
   'thinking.effort': true,
@@ -500,9 +516,9 @@ export interface PiAiCompatProfile {
    * entry or from pi-ai's own baseURL detection, neither of which resolution
    * can read, so kwargs set beside another format are sent nowhere.
    */
-  chatTemplateKwargs?: NonNullable<OpenAICompletionsCompat['chatTemplateKwargs']>
+  chatTemplateKwargs?: Record<string, PiAiChatTemplateKwarg>
   /** Arguments sent as `chat_template_args` under the `baseten` thinking format; `openai-completions`. */
-  chatTemplateArgs?: NonNullable<OpenAICompletionsCompat['chatTemplateArgs']>
+  chatTemplateArgs?: Record<string, PiAiChatTemplateKwarg>
   /** Alias for `thinkingTokenBudgetField: "thinking_token_budget"`; an explicit field wins. `openai-completions`. */
   supportsThinkingTokenBudget?: boolean
   /** Request field carrying the reasoning budget from `thinkingBudgets`; omitted unless configured. `openai-completions`. */
@@ -556,6 +572,23 @@ export type EveryOfferedFieldIsDocumented = AssertNever<Exclude<OfferedCompatFie
 /** Compile-time constraint that `T` is `true`. */
 type AssertTrue<T extends true> = T
 
+/**
+ * `T` with `| undefined` removed from every optional member, recursively.
+ * pi-ai's schema types spell an optional member `x?: V | undefined`; profile
+ * types, compiled with `exactOptionalPropertyTypes`, spell it `x?: V`, and a
+ * configuration value never stores an explicit `undefined`.
+ */
+type DefinedOptionals<T> = T extends readonly unknown[] ? T
+  : T extends object ? { [K in keyof T]: DefinedOptionals<Exclude<T[K], undefined>> }
+    : T
+
+/** Proof that {@link PiAiChatTemplateKwarg} restates pi-ai's value type in both directions. */
+export type ChatTemplateKwargMatchesUpstream = AssertTrue<
+  PiAiChatTemplateKwarg extends DefinedOptionals<ChatTemplateKwargValue>
+    ? DefinedOptionals<ChatTemplateKwargValue> extends PiAiChatTemplateKwarg ? true : false
+    : false
+>
+
 /** Every compat type a gate classifies, merged so one `Pick` reaches all offered fields. */
 type UpstreamCompat = OpenAICompletionsCompat & OpenAIResponsesCompat & AnthropicMessagesCompat & BedrockCompat & MistralConversationsCompat
 
@@ -569,8 +602,8 @@ type UpstreamCompat = OpenAICompletionsCompat & OpenAIResponsesCompat & Anthropi
  * union would otherwise leave configuration silently behind.
  */
 export type EveryProfileFieldMatchesUpstream = AssertTrue<
-  PiAiCompatProfile extends Partial<Pick<UpstreamCompat, OfferedCompatField>>
-    ? Partial<Pick<UpstreamCompat, OfferedCompatField>> extends PiAiCompatProfile ? true : false
+  PiAiCompatProfile extends DefinedOptionals<Partial<Pick<UpstreamCompat, OfferedCompatField>>>
+    ? DefinedOptionals<Partial<Pick<UpstreamCompat, OfferedCompatField>>> extends PiAiCompatProfile ? true : false
     : false
 >
 
