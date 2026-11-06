@@ -1184,11 +1184,11 @@ describe('hand-declared providers', () => {
   })
 
   it.each([
-    ['blocks a hand-declared route', true],
-    ['leaves a catalog route to the adapter', false],
-  ])('%s whose stored reasoning levels the adapter refuses', async (_label, declared) => {
-    // Only a hand-declared route's rows edit reasoning levels, so only there
-    // can the card name the row and offer the switch that repairs it.
+    ['a hand-declared', true],
+    ['a catalog', false],
+  ])('blocks %s route whose stored reasoning levels the adapter refuses', async (_label, declared) => {
+    // Every pi-ai route's rows edit reasoning levels, so the card names the
+    // row and offers the modes that repair it.
     await mountSection({
       providers: {
         'acme-gateway': {
@@ -1200,9 +1200,11 @@ describe('hand-declared providers', () => {
     })
     openEditor('acme-gateway')
 
-    const refusal = `${en.model} 1: ${en.modelReasoningNeedsLevel}`
-    expect(screen.queryByText(refusal) !== null).toBe(declared)
-    expect(buttonNamed(en.apply).disabled).toBe(declared)
+    expect(screen.getByText(`${en.model} 1: ${en.modelReasoningNeedsLevel}`)).toBeTruthy()
+    expect(buttonNamed(en.apply).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: `${en.modelAdvanced} 1` }))
+    fireEvent.click(screen.getByRole('tab', { name: en.modelReasoningAuto }))
+    expect(buttonNamed(en.apply).disabled).toBe(false)
   })
 
   it('retries only the key after the profile landed, and reports the provider on cancel', async () => {

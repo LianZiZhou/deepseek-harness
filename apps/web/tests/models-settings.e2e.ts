@@ -313,9 +313,9 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     expect(await custom.getByLabel('最大输出 token 数 1').getAttribute('placeholder')).toBe('128K')
     expect(await custom.getByRole('group', { name: '输入类型 1' }).getByRole('checkbox', { name: '图片' }).isChecked()).toBe(false)
     await custom.getByRole('group', { name: '输入类型 1' }).getByRole('checkbox', { name: '图片' }).check()
-    // The switch seeds off, low, medium, and high rows; this route serves no medium.
+    // Custom seeds off, low, medium, and high rows; this route serves no medium.
     const reasoning = custom.getByRole('group', { name: '推理等级 1' })
-    await reasoning.getByRole('switch', { name: '推理等级 1' }).click()
+    await reasoning.getByRole('tab', { name: '自定义' }).click()
     await reasoning.getByRole('button', { name: '删除档位 medium', exact: true }).click()
     await custom.getByRole('button', { name: '创建提供商', exact: true }).click()
 
@@ -491,6 +491,10 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
       const image = types.getByRole('checkbox', { name: '图片', exact: true })
       await expect.poll(() => image.isChecked()).toBe(true)
       expect(await types.getByRole('checkbox', { name: '文本', exact: true }).isChecked()).toBe(true)
+      // A catalog route's rows edit reasoning levels too; Automatic keeps the
+      // installed entry's levels, so saving below writes nothing.
+      const reasoning = dialog.getByRole('group', { name: '推理等级 1' })
+      expect(await reasoning.getByRole('tab', { name: '自动' }).getAttribute('aria-selected')).toBe('true')
       const before = await readFile(join(scaffold.harnessHome, 'profiles', 'scaffold', 'cordis.patch.yml'), 'utf8')
       await compareOrRefreshGolden(join(SNAPSHOT_DIR, 'catalog-inputs.expected.md'),
         await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd), MODE)

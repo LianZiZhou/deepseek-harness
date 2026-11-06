@@ -5,6 +5,7 @@
     - button "模型"
     - button "内置插件"
     - button "Agent 预设"
+    - button "提示词预设"
   - button "打开配置文件"
   - button "关闭"
   - heading "模型" [level=2]
@@ -20,3 +21,45 @@
       - button "编辑 Acme Gateway (acme-gateway)": 编辑
       - button "删除 Acme Gateway (acme-gateway)": 删除
   - button "添加模型提供商"
+  - region "登录":
+    - heading "登录" [level=3]
+    - paragraph: 以下提供方通过浏览器登录签发凭据，而不是由你自己持有的 API 密钥。
+    - list:
+      - listitem:
+        - text: Anthropic llm-pi-ai/anthropic
+        - button "Anthropic (Claude Pro/Max)"
+        - button "Anthropic API key"
+      - listitem:
+        - text: GitHub Copilot llm-pi-ai/github-copilot
+        - button "GitHub Copilot"
+        - button "GitHub Copilot token"
+      - listitem:
+        - text: Kimi For Coding llm-pi-ai/kimi-coding
+        - button "Sign in with Kimi Code"
+        - button "Kimi API key"
+      - listitem:
+        - text: Meta llm-pi-ai/meta
+        - button "Sign in with Meta"
+        - button "Meta Model API key"
+      - listitem:
+        - text: OpenAI Codex (legacy) llm-pi-ai/openai-codex
+        - button "OpenAI (ChatGPT Plus/Pro)"
+      - listitem:
+        - text: OpenRouter llm-pi-ai/openrouter
+        - button "Sign in with OpenRouter"
+        - button "OpenRouter API key"
+      - listitem:
+        - text: Radius llm-pi-ai/radius
+        - button "Radius"
+        - button "Radius API key"
+      - listitem:
+        - text: xAI llm-pi-ai/xai
+        - button "Sign in with SuperGrok or X Premium"
+        - button "xAI API key"
+      - listitem:
+        - text: Z.AI llm-pi-ai/zai
+        - button "Sign in with Z.AI (GLM Coding Plan)"
+        - button "Z.AI API key"
+      - listitem:
+        - text: DeepSeek deepseek-account-platform/default
+        - button "DeepSeek"

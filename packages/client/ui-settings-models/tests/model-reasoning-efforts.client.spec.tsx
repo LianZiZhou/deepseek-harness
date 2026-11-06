@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** Reasoning levels of hand-declared pi-ai models: echo, level rows, API values, refusals, and placement. */
+/** Reasoning levels of pi-ai models: modes, echo, level rows, API values, refusals, and placement. */
 import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -33,7 +33,9 @@ function renderGroup(initial: DeepSeekModelDraft, options: { disabled?: boolean;
   return { writes, efforts: () => writes.at(-1)?.['reasoningEfforts'] }
 }
 
-const toggle = () => screen.getByRole('switch', { name: `${en.modelReasoning} 1` })
+const MODE_NAMES = { auto: en.modelReasoningAuto, none: en.modelReasoningNone, custom: en.modelReasoningCustom }
+const mode = (name: keyof typeof MODE_NAMES) => screen.getByRole<HTMLButtonElement>('tab', { name: MODE_NAMES[name] })
+const selectedMode = () => screen.getByRole('tab', { selected: true }).textContent
 const levels = () => screen.queryAllByRole<HTMLSelectElement>('combobox').map(select => select.value)
 const select = (row: number) => screen.getByRole<HTMLSelectElement>('combobox', { name: `${en.modelReasoningLevel} ${String(row)}` })
 const value = (level: string) => screen.getByRole<HTMLInputElement>('textbox', { name: `${level} ${en.modelReasoningValue}` })
@@ -43,18 +45,20 @@ const entriesOf = (efforts: unknown) => Object.entries(efforts as object)
 
 describe('ModelReasoningEfforts', () => {
   it.each([
-    ['absent', { id: 'chat' }],
-    ['false', { id: 'chat', reasoningEfforts: false }],
-  ])('shows a model whose field is %s as switched off without writing', (_label, model) => {
+    ['absent as Automatic', { id: 'chat' }, en.modelReasoningAuto, en.modelReasoningAutoHint],
+    ['false as None', { id: 'chat', reasoningEfforts: false }, en.modelReasoningNone, en.modelReasoningNoneHint],
+  ])('shows a model whose field is %s without writing', (_label, model, selected, hint) => {
     const { writes } = renderGroup(model)
-    expect(toggle().getAttribute('aria-checked')).toBe('false')
+    expect(selectedMode()).toBe(selected)
+    expect(screen.getByRole('tabpanel', { name: selected }).textContent).toBe(hint)
     expect(levels()).toEqual([])
+    expect(screen.queryByRole('button', { name: en.modelReasoningAdd })).toBeNull()
     expect(writes).toEqual([])
   })
 
   it('echoes stored levels in their stored order with their API values', () => {
     renderGroup({ id: 'gateway', reasoningEfforts: { off: null, max: 'ultra', high: 'high' } })
-    expect(toggle().getAttribute('aria-checked')).toBe('true')
+    expect(selectedMode()).toBe(en.modelReasoningCustom)
     expect(screen.getByRole('button', { name: en.modelReasoningHelp })).toBeTruthy()
     expect(levels()).toEqual(['off', 'max', 'high'])
     expect(value('off').value).toBe('')
@@ -67,21 +71,34 @@ describe('ModelReasoningEfforts', () => {
     expect(screen.queryByText(en.modelReasoningValueRequired)).toBeNull()
   })
 
-  it('turns on with off, low, medium, and high while keeping other fields', () => {
+  it('starts Custom with off, low, medium, and high while keeping other fields', () => {
     const { writes } = renderGroup({ id: 'chat', contextWindow: 131072, compat: { supportsDeveloperRole: false } })
-    fireEvent.click(toggle())
+    fireEvent.click(mode('custom'))
     expect(writes.at(-1)).toEqual({
       id: 'chat', contextWindow: 131072, compat: { supportsDeveloperRole: false }, reasoningEfforts: DEFAULTS,
     })
     expect(levels()).toEqual(['off', 'low', 'medium', 'high'])
   })
 
-  it('declares a non-reasoning model when switched off and starts from the defaults when switched back on', () => {
-    const { writes } = renderGroup({ id: 'chat', reasoningEfforts: { off: 'none', high: 'deep' } })
-    fireEvent.click(toggle())
-    expect(writes[0]).toEqual({ id: 'chat', reasoningEfforts: false })
-    fireEvent.click(toggle())
-    expect(writes[1]).toEqual({ id: 'chat', reasoningEfforts: DEFAULTS })
+  it('stores false for None, removes the field for Automatic, and restarts Custom from the defaults', () => {
+    const { writes } = renderGroup({ id: 'chat', contextWindow: 131072, reasoningEfforts: { off: 'none', high: 'deep' } })
+    fireEvent.click(mode('none'))
+    expect(writes[0]).toEqual({ id: 'chat', contextWindow: 131072, reasoningEfforts: false })
+    fireEvent.click(mode('auto'))
+    expect(writes[1]).toEqual({ id: 'chat', contextWindow: 131072 })
+    expect('reasoningEfforts' in (writes[1] as object)).toBe(false)
+    fireEvent.click(mode('custom'))
+    expect(writes[2]).toEqual({ id: 'chat', contextWindow: 131072, reasoningEfforts: DEFAULTS })
+  })
+
+  it('controls one labelled panel per mode and shows only the selected one', () => {
+    renderGroup({ id: 'chat', reasoningEfforts: false })
+    const panels = screen.getAllByRole('tabpanel', { hidden: true })
+    expect(panels.map(panel => panel.hidden)).toEqual([true, false, true])
+    for (const name of ['auto', 'none', 'custom'] as const) {
+      const panel = document.getElementById(mode(name).getAttribute('aria-controls') ?? '')
+      expect(panel?.getAttribute('aria-labelledby')).toBe(mode(name).id)
+    }
   })
 
   it('appends the next unused level above the highest row, then the lowest unused one', () => {
@@ -152,9 +169,9 @@ describe('ModelReasoningEfforts', () => {
     expect(writes).toEqual([])
   })
 
-  it('shows a valueless field as switched on with no levels, which the adapter refuses', () => {
+  it('shows a valueless field as Custom with no levels, which the adapter refuses', () => {
     const { writes } = renderGroup({ id: 'chat', reasoningEfforts: null })
-    expect(toggle().getAttribute('aria-checked')).toBe('true')
+    expect(selectedMode()).toBe(en.modelReasoningCustom)
     expect(levels()).toEqual([])
     expect(screen.getByText(en.modelReasoningNeedsLevel)).toBeTruthy()
     fireEvent.click(add())
@@ -175,7 +192,7 @@ describe('ModelReasoningEfforts', () => {
 
   it('offers the levels it is given, seeding only the defaults the list names', () => {
     const { efforts } = renderGroup({ id: 'gateway' }, { levels: ['off', 'low', 'high', 'ultra'] })
-    fireEvent.click(toggle())
+    fireEvent.click(mode('custom'))
     expect(entriesOf(efforts())).toEqual([['off', null], ['low', 'low'], ['high', 'high']])
     expect([...select(3).options].map(option => option.value)).toEqual(['high', 'ultra'])
     fireEvent.click(add())
@@ -193,12 +210,12 @@ describe('ModelReasoningEfforts', () => {
 
   it('disables every control while read-only or saving', () => {
     const { writes } = renderGroup({ id: 'chat', reasoningEfforts: { high: 'deep' } }, { disabled: true })
-    expect((toggle() as HTMLButtonElement).disabled).toBe(true)
+    for (const name of ['auto', 'none', 'custom'] as const) expect(mode(name).disabled).toBe(true)
     expect(select(1).disabled).toBe(true)
     expect(value('high').disabled).toBe(true)
     expect(remove('high').disabled).toBe(true)
     expect(add().disabled).toBe(true)
-    toggle().click()
+    mode('none').click()
     remove('high').click()
     add().click()
     expect(writes).toEqual([])
@@ -233,7 +250,7 @@ describe('reasoning-level validation', () => {
     expect(validateReasoningEfforts(undefined)).toBeUndefined()
   })
 
-  it('stays out of the shared model checker that DeepSeek and catalog rows use', () => {
+  it('stays out of the shared model checker that DeepSeek rows use', () => {
     expect(validateDeepSeekModels([{ id: 'chat', reasoningEfforts: { off: null } }])).toBeUndefined()
   })
 })
@@ -262,10 +279,10 @@ describe('reasoning levels in the model list', () => {
     return { writes }
   }
 
-  it('edits a hand-declared route row', () => {
+  it('edits a row given the levels', () => {
     const { writes } = renderList([{ id: 'my-reasoner' }])
     fireEvent.click(screen.getByRole('button', { name: `${en.modelAdvanced} 1` }))
-    fireEvent.click(toggle())
+    fireEvent.click(mode('custom'))
     expect(writes.at(-1)).toEqual([{ id: 'my-reasoner', reasoningEfforts: DEFAULTS }])
   })
 
@@ -275,21 +292,23 @@ describe('reasoning levels in the model list', () => {
     fireEvent.click(screen.getByRole('button', { name: `${en.modelAdvanced} 1` }))
     fireEvent.click(screen.getByRole('button', { name: `${en.modelAdvanced} 2` }))
     const first = within(screen.getByRole('group', { name: `${en.modelReasoning} 1` }))
-    fireEvent.click(first.getByRole('switch'))
+    fireEvent.click(first.getByRole('tab', { name: en.modelReasoningCustom }))
     fireEvent.click(first.getByRole('button', { name: `${en.modelReasoningRemove} medium` }))
     fireEvent.change(first.getByRole('textbox', { name: `high ${en.modelReasoningValue}` }), { target: { value: 'deep' } })
-    fireEvent.click(first.getByRole('switch'))
+    fireEvent.click(first.getByRole('tab', { name: en.modelReasoningNone }))
     fireEvent.click(screen.getByRole('button', { name: `${en.removeModel} 1` }))
     expect(writes.at(-1)).toEqual([{ id: 'b' }])
 
-    fireEvent.click(within(screen.getByRole('group', { name: `${en.modelReasoning} 1` })).getByRole('switch'))
+    const survivor = within(screen.getByRole('group', { name: `${en.modelReasoning} 1` }))
+    expect(survivor.getByRole('tab', { selected: true }).textContent).toBe(en.modelReasoningAuto)
+    fireEvent.click(survivor.getByRole('tab', { name: en.modelReasoningCustom }))
     expect(writes.at(-1)).toEqual([{ id: 'b', reasoningEfforts: DEFAULTS }])
   })
 
   it.each([
     ['without a level list', undefined],
     ['with an empty level list', []],
-  ])('shows no reasoning control %s, leaving catalog rows to the installed catalog', (_label, reasoningLevels) => {
+  ])('shows no reasoning control %s', (_label, reasoningLevels) => {
     render(<ModelListEditor
       models={[{ id: 'gpt-5' }]} onChange={vi.fn()} catalogProvider="openai" reasoningLevels={reasoningLevels}
       probe={{ settingsNs: 'llm-pi-ai', provider: 'openai' }}
@@ -297,6 +316,6 @@ describe('reasoning levels in the model list', () => {
     />)
     fireEvent.click(screen.getByRole('button', { name: `${en.modelAdvanced} 1` }))
     expect(screen.getByRole('group', { name: `${en.modelInputTypes} 1` })).toBeTruthy()
-    expect(screen.queryByRole('switch', { name: `${en.modelReasoning} 1` })).toBeNull()
+    expect(screen.queryByRole('group', { name: `${en.modelReasoning} 1` })).toBeNull()
   })
 })

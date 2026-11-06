@@ -20,9 +20,9 @@
  * There is deliberately no provider-scoped reasoning-effort control, here or
  * on the editor card: effort is a per-MODEL capability, and the models under
  * one provider disagree about it, so a provider-scoped control can only be set
- * to a value some of them reject. Each model row of a hand-declared route
- * declares its own `reasoningEfforts` instead, and the composer's model picker
- * offers each model those levels.
+ * to a value some of them reject. Each model row of a pi-ai route declares
+ * its own `reasoningEfforts` instead, and the composer's model picker offers
+ * each model those levels.
  */
 
 import { useEffect, useState } from 'react'

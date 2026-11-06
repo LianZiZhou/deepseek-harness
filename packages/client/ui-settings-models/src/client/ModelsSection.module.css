@@ -709,9 +709,22 @@
 
 .modelReasoningHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.modelReasoningPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The display above would otherwise override the hidden attribute. */
+.modelReasoningPanel[hidden] {
+  display: none;
 }
 
 /* Level select, API value, and delete action; the column labels share the grid. */
