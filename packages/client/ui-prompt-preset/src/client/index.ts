@@ -27,7 +27,7 @@ import { PromptPresetSeat } from './PromptPresetSeat.tsx'
 import type { PromptPresetSeatInjected } from './PromptPresetSeat.tsx'
 import { PromptPresetSectionController } from './section-store.ts'
 import { PromptPresetSeatController } from './seat-store.ts'
-import { en, zh, type PromptPresetKey } from './locales.ts'
+import { de, en, es, fr, ja, pt, ru, zh, type PromptPresetKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -73,7 +73,7 @@ export function apply(ctx: ClientContext): void {
     return seat
   }
 
-  ctx.effect(() => ctx.locale.register('settings.promptPreset', { zh, en }),
+  ctx.effect(() => ctx.locale.register('settings.promptPreset', { zh, en, ja, es, fr, de, ru, pt }),
     'ui-prompt-preset: dictionaries')
 
   ctx.effect(() => {

@@ -71,6 +71,44 @@ function toggleSection(sections: readonly string[], name: string): string[] {
   return sections.includes(name) ? sections.filter(entry => entry !== name) : [...sections, name]
 }
 
+/** The rule kinds that carry text and may interpolate variables into it. */
+type TextRule = Extract<PromptRule, { kind: 'prepend' | 'append' | 'replace' | 'insert' }>
+
+/**
+ * The text field and interpolation checkbox every text-carrying rule shows.
+ * @param props - the rule, its change callback, the field's height, whether the text is the refused field, and localized copy.
+ * @returns the text field followed by its checkbox.
+ */
+function RuleText({ rule, onChange, rows, invalid, disabled, t }: {
+  rule: TextRule
+  onChange: (rule: PromptRule) => void
+  rows: number
+  invalid: boolean
+  disabled: boolean
+  t: TranslateNS<'settings.promptPreset'>
+}) {
+  return (
+    <>
+      <TextArea
+        value={rule.text}
+        onChange={(text) => { onChange({ ...rule, text }) }}
+        ariaLabel={t('rule.field.text')}
+        placeholder={t('rule.field.textPlaceholder')}
+        rows={rows}
+        maxRows={24}
+        invalid={invalid}
+        disabled={disabled}
+      />
+      <Checkbox
+        checked={rule.interpolate === true}
+        onChange={(interpolate) => { onChange({ ...rule, interpolate }) }}
+        label={t('rule.field.interpolate')}
+        disabled={disabled}
+      />
+    </>
+  )
+}
+
 /**
  * Render the fields one rule kind owns.
  * @param props - the rule, its change callback, and localized copy.
@@ -83,21 +121,13 @@ export function RuleFields({ rule, onChange, disabled, sectionNames, t }: RuleFi
   if (rule.kind === 'prepend' || rule.kind === 'append' || rule.kind === 'replace') {
     return (
       <div className={css.fields}>
-        <TextArea
-          value={rule.text}
-          onChange={(text) => { onChange({ ...rule, text }) }}
-          ariaLabel={t('rule.field.text')}
-          placeholder={t('rule.field.textPlaceholder')}
+        <RuleText
+          rule={rule}
+          onChange={onChange}
           rows={rule.kind === 'replace' ? 6 : 3}
-          maxRows={24}
           invalid={message !== undefined}
           disabled={disabled}
-        />
-        <Checkbox
-          checked={rule.interpolate === true}
-          onChange={(interpolate) => { onChange({ ...rule, interpolate }) }}
-          label={t('rule.field.interpolate')}
-          disabled={disabled}
+          t={t}
         />
         {message !== undefined && <p className={css.error} role="alert">{message}</p>}
       </div>
@@ -126,21 +156,13 @@ export function RuleFields({ rule, onChange, disabled, sectionNames, t }: RuleFi
           disabled={disabled}
           onPick={(after) => { onChange({ ...rule, after }) }}
         />
-        <TextArea
-          value={rule.text}
-          onChange={(text) => { onChange({ ...rule, text }) }}
-          ariaLabel={t('rule.field.text')}
-          placeholder={t('rule.field.textPlaceholder')}
+        <RuleText
+          rule={rule}
+          onChange={onChange}
           rows={3}
-          maxRows={24}
           invalid={message !== undefined && rule.after.trim() !== ''}
           disabled={disabled}
-        />
-        <Checkbox
-          checked={rule.interpolate === true}
-          onChange={(interpolate) => { onChange({ ...rule, interpolate }) }}
-          label={t('rule.field.interpolate')}
-          disabled={disabled}
+          t={t}
         />
         {message !== undefined && <p className={css.error} role="alert">{message}</p>}
       </div>

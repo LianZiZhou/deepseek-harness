@@ -615,6 +615,8 @@ export default class PromptPresetStore extends TypertRemoteService {
       this.checkId(promptPreset)
       this.checkExists(promptPreset)
     }
+    /* jscpd:ignore-start -- the per-agent switch queue matches the agent-preset
+       registry's; each service owns its own switch state and no shared package does. */
     const queued = this.switches.get(agent.id) ?? Promise.resolve()
     const turn = queued.then(() => this.swap(agent, promptPreset))
     const guard = turn.catch(() => undefined)
@@ -624,6 +626,7 @@ export default class PromptPresetStore extends TypertRemoteService {
     } finally {
       if (this.switches.get(agent.id) === guard) this.switches.delete(agent.id)
     }
+    /* jscpd:ignore-end */
   }
 
   /**

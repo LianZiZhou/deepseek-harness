@@ -197,5 +197,14 @@ describe('the sign-in controller', () => {
     second.settle({ ok: false, error: new Error('thrown') } as never)
     await running2
     expect(other.attempt(KEY).error).toBe('thrown')
+
+    for (const [carried, shown] of [[{ message: 'serialized' }, 'serialized'], [null, 'null'], [{ code: 7 }, '[object Object]']] as const) {
+      const api3 = remote()
+      const third = new SignInStore(api3)
+      const running3 = third.begin(KEY)
+      api3.settle({ ok: false, error: carried } as never)
+      await running3
+      expect(third.attempt(KEY).error).toBe(shown)
+    }
   })
 })

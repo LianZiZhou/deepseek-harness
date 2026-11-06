@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Gestion des préréglages de prompt",
+    "description": "Enregistre les préréglages de l’utilisateur qui modifient le prompt système et applique celui choisi à chaque tâche."
+  }
+}

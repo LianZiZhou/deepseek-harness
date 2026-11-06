@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Comando de continuar",
+    "description": "Adiciona o comando /continue, que retoma um turno interrompido sem uma nova mensagem."
+  }
+}

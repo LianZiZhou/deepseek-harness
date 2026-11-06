@@ -22,6 +22,7 @@ import { credentialKey } from '@deepseek-ai/dsh-credentials'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 import { z } from 'zod'
+import { parseRequest } from './credentials.ts'
 import type { AuthorizationEntryView, AuthorizationOutcomeView } from './types.ts'
 
 /** The credential-key grammar, which is also the flow key a page may address. */
@@ -43,15 +44,6 @@ interface PendingPrompt {
   readonly resolve: (value: string) => void
   /** Tell the flow the human said no, or that the page gave up. */
   readonly reject: (error: Error) => void
-}
-
-/** Parse the domain constraints that are more specific than generated TypeScript codecs. */
-function parseRequest<T>(method: string, schema: z.ZodType<T>, value: unknown): T {
-  const parsed = schema.safeParse(value)
-  if (!parsed.success) {
-    throw new RemoteError('gateway/bad-request', `invalid payload for ${method}`, { issues: parsed.error.issues })
-  }
-  return parsed.data
 }
 
 declare module '@deepseek-ai/cordis' {

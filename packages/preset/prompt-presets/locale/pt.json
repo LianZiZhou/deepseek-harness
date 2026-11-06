@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Gerenciamento de predefinições de prompt",
+    "description": "Armazena as predefinições do usuário que alteram o prompt do sistema e aplica a escolhida a cada tarefa."
+  }
+}

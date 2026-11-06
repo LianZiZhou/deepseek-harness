@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "继续命令",
+    "description": "提供 /continue 命令，无需新消息即可继续被中断的回合。"
+  }
+}

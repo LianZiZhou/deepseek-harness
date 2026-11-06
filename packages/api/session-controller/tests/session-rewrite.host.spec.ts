@@ -191,6 +191,29 @@ describe('session.rewrite', () => {
     await ctx.fiber.dispose()
   })
 
+  it('reports a missing or workspace-less stored log as not found and passes other read failures through', async () => {
+    const { ctx, stored, replace } = await composed()
+    const rewrite = async (id: SessionId) => (await remote(ctx)).rewrite({ sessionId: id, expectedCursor: 5, throughSeq: 1, edits: [] })
+    expect(await rewrite(sid('never-stored'))).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+
+    const special = sid('no-cwd')
+    storeConversation(stored, special)
+    const entry = stored.get(special)!
+    const { cwd, ...meta } = entry.meta
+    expect(cwd).toBe('/proj')
+    stored.set(special, { ...entry, meta })
+    expect(await rewrite(special)).toMatchObject({ ok: false, error: { code: 'session/not-found' } })
+
+    const unreadable = sid('unreadable')
+    storeConversation(stored, unreadable)
+    vi.spyOn(ctx.sessionQuery, 'observeSession').mockRejectedValueOnce(new Error('log unreadable'))
+    const failed = await rewrite(unreadable)
+    expect(failed).toMatchObject({ ok: false, error: { code: 'gateway/internal' } })
+    if (!failed.ok) expect(failed.error.message).toMatch(/log unreadable/)
+    expect(replace).not.toHaveBeenCalled()
+    await ctx.fiber.dispose()
+  })
+
   it('maps an invalid edit to session/rewrite-invalid', async () => {
     const { ctx, stored } = await composed()
     const id = sid('invalid')

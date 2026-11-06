@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Fortsetzen-Befehl",
+    "description": "Fügt den Befehl /continue hinzu, der eine unterbrochene Runde ohne neue Nachricht fortsetzt."
+  }
+}

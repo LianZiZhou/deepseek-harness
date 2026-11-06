@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Commande de reprise",
+    "description": "Ajoute la commande /continue, qui reprend un tour interrompu sans nouveau message."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Gestión de preajustes de prompt",
+    "description": "Guarda los preajustes del usuario que modifican el prompt del sistema y aplica el elegido a cada tarea."
+  }
+}

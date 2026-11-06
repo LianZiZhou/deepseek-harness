@@ -45,7 +45,8 @@ function evaluateCondition(expression: string, cancelled: boolean, results: stri
     always: () => true,
     contains: (values: string[], value: string) => values.includes(value),
     results,
-    github: { event_name: event },
+    // Upstream's verdicts; forks accept skipped runner-pool jobs (ci-workflow.spec.ts).
+    github: { event_name: event, repository: 'deepseek-harness/deepseek-harness' },
   }, { timeout: 1000 }) as boolean
 }
 

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Verwaltung von Prompt-Voreinstellungen",
+    "description": "Speichert die Voreinstellungen des Benutzers, die den Systemprompt ändern, und wendet die gewählte auf jede Aufgabe an."
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Z.AI GLM Coding Plan サインイン",
+    "description": "ブラウザで Z.AI GLM Coding Plan にサインインし、モデル呼び出しに使う API キーを取得します。"
+  }
+}
