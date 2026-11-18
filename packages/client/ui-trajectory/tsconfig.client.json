@@ -37,7 +37,7 @@
       "path": "../../api/remotes/tsconfig.client.json"
     },
     {
-      "path": "../ui-workspace"
+      "path": "../ui-workspace/tsconfig.client.json"
     },
     {
       "path": "../../core/agent"

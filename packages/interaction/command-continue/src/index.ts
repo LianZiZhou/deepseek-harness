@@ -6,8 +6,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { resumeDecision } from '@deepseek-ai/dsh-agent'
-import { CommandDefinitionId } from '@deepseek-ai/dsh-commands/brand'
-import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
+import { CommandDefinitionId, type CommandInvocation, type CommandResult } from '@deepseek-ai/dsh-commands'
 
 export const name = 'command-continue'
 export const inject = ['commands']

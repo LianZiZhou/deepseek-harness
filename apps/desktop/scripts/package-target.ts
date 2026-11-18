@@ -7,7 +7,8 @@ import { join, resolve } from 'node:path'
 import {
   desktopBuildRecordFilename,
   resolveDesktopAutoUpdateConfig,
-} from './desktop-auto-update-environment.mjs'
+} from '@deepseek-ai/dsh-desktop-publisher/desktop-auto-update-environment.mjs'
+import { resolveDesktopPackageDeployment } from './desktop-package-feed.mjs'
 import { desktopArtifactOutput, desktopTargetBuildPaths } from './desktop-build-paths.mjs'
 import { packageMacOSArtifacts, type DesktopPrepackagedArtifact } from './package-macos.ts'
 import { loadDesktopPackageEnvironment, localMacOSPackageEnvironment, validateDesktopPackageEnvironment } from './desktop-package-environment.mjs'
@@ -260,7 +261,7 @@ export function parseDesktopPackageInvocation(
   if (values['official-branding'] && !values.unsigned) {
     throw new Error('desktop package: --official-branding requires --unsigned; signed packages already use official branding')
   }
-  // Linux has no signing, update feed, or release record, so only the unsigned packaging modes apply.
+  // AppImage packaging uses the unsigned output directory and has no COS publication record.
   if (name === 'linux-x64' && !values.unsigned && !values['prepare-only']) {
     throw new Error('desktop package: linux-x64 packages only with --unsigned')
   }
@@ -357,8 +358,8 @@ async function resolveRequestedBuildVersion(
   const paths = desktopTargetBuildPaths(invocation.target.name, environment)
   return suggestDesktopBuildVersion({
     productVersion, target: invocation.target.name,
-    // Machine presets own packaging, not upload credentials; local auto numbering uses existing artifacts.
-    environment: environment.DSH_PACKAGING_PRESET === undefined ? environment : {},
+    // Only file-configured COS builds can consult the remote bucket for an unused version.
+    environment: environment.DSH_PACKAGING_PRESET === undefined && resolveDesktopPackageDeployment(environment) !== 'fork' ? environment : {},
     // Unsigned builds land beside the signed output, so numbering has to read the directory this run writes.
     artifactsRoot: desktopArtifactOutput(paths, invocation).directory,
   })
@@ -589,7 +590,8 @@ export async function packageTarget(
     await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts',
       ...(invocation.unsigned ? ['--unsigned'] : []), ...(invocation.skipNotarization ? ['--skip-notarization'] : [])], targetEnv)
   }
-  if (!invocation.directory && !invocation.unsigned && !invocation.skipNotarization) {
+  if (!invocation.directory && !invocation.unsigned && !invocation.skipNotarization
+    && resolveDesktopPackageDeployment(electronBuilderEnv) !== 'fork') {
     writeReleaseRecord(target, electronBuilderEnv, buildPaths.artifacts)
   }
   if (journal) recordPackagingEvent(journal, { type: 'artifacts', directory: artifactsRoot })

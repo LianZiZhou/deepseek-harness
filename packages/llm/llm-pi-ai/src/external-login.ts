@@ -58,44 +58,22 @@ export interface PiAiLoginContribution {
   run(session: AuthorizationSession): Promise<PiAiContributedKey>
 }
 
-/** The contributions one context tree holds, and who is watching them. */
-interface ContributionRegistry {
-  /**
-   * Contributions by route, in registration order. A route's set is created on
-   * its first contribution and then kept, empty or not: the set is what each
-   * contribution's disposer holds, so removing the entry would leave a later
-   * disposal editing a collection nothing reads.
-   */
-  readonly byProvider: Map<string, Set<PiAiLoginContribution>>
-  /** Mounted adapters re-registering their flows when a route's set changes. */
-  readonly watchers: Set<(provider: string) => void>
-}
-
-/**
- * One registry per context tree, so two roots in one process — a test suite's
- * two harnesses, an application embedding a second composition — never see each
- * other's contributions. Keyed weakly because a discarded root's registry has
- * no reader left.
- */
-const registries = new WeakMap<Context, ContributionRegistry>()
-
-/**
- * The registry for one context's tree, created on first use.
- * @param ctx - any context in the tree.
- * @returns that tree's registry.
- */
-function registryOf(ctx: Context): ContributionRegistry {
-  let registry = registries.get(ctx.root)
-  if (registry === undefined) {
-    registry = { byProvider: new Map(), watchers: new Set() }
-    registries.set(ctx.root, registry)
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /**
+     * Collect the mounted login methods for one installed pi-ai route.
+     * @mode emit
+     * @param provider - installed route id.
+     * @param add - receives each contribution in registration order.
+     */
+    'llm-pi-ai/collect-logins'(provider: string, add: (entry: PiAiLoginContribution) => void): void
+    /**
+     * Refresh a route's authorization flow after a login method is added or removed.
+     * @mode emit
+     * @param provider - installed route id.
+     */
+    'llm-pi-ai/logins-changed'(provider: string): void
   }
-  return registry
-}
-
-/** Tell every mounted adapter that one route's contributed methods changed. */
-function announce(registry: ContributionRegistry, provider: string): void {
-  for (const watcher of registry.watchers) watcher(provider)
 }
 
 /**
@@ -122,23 +100,21 @@ export function contributePiAiLogin(ctx: Context, contribution: PiAiLoginContrib
       'UNKNOWN_PI_AI_ROUTE',
     )
   }
-  const registry = registryOf(ctx)
-  const offered = registry.byProvider.get(provider)
   if (piAiMethods(installed).some(existing => existing.id === method.id)
-    || (offered !== undefined && [...offered].some(existing => existing.method.id === method.id))) {
+    || contributedLogins(ctx, provider).some(existing => existing.method.id === method.id)) {
     throw new LlmError(
       `llm-pi-ai: route "${provider}" already offers a login method named "${method.id}"`,
       'DUPLICATE_LOGIN_METHOD',
     )
   }
-  const contributions = offered ?? new Set<PiAiLoginContribution>()
-  registry.byProvider.set(provider, contributions)
   const dispose = ctx.effect(() => {
-    contributions.add(contribution)
-    announce(registry, provider)
+    const remove = ctx.on('llm-pi-ai/collect-logins', (route, add) => {
+      if (route === provider) add(contribution)
+    })
+    ctx.emit('llm-pi-ai/logins-changed', provider)
     return () => {
-      contributions.delete(contribution)
-      announce(registry, provider)
+      remove()
+      ctx.emit('llm-pi-ai/logins-changed', provider)
     }
   }, 'contributePiAiLogin()')
   return () => void dispose()
@@ -179,20 +155,7 @@ export function piAiMethods(provider: Provider): AuthorizationMethod[] {
  * @returns the contributions in registration order; empty when there are none.
  */
 export function contributedLogins(ctx: Context, provider: string): readonly PiAiLoginContribution[] {
-  return [...registryOf(ctx).byProvider.get(provider) ?? []]
-}
-
-/**
- * Watch for contributed logins arriving or leaving. The watch lives exactly as
- * long as the watching fiber, which is the adapter's own: an adapter that has
- * unmounted has no flow left to re-register.
- * @param ctx - the adapter's context.
- * @param onChange - called with the route whose contributed set changed.
- */
-export function watchContributedLogins(ctx: Context, onChange: (provider: string) => void): void {
-  const registry = registryOf(ctx)
-  ctx.effect(() => {
-    registry.watchers.add(onChange)
-    return () => registry.watchers.delete(onChange)
-  }, 'watchContributedLogins()')
+  const contributions: PiAiLoginContribution[] = []
+  ctx.emit('llm-pi-ai/collect-logins', provider, (entry) => { contributions.push(entry) })
+  return contributions
 }

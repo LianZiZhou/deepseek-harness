@@ -1,212 +1,70 @@
-# Fork-only: build unsigned Desktop packages for Windows, macOS (Apple Silicon
-# only), and Linux on every push to the default branch and publish them together
-# as a GitHub release named after the commit's short hash. The packages keep the
-# official sidebar branding (`--official-branding`) beside the fork's edition label.
-#
-# Nothing is signed or notarized (CI holds no EV token or Apple credentials) and
-# no build carries an update feed, so installed copies never auto-update;
-# install a newer release by hand. macOS builds carry a local ad-hoc signature
-# and Gatekeeper asks for approval on first launch.
-#
-# Windows packaging requires a mandatory-update origin even for unsigned builds.
-# It points at a reserved `.invalid` host so the fork never polls upstream's
-# policy service, which could otherwise steer installs toward official builds.
-# Unsigned macOS and Linux packaging carries no policy at all.
 name: Fork desktop release
 
 on:
-  push:
-    branches: [merge/upstream-0.2.2-rc.1]
+  # CI1 and completed CI2 recovery dispatch only after the full sync has finished and all checkpoints are on the default branch.
   workflow_dispatch:
     inputs:
-      publish:
-        description: Publish the packages as the desktop-<short hash> release; otherwise keep them as run artifacts only
-        type: boolean
-        default: true
-
-concurrency:
-  group: fork-desktop-release-${{ github.ref }}
-  cancel-in-progress: true
+      sync_sha:
+        description: Full fork head from the successful full sync (leave both SHAs empty to reconcile releases only)
+        type: string
+      upstream_sha:
+        description: Full upstream head integrated by that full sync
+        type: string
+  # GitHub does not deliver another repository's release or tag events to this fork.
+  schedule:
+    - cron: '23 * * * *'
 
 permissions:
   contents: read
 
 jobs:
-  version:
+  plan:
+    if: github.repository == 'LianZiZhou/deepseek-harness' && github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
     outputs:
-      short: ${{ steps.version.outputs.short }}
-      build: ${{ steps.version.outputs.build }}
+      releases: ${{ steps.plan.outputs.releases }}
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Resolve version
-        id: version
-        run: |
-          short=$(git rev-parse --short=7 HEAD)
-          product=$(node -p "require('./apps/desktop/package.json').version")
-          # A prerelease field must not be all digits with a leading zero, hence the `g`.
-          echo "short=$short" >> "$GITHUB_OUTPUT"
-          echo "build=$product.g$short" >> "$GITHUB_OUTPUT"
-          echo "Desktop $product.g$short from $short"
-
-  windows:
-    needs: version
-    runs-on: windows-latest
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v7.0.1
         with:
-          node-version: 24
+          fetch-depth: 0
+          persist-credentials: false
+      - run: python3 -m unittest discover -s .github/fork-release
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SYNC_SHA: ${{ inputs.sync_sha }}
+          UPSTREAM_SHA: ${{ inputs.upstream_sha }}
+        run: python3 .github/fork-release/release.py plan
 
-      - name: Enable pnpm
-        shell: bash
-        run: corepack enable && pnpm --version
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm run build
-
-      - name: Write packaging settings
-        shell: bash
-        run: |
-          cat > apps/desktop/.env.windows <<'EOF'
-          DSH_DESKTOP_APP_ID=io.github.lianzizhou.dsh-desktop
-          DSH_DESKTOP_AUTO_UPDATE_ENV=production
-          DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN=https://update.invalid
-          EOF
-
-      - name: Package unsigned installer
-        run: pnpm run package:desktop:win:x64:unsigned -- --build-version ${{ needs.version.outputs.build }} --official-branding
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: desktop-win-x64
-          path: apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/*.exe
-          if-no-files-found: error
-          retention-days: 14
-
-  macos:
-    needs: version
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 120
+  build:
+    needs: plan
+    if: needs.plan.outputs.releases != '[]'
     strategy:
       fail-fast: false
       matrix:
-        # Apple Silicon only; Intel Macs get no fork release.
-        include:
-          - arch: arm64
-            runner: macos-latest
-    steps:
-      - uses: actions/checkout@v6
+        release: ${{ fromJSON(needs.plan.outputs.releases) }}
+    uses: ./.github/workflows/fork-build-release.yml
+    with:
+      release: ${{ toJSON(matrix.release) }}
+    permissions:
+      contents: write
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-
-      - name: Enable pnpm
-        run: corepack enable && pnpm --version
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm run build
-
-      - name: Package unsigned DMG
-        run: pnpm run package:desktop:mac:${{ matrix.arch }}:unsigned -- --build-version ${{ needs.version.outputs.build }} --official-branding
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: desktop-mac-${{ matrix.arch }}
-          path: apps/desktop/.desktop-build/targets/mac-${{ matrix.arch }}/unsigned-artifacts/*.dmg
-          if-no-files-found: error
-          retention-days: 14
-
-  linux:
-    needs: version
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-      - name: Free disk space
-        # The repository build plus two prepared runtimes exceed the runner's default free space.
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-
-      - name: Enable pnpm
-        run: corepack enable && pnpm --version
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm run build
-
-      - name: Package unsigned AppImage
-        run: pnpm run package:desktop:linux:x64:unsigned -- --build-version ${{ needs.version.outputs.build }} --official-branding
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: desktop-linux-x64
-          path: apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/*.AppImage
-          if-no-files-found: error
-          retention-days: 14
-
-  publish:
-    needs: [version, windows, macos, linux]
-    if: github.event_name == 'push' || inputs.publish
+  feeds:
+    # A retry also repairs interrupted feed updates when all builds already exist.
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    needs: [plan, build]
+    concurrency:
+      group: fork-release-feeds
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/checkout@v7.0.1
         with:
-          path: packages
-          pattern: desktop-*
-          merge-multiple: true
-
-      - name: Publish release
-        env:
+          fetch-depth: 0
+          persist-credentials: false
+      - env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          SHORT: ${{ needs.version.outputs.short }}
-          BUILD: ${{ needs.version.outputs.build }}
-        run: |
-          shopt -s nullglob
-          files=(packages/*.exe packages/*.dmg packages/*.AppImage)
-          if [ ${#files[@]} -ne 3 ]; then
-            echo "expected 3 packages, found ${#files[@]}" >&2
-            ls -la packages || true
-            exit 1
-          fi
-          notes=$(cat <<EOF
-          Unsigned Desktop build $BUILD from $GITHUB_SHA.
-
-          - Windows x64: \`.exe\` installer. SmartScreen warns because it is unsigned.
-          - macOS Apple Silicon (\`arm64\`): \`.dmg\`. Not notarized; approve it in System Settings → Privacy & Security on first launch. Intel Macs are not supported.
-          - Linux x64: \`.AppImage\`. Run \`chmod +x\` on it first; requires FUSE 2.
-
-          No auto-update; install newer releases by hand.
-          EOF
-          )
-          # Tag `desktop-<hash>` rather than the bare hash, which git would
-          # confuse with the abbreviated commit id.
-          # A re-run for the same commit replaces the assets of its release.
-          if gh release view "desktop-$SHORT" >/dev/null 2>&1; then
-            gh release upload "desktop-$SHORT" "${files[@]}" --clobber
-            gh release edit "desktop-$SHORT" --notes "$notes"
-          else
-            gh release create "desktop-$SHORT" "${files[@]}" \
-              --target "$GITHUB_SHA" \
-              --title "$SHORT" \
-              --notes "$notes"
-          fi
+        run: python3 .github/fork-release/release.py feeds

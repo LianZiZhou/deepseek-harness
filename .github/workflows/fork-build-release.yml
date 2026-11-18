@@ -1,0 +1,90 @@
+name: Build fork packages
+
+on:
+  workflow_call:
+    inputs:
+      release:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-build-${{ fromJSON(inputs.release).tag }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: github.repository == 'LianZiZhou/deepseek-harness' && github.ref_name == github.event.repository.default_branch
+    runs-on: ${{ matrix.host.runner }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        product: [desktop, cli]
+        host:
+          - { target: linux-x64, runner: ubuntu-24.04 }
+          - { target: win-x64, runner: windows-latest }
+          - { target: mac-arm64, runner: macos-15 }
+    defaults:
+      run:
+        working-directory: source
+    env:
+      FORK_RELEASE: ${{ inputs.release }}
+      DSH_DESKTOP_AUTO_UPDATE_ENV: fork
+      DSH_DESKTOP_UPDATE_CHANNEL: ${{ fromJSON(inputs.release).channel }}
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ fromJSON(inputs.release).commit }}
+          path: source
+          persist-credentials: false
+      - uses: actions/checkout@v7.0.1
+        with:
+          path: control
+          sparse-checkout: .github/fork-release
+          persist-credentials: false
+      - name: Free space for native packaging
+        if: runner.os == 'Linux'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: pnpm/action-setup@v5.0.0
+        with:
+          package_json_file: source/package.json
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Package and check distribution
+        run: python ../control/.github/fork-release/package.py ${{ matrix.product }} ${{ matrix.host.target }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ fromJSON(inputs.release).tag }}-${{ matrix.product }}-${{ matrix.host.target }}
+          path: source/fork-dist/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: ${{ fromJSON(inputs.release).tag }}-*
+          path: fork-dist
+          merge-multiple: true
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          FORK_RELEASE: ${{ inputs.release }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: python3 .github/fork-release/release.py publish

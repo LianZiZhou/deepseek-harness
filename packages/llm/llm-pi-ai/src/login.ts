@@ -15,7 +15,7 @@ import { isCredentialKeySegment } from '@deepseek-ai/dsh-credentials'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import { catalogProvider, catalogProviderIds } from './catalog.ts'
 import { recordKeyFor } from './auth.ts'
-import { contributedLogins, piAiMethods, watchContributedLogins } from './external-login.ts'
+import { contributedLogins, piAiMethods } from './external-login.ts'
 import type { PiAiLoginContribution } from './external-login.ts'
 import type { PiAiAuthInjection } from './adapter.ts'
 import { createModels } from './models.ts'
@@ -262,7 +262,7 @@ export function registerPiAiFlows(ctx: Context, auth: PiAiAuthInjection, setting
 
   for (const providerId of catalogProviderIds()) register(providerId)
 
-  watchContributedLogins(ctx, (providerId) => {
+  ctx.on('llm-pi-ai/logins-changed', (providerId) => {
     const previous = registered.get(providerId)
     /* v8 ignore next 2 -- a contribution can only name an installed route, and
        every installed route registered its flow in the loop above. */

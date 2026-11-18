@@ -259,7 +259,7 @@ describe('Desktop local packaging configuration', () => {
   it('accepts unsigned macOS configuration without Apple or update policy settings while keeping release validation', () => {
     const local = localMacOSPackageEnvironment({})
     expect(() => { validateDesktopPackageEnvironment(local, MACOS, { unsigned: true }) }).not.toThrow()
-    expect(() => { validateDesktopPackageEnvironment(local, MACOS) })
+    expect(() => { validateDesktopPackageEnvironment({ ...local, DSH_DESKTOP_AUTO_UPDATE_ENV: 'test' }, MACOS) })
       .toThrow('DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN')
     expect(() => { validateDesktopPackageEnvironment(RELEASE, MACOS) }).toThrow('DSH_DESKTOP_MACOS_SIGNING_IDENTITY')
   })

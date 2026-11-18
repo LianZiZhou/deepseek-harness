@@ -29,6 +29,8 @@ Mount `dsh-session` wherever a session must exist. It creates and holds event-so
 
 ### Create and inspect sessions
 
+`SessionId` is a type exported by the package root and `/types`. Apply it to an admitted string with `brandString<SessionId>(value)` from `dsh-brand`; branding does not validate or generate an id.
+
 `ctx.sessions.create()` builds a live session bound to the calling fiber; `get(id)` and `list()` find sessions, and `fork()` creates an independent session from a stable prefix of a live one. It copies history, `cwd`, `isSeeded`, and the inherited event count without recording a source relationship. `parentSession` records a subagent’s direct creator; historical ordinary forks may retain their source there, so classification uses `origin`.
 
 Independent `Session.create()` and `Session.fromRestore()` instances accept events and plugin records without sending `session/event`. A `SessionStore` takes ownership through `prepare()` or `enter()`; writes then require store membership and a completed synchronous `session/created` announcement. Creation listeners are read-only and see all existing history; entering an independent instance does not replay that history as `session/event`. Failed announcement or removal leaves writes disabled. Removal emits `session/disposed` only if `session/created` began, including a failed announcement; an entered but never announced instance emits neither notification.
@@ -84,6 +86,8 @@ The [experimental persistence catalog](../../../docs/experimental-persistence-ca
 `buildRewriteLog(events, inheritedEventCount, plan)` in `dsh-session/rewrite` builds the replacement log for an in-place rewrite. It keeps `events[0..throughSeq]`, applies content replacements, deletions of user, developer, assistant, and tool-result messages, and inserted user messages addressed by original seqs, remaps envelope seq references and `headerSeq`, and closes an open tail turn as `interrupted`. An edited assistant message drops its stream, usage, and replay state; an edit or cut inside an inherited prefix returns an unseeded log. It throws `SessionRewriteError` for an out-of-range seq, a non-message target, renumbering across an event whose data may cite seqs, or broken tool-call pairing; callers validate the result with `Session.create` before storing it ([decision](../../../.agents/notes/implemented/architecture/2026-10-17-in-place-session-rewrite.md)).
 
 The logical `SessionHeader.isSeeded` field reports whether fork history exists without exposing a positional integer. `Session.inheritedEventCount` retains the exact checked `SessionLogOffset`; `ownEvents()` returns events at and after that cut, and `isOwnSeq(seq)` accepts only an existing child-owned position. A low-level seeded constructor must supply an explicit `seed` and `inheritedEventCount` because the constructor seed can contain child-owned setup events after the inherited prefix.
+
+`session.append(type, data, ...opts)` appends one event and returns that event. `session.append(inputs)` accepts a readonly array of positional `[type, data, ...opts]` tuples (`SessionEventInput`) and returns the committed events in input order; an empty array appends nothing. Array admission validates every candidate and synchronous dispatch before changing the log or message surface, so observers read the complete committed group. Persistence listeners retain their own durability rules; array admission alone does not guarantee crash-atomic storage.
 
 ### Flush durable state
 

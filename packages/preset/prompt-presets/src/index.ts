@@ -27,8 +27,8 @@ import type { AssembledSection, PromptAssembly } from '@deepseek-ai/dsh-system-p
 import { SettingsConflictError } from '@deepseek-ai/dsh-settings'
 import type { SettingsDescriptor, SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-session-projection'
-import { CommandDefinitionId } from '@deepseek-ai/dsh-commands/brand'
-import type { CommandResult } from '@deepseek-ai/dsh-commands/types'
+import { brandString } from '@deepseek-ai/dsh-brand'
+import type { CommandDefinitionId, CommandResult } from '@deepseek-ai/dsh-commands/types'
 // Type-only: declaration-merges the optional `ctx.commands` child.
 import type {} from '@deepseek-ai/dsh-commands'
 // Type-only: the Loader's Fiber.entry and `loader/volatile-update` merges.
@@ -214,7 +214,7 @@ export default class PromptPresetStore extends TypertRemoteService {
     // would shadow theirs.
     ctx.inject(['commands'], (child) => {
       child.commands.register({
-        definitionId: CommandDefinitionId('@deepseek-ai/dsh-prompt-presets'),
+        definitionId: brandString<CommandDefinitionId>('@deepseek-ai/dsh-prompt-presets'),
         name: COMMAND_NAME,
         description: COMMAND_DESCRIPTION,
         input: { hint: '<preset> | off | default <preset|off>' },

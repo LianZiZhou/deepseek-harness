@@ -15,29 +15,29 @@
   en: 91cb319ecdbf829e
   zh: 9e002cd630ef619b
 /desktop-packaging/choose-a-build-path:
-  en: 0b35c7471c09b27a
-  zh: cc4a382b99fc3210
+  en: e9225263dea908f8
+  zh: f38b713eb6adc948
 /desktop-packaging/release-versions:
   en: bdee4adb7916e6cc
   zh: 2880c3594ebab7ab
 /desktop-packaging/configuration-and-local-builds:
-  en: d224ee601121f76d
-  zh: 233dffe37dbc3bee
+  en: bbfe42f4d6e1d520
+  zh: 360d5d4bea647d53
 /desktop-packaging/windows-actions-packaging:
   en: b39449c2f945cab9
   zh: a742ba9efa282be8
 /desktop-packaging/macos-self-hosted-packaging:
-  en: 08619f0e26782636
-  zh: 7c236cbe46be4a47
+  en: b7c6668f451d2e16
+  zh: d3125c2bb6cf8e7b
 /desktop-packaging/unsigned-windows-test-installer:
-  en: f429bc0c280e2dfa
-  zh: 4adbcc9e906bdf80
+  en: 7fdfdfcd5b538fa4
+  zh: 85fcd9cc0066d081
 /desktop-packaging/local-macos-dmg-without-release-signing:
   en: 528bf63107787a7c
   zh: 2138f2d67236ee47
 /desktop-packaging/linux-appimage:
-  en: c97227ab6b14b7ff
-  zh: 2894a68705729dfe
+  en: 25b87cc2948267ec
+  zh: f71ff339a075a630
 /desktop-packaging/macos-release-signing-and-diagnostics:
   en: a0b4aa1080ecf6fb
   zh: 37d4b8934f89bee8
@@ -48,8 +48,8 @@
   en: b42f103358d0dfd7
   zh: a534164ad9eb00da
 /desktop-packaging/runtime-file-selection-and-installation-checks:
-  en: 44044a5c14b75533
-  zh: 39d91a369c4ec2fa
+  en: da4669b98c79ee48
+  zh: d007e87f13ff54d3
 /desktop-packaging/desktop-runtime-preparation:
   en: 84be38ab3136fff7
   zh: bb4ed12ee0e1dfa0

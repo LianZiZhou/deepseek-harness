@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readDesktopPackageSettings as readSettings } from './desktop-file-settings.mjs'
 import { resolveDesktopAppId, resolveMacOSNotarizationEnvironment, resolveMacOSSigningEnvironment, resolveNpmRegistry } from './desktop-release-environment.mjs'
-import { resolveDesktopAutoUpdateConfig } from './desktop-auto-update-environment.mjs'
+import { resolveDesktopPackageFeed } from './desktop-package-feed.mjs'
 import { createWindowsTokenSigner } from './windows-sign.mjs'
 import { resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mjs'
 import { validateMacOSSignatureCacheDirectory } from './macos-signature-cache-directory.mjs'
@@ -21,7 +21,7 @@ const MACOS_SETTING = /^(?:DSH_DESKTOP_MACOS_(?:SIGNING_IDENTITY|TEAM_ID|SIGNATU
 const AMBIENT_RELEASE_SETTING = /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|MANDATORY_UPDATE_.*|WINDOWS_.*|MACOS_.*)|APPLE_.*|(?:WIN_)?CSC_.*|DOWNLOAD_(?:TEST|PROD)_.*)$/iu
 
 /**
- * Select local unsigned macOS or Linux defaults without reading dotenv files or inheriting release settings.
+ * Select unsigned macOS or Linux defaults without loading release credentials. Linux accepts an explicit fork feed.
  * @param {NodeJS.ProcessEnv} environment Parent environment, retained for build tools and networking.
  * @returns {NodeJS.ProcessEnv} Unsigned build environment with the standard application identifier and no update policy.
  */
@@ -30,6 +30,7 @@ export function localMacOSPackageEnvironment(environment = process.env) {
     ...Object.fromEntries(Object.entries(environment).filter(([name]) => !AMBIENT_RELEASE_SETTING.test(name))),
     DSH_DESKTOP_APP_ID: 'com.deepseek.harness',
     DSH_DESKTOP_UNSIGNED: '1',
+    ...(environment.DSH_DESKTOP_AUTO_UPDATE_ENV?.trim() === 'fork' ? { DSH_DESKTOP_AUTO_UPDATE_ENV: 'fork' } : {}),
   }
 }
 
@@ -123,13 +124,14 @@ export function validateDesktopPackageEnvironment(environment, target, options =
   resolveNpmRegistry(environment)
   if (target.platform === 'linux') {
     if (!options.unsigned && !options.prepareOnly) throw new Error('desktop package: linux-x64 packages only with --unsigned')
+    if (!options.prepareOnly) resolveDesktopPackageFeed(environment, target.platform, target.arch, true)
     return
   }
   if (target.platform !== 'darwin' || !options.unsigned) resolveDesktopPolicyEnvironment(environment)
   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
   else resolveWindowsPackageSettings(environment)
+  if (!options.prepareOnly) resolveDesktopPackageFeed(environment, target.platform, target.arch, options.unsigned)
   if (options.unsigned) return
-  if (!options.prepareOnly) resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
   if (target.platform === 'win32') {
     if (!options.prepareOnly) createWindowsTokenSigner({
       certificateFile: environment.DSH_DESKTOP_WINDOWS_CER_FILE,

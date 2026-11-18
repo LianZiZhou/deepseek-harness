@@ -1,0 +1,16 @@
+name: Fork upstream catchup
+
+on: workflow_dispatch
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+
+jobs:
+  catchup:
+    uses: ./.github/workflows/fork-upstream-sync.yml
+    with:
+      recovery: true
+    secrets:
+      FORK_SYNC_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}

@@ -1,7 +1,7 @@
 /** Select local test defaults or platform release settings without changing the caller's environment. */
 
 /**
- * Select local unsigned macOS or Linux defaults without reading dotenv files or inheriting release settings.
+ * Select unsigned macOS or Linux defaults without loading release credentials. Linux accepts an explicit fork feed.
  * @param environment Parent environment, retained for build tools and networking.
  * @returns Unsigned build environment with the standard application identifier and no update policy.
  */

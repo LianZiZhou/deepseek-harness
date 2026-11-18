@@ -1,4 +1,4 @@
-import type { DesktopAutoUpdateTarget } from './desktop-auto-update-environment.mjs'
+import type { DesktopAutoUpdateTarget } from '@deepseek-ai/dsh-desktop-publisher/desktop-auto-update-environment.mjs'
 
 /** File name of the Linux application executable, which the packaged `dsh` launcher runs. */
 export const LINUX_EXECUTABLE_NAME: 'deepseek-harness'

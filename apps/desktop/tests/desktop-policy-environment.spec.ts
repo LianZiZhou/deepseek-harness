@@ -10,10 +10,11 @@ const auth = { DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: JSON.stringify({ allowedAuth
 it.each(['test', 'production'] as const)('selects the %s policy and authentication together', (deployment) => {
   const policy = resolveDesktopPolicyEnvironment({ ...origins, ...(deployment === 'test' ? auth : {}), DSH_DESKTOP_AUTO_UPDATE_ENV: deployment })
   const origin = deployment === 'test' ? origins.DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN : origins.DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN
-  expect(policy).toEqual({ origin, allowedPageOrigins: [origin],
+  const expected = { origin, allowedPageOrigins: [origin],
     ...(deployment === 'test' ? { allowedAuthOrigins: ['https://login.example.com'] } : {}),
-    authentication: deployment === 'test' ? 'feishu-test' : 'anonymous' })
-  expect(resolveDesktopPolicyConfig(policy)).toMatchObject(policy)
+    authentication: deployment === 'test' ? 'feishu-test' : 'anonymous' }
+  expect(policy).toEqual(expected)
+  expect(resolveDesktopPolicyConfig(policy)).toMatchObject(expected)
 })
 
 it('requires only the selected origin, defaults to test, and accepts explicit page restrictions', () => {
@@ -47,14 +48,15 @@ it('rejects login origins in production', () => {
     .toThrow('must not configure allowedAuthOrigins')
 })
 
-it.each([{ unsigned: true }, { prepareOnly: true }, {}])('requires policy outside local macOS builds in %j', (options) => {
+it.each([{ unsigned: true }, { prepareOnly: true }, {}])('requires managed test policy outside local macOS builds in %j', (options) => {
+  const deployment = { DSH_DESKTOP_APP_ID: 'com.example.test', DSH_DESKTOP_AUTO_UPDATE_ENV: 'test' }
   for (const platform of ['win32', 'darwin'] as const) {
     if (platform === 'darwin' && options.unsigned) {
-      expect(() => { validateDesktopPackageEnvironment({ DSH_DESKTOP_APP_ID: 'com.example.test' }, { platform, arch: 'x64' }, options) })
+      expect(() => { validateDesktopPackageEnvironment(deployment, { platform, arch: 'x64' }, options) })
         .not.toThrow()
       continue
     }
-    expect(() => { validateDesktopPackageEnvironment({ DSH_DESKTOP_APP_ID: 'com.example.test' }, { platform, arch: 'x64' }, options) })
+    expect(() => { validateDesktopPackageEnvironment(deployment, { platform, arch: 'x64' }, options) })
       .toThrow('DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN')
   }
 })

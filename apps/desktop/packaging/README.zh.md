@@ -31,7 +31,7 @@ description: "在本地或 Windows／macOS Actions 中生成 Desktop 安装包�
 
 ## 选择打包方式
 
-安装锁定依赖后，从仓库根目录运行本地命令。本地构建使用平台命令，已注册的自托管 runner 使用对应平台的 Actions。test/production 部署与 signed/unsigned 模式分别选择。任何 Windows 签名构建或共享 runner 使用前，先阅读 [Windows 签名与 runner 运维](../windows-signing/README.zh.md#trust-and-isolation)。安装与打包分开进行；[发布](../publishing/README.zh.md)还需要单独的显式操作。
+安装锁定依赖后，从仓库根目录运行本地命令。本地构建使用平台命令，已注册的自托管 runner 使用对应平台的 Actions。选择 fork、test 或 production 部署及签名模式。任何 Windows 签名构建或共享 runner 使用前，先阅读 [Windows 签名与 runner 运维](../windows-signing/README.zh.md#trust-and-isolation)。安装与打包分开进行；[发布](../publishing/README.zh.md)还需要单独的显式操作。
 
 将 `DSH_DESKTOP_PACKAGE_CACHE_DIR` 设为绝对构建缓存目录以跨 checkout 复用；详见[缓存配置与生命周期](#desktop-runtime-preparation)。
 
@@ -70,6 +70,10 @@ production 发布使用产品版本本身，不传 `--build-version`。其上传
 
 ## 配置与本地构建
 
+Fork 更新源为 `https://github.com/LianZiZhou/deepseek-harness/releases/download/fork-feed/`。打包模板选择 `DSH_DESKTOP_AUTO_UPDATE_ENV=fork`。显式选择 `test` 或 `production` 会保留相应托管更新源。未指定部署名称时，已配置的测试源站或发布 ID 仍会选择测试部署。Windows 和 Linux 未签名安装包须显式选择 `fork` 才启用更新。采用 ad-hoc 签名的 macOS 构建通过 DMG 手动安装。
+
+`fork-feed` 发布提供各已发布渠道的元数据。Windows x64 使用 `<channel>.yml`，Linux x64 使用 `<channel>-linux.yml`，已签名的 macOS 使用 `<channel>-mac.yml`。每份清单包含相应 NSIS EXE、AppImage 或已签名应用的 macOS ZIP 的不可变发布 URL、字节数和 base64 编码的 SHA-512 摘要。将生成的 `.blockmap` 文件与对应安装包一同发布。清单版本必须与安装包版本一致，且按 SemVer 高于已安装版本，客户端才会提供更新。
+
 macOS 和 Windows 未签名安装包使用与本地 Web 构建相同的本地化 **DSH 本地构建** 标签及版本/commit 徽标。签名安装包保留官方品牌，包括 test 部署和跳过公证的 macOS 构建。未签名构建同时传入 `--official-branding` 时改为构建并打包官方客户端 profile；不带 `--unsigned` 时该参数会被拒绝。原生应用及安装器名称不变。
 
 本地 Windows 命令通过 `DSH_PACKAGING_CONFIG_DIR` 指定机器配置绝对目录，通过 `DSH_PACKAGING_PRESET` 选择 `test` 或 `production`。加载器读取 `presets/<preset>.env`；签名命令另读 `secrets/windows-signing.env`。相对证书和 SignTool 路径以声明它们的文件所在目录为基准。公开 preset 拒绝凭据，签名文件不能覆盖公开配置。配置缺失立即失败，不回退到 `.env.windows`；不选择 preset 的命令保留原 dotenv 行为。未签名和仅准备 preset 不读取签名文件。缓存维护也只读取公开 preset 配置。签名测试包还需现有下载 origin 和 release ID，但无需上传凭据。本地 preset 命令使用 `--build-version auto` 时仅按本地产物编号；Actions 使用运行编号和重试次数。
@@ -78,7 +82,7 @@ macOS 和 Windows 未签名安装包使用与本地 Web 构建相同的本地化
 
 不选择机器 preset 时，打包、上传以及手动 macOS 签名检查（本地 macOS 未签名构建除外）使用 `apps/desktop/.env.windows` 或 `.env.macos`，由目标平台选择。复制对应的 [Windows 模板](../.env.windows.example) 或 [macOS 模板](../.env.macos.example)，填写本机配置；Git 忽略这两个本地文件，安装产物也不包含它们。发布字段只从选定的配置文件读取，不回退到系统或 shell 中的同名变量；`PATH`、代理和构建工具环境仍保留。发布版本是命令参数而非发布字段，上传从打包写下的完成记录中读取它。文件使用 UTF-8，支持 BOM；相对证书、SignTool、Apple API Key 和钥匙串路径以 `apps/desktop` 为基准，变量值不做 shell 展开，包含 `#` 或空格的密码需要引号。Windows CI 读取相同的机器 preset。
 
-每条打包命令在构建与下载前检查应用 ID 以及该模式需要的更新与签名配置，随后探测本次运行要用的外部工具：归档读取工具，以及 Windows 目标的安装器编译器。macOS 检查身份、Team ID、一套完整公证凭据、`CSC_LINK` 指定的可读本地 p12 文件、显式配置的 `CSC_KEY_PASSWORD`，以及引用的 API Key 和钥匙串文件；Windows 检查公开代码签名证书、SignTool 文件、容器名称和 PIN 格式。仅准备 Windows 资源以及两个平台上的显式未签名打包均不要求签名凭据。配置检查不验证 PIN 是否正确、Token 是否登录、钥匙串是否解锁或 Apple 是否接受凭据；实际签名与公证负责这些检查。未选择机器 preset 时，`--build-version auto` 会访问目标 bucket，`--check` 下同样如此。单独运行相同检查：
+每条打包命令在构建与下载前检查应用 ID 以及该模式需要的更新与签名配置，随后探测本次运行要用的外部工具：归档读取工具，以及 Windows 目标的安装器编译器。macOS 检查身份、Team ID、一套完整公证凭据、`CSC_LINK` 指定的可读本地 p12 文件、显式配置的 `CSC_KEY_PASSWORD`，以及引用的 API Key 和钥匙串文件；Windows 检查公开代码签名证书、SignTool 文件、容器名称和 PIN 格式。仅准备 Windows 资源以及两个平台上的显式未签名打包均不要求签名凭据。配置检查不验证 PIN 是否正确、Token 是否登录、钥匙串是否解锁或 Apple 是否接受凭据；实际签名与公证负责这些检查。托管部署未选择机器 preset 时，`--build-version auto` 会访问目标 bucket，`--check` 下同样如此。Fork 构建根据本地产物编号。单独运行相同检查：
 
 ```sh
 pnpm --dir apps/desktop run check:package
@@ -128,9 +132,9 @@ runner 的受监督启动和恢复见 [Windows runner 机器准备](../windows-s
 
 ## macOS 自托管打包
 
-[Apple Silicon 工作流](../../../.github/workflows/macos-package.yml)与 [Intel 工作流](../../../.github/workflows/macos-intel-package.yml)在带有 `dsh-mac-package-trial` 标签的 Apple Silicon runner 上分别生成 arm64 和 x64 安装包，两者共用一个并发组。Intel 工作流在安装依赖前检查 Rosetta 能否执行；所选源码必须包含按目标架构校验的 macOS CI 适配脚本。两者均选择 `test` 或 `production`，并复用现有签名、公证和打包运行时检查。所选源码的 dsh 随附 Computer Use 组合包时，两者都在配置检查之后用 `scripts/cua-helper/package.ts` 和 `stage.ts` 构建、公证并放入两种架构的 helper，与 npm 发布的步骤相同；`skip_notarization` 不会跳过 helper 的公证。源码早于 helper 打包支持时只输出警告，该安装包中的 Computer Use 无法准备 helper。成功的 DMG／ZIP 与诊断日志保留 14 天，不发布 release；安装包上传关闭重复 ZIP 压缩。产物名为 `macos-<arch>-<mode>-<version>-<run_id>-<package_run_attempt>.zip`，其中 `arch` 为 `arm64` 或 `x64`；条目时间以 DOS 字段的本地时间和 Unix 字段的绝对时间记录留存副本的修改时间，不保证是原始构建时间。操作人员须验收完整 Actions 运行及目标架构上的安装，才能确认可交付。`compression_level` 下拉选项默认为 `3`，也可选择 `7`；本次运行以该选项覆盖机器预设，只影响 ZIP 和自动升级下载，不影响 DMG。
+[Apple Silicon 工作流](../../../.github/workflows/macos-package.yml)与 [Intel 工作流](../../../.github/workflows/macos-intel-package.yml)在带有 `dsh-mac-package-trial` 标签的 Apple Silicon runner 上分别生成 arm64 和 x64 安装包，两者共用一个并发组。Intel 工作流在安装依赖前检查 Rosetta 能否执行；所选源码必须包含按目标架构校验的 macOS CI 适配脚本。两者均选择 `test` 或 `production`，并复用现有签名、公证和打包运行时检查。所选源码的 dsh 随附 Computer Use 组合包时，两者都在配置检查之后用 `scripts/cua-helper/package.ts` 和 `stage.ts` 构建、公证并放入两种架构的 helper，与 npm 发布的步骤相同；`skip_notarization` 不会跳过 helper 的公证。源码早于 helper 打包支持时只输出警告，该安装包中的 Computer Use 无法准备 helper。DMG、更新 ZIP、元数据 ZIP 和诊断日志可独立下载，保留 14 天，不发布 release。三个安装包相关产物共用前缀 `macos-<arch>-<mode>-<version>-<run_id>-<package_run_attempt>`（`arch` 为 `arm64` 或 `x64`），分别追加 `.dmg`、`-update.zip` 或 `-metadata.zip`。安装时只需下载 DMG。DMG 和更新 ZIP 的字节与原件一致，下载名包含原构建身份，不再套额外 ZIP，不保留下载副本的本地修改时间。元数据 ZIP 包含未修改的 manifest，以及当前模式生成的 blockmap、更新 YAML 和发布记录；manifest 中的名称指向原始留存文件。COS 发布和 rollout 继续使用打包机器上的这些原始文件。操作人员须验收完整 Actions 运行及目标架构上的安装，才能确认可交付。`compression_level` 下拉选项默认为 `3`，也可选择 `7`；本次运行以该选项覆盖机器预设，只影响 ZIP 和自动升级下载，不影响 DMG。
 
-两个 macOS 工作流都要求仓库变量 `DESKTOP_PUBLISH_RUNNERS`，包括 test 和未公证模式。独立 `upload-artifact` job 的安装包名称保留原构建 attempt；打包成功但归档失败时，仅重跑该 job。参见[原机器路由与恢复](../publishing/ci/README.zh.md#recovery-and-records)。
+两个 macOS 工作流都要求仓库变量 `DESKTOP_PUBLISH_RUNNERS`，包括 test 和未公证模式。独立 `upload-artifact` job 的安装包名称保留原构建 attempt。准备成功后优先上传 DMG；除非 job 被取消，单个上传失败不会跳过其他上传。打包成功但归档失败时，仅重跑该 job，以相同名称覆盖产物。参见[原机器路由与恢复](../publishing/ci/README.zh.md#recovery-and-records)。
 
 三个平台的表单均依次展示源码、环境、升级通道、版本模式、手动版本号、测试 release ID 和压缩等级，默认值一致。macOS 公证选项和 Windows 签名、缓存测量选项位于公共字段之后。
 
@@ -160,7 +164,7 @@ bash apps/desktop/scripts/macos-runner-service.sh status "$HOME/dsh-ci/runner"
 pnpm run package:desktop:win:x64:unsigned
 ```
 
-该命令读取 `.env.windows`，要求设置 `DSH_DESKTOP_APP_ID` 和[强制更新策略配置](../README.zh.md#mandatory-update-policy)，包括真实的 HTTPS 服务 origin。本机验收和 CI 使用 Node 24；其他工具为根 `packageManager` 固定版本的 pnpm、Git、PowerShell 7（`pwsh`）、tar、Python、Visual C++ Build Tools 和 Windows SDK。Python 不在 `PATH` 中时设置 `PYTHON`。命令将安装包写入 `.desktop-build/targets/win-x64/unsigned-artifacts/`，省略普通自动更新配置，清除签名凭据，且不生成发布完成记录。无需 EV 或上传凭据。签名打包和上传仍遵循正式发布要求。
+该命令读取 `.env.windows`，要求设置 `DSH_DESKTOP_APP_ID`；托管部署还要求[强制更新策略配置](../README.zh.md#mandatory-update-policy)。本机验收和 CI 使用 Node 24；其他工具为根 `packageManager` 固定版本的 pnpm、Git、PowerShell 7（`pwsh`）、tar、Python、Visual C++ Build Tools 和 Windows SDK。Python 不在 `PATH` 中时设置 `PYTHON`。命令将安装包写入 `.desktop-build/targets/win-x64/unsigned-artifacts/`，仅在显式选择 fork 部署时启用常规更新，清除签名凭据，且不生成发布完成记录。无需 EV 或上传凭据。签名打包和上传仍遵循正式发布要求。
 
 先运行 `pnpm install --frozen-lockfile`，再运行 `pnpm run package:desktop:win:x64:unsigned --check` 校验配置和工具，最后执行上面的完整命令。打包自行执行完整构建和隔离的运行时 smoke，不调用在线模型。阶段日志保留在 `.desktop-build/packaging-runs/`；仅构建成功不代表安装包验证通过。依赖安装和运行时准备需要访问 npm、GitHub release 资源和 nodejs.org；网络需要时使用现有 registry 和代理配置。缓存与工具位置属于构建机器配置，不在跟踪文件中固定个人路径。
 
@@ -189,7 +193,7 @@ pnpm run package:desktop:mac:x64:unsigned
 pnpm run package:desktop:linux:x64:unsigned
 ```
 
-AppImage 路径为 `apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/deepseek-harness-<version>-linux-<arch>-unsigned.AppImage`；`--dir` 只生成解包后的 `linux-unpacked/` 应用。Linux 没有签名模式、更新源、发布记录或上传命令，因此该目标拒绝未带 `--unsigned` 的打包。与本地 macOS DMG 一样，它忽略 dotenv 发布配置，使用 `com.deepseek.harness` 作为应用 ID，准备阶段和组装后的应用执行相同的运行时完整性与冒烟检查。应用可执行文件为 `deepseek-harness`，内置的 `dsh` 启动器运行它。目标系统运行 AppImage 需要 FUSE 2。
+AppImage 路径为 `apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/deepseek-harness-<version>-linux-<arch>-unsigned.AppImage`；`--dir` 只生成解包后的 `linux-unpacked/` 应用。在构建环境中设置 `DSH_DESKTOP_AUTO_UPDATE_ENV=fork` 即可内置 fork 更新源。Linux 要求 `--unsigned`，没有 COS 发布记录或上传命令。与本地 macOS DMG 一样，它忽略 dotenv 发布配置，使用 `com.deepseek.harness` 作为应用 ID，准备阶段和组装后的应用执行相同的运行时完整性与冒烟检查。应用可执行文件为 `deepseek-harness`，内置的 `dsh` 启动器运行它。目标系统运行 AppImage 需要 FUSE 2。
 
 <a id="macos-release-signing"></a>
 
@@ -265,9 +269,9 @@ Desktop 在本地打包工作区包，并通过目标捆绑的 Node 和 pnpm 安
 
 [Electron 外壳文件清单](../scripts/electron-builder-config.mjs)从单独收集的 `resources/app.asar/node_modules` 依赖中排除已识别的 JavaScript/CSS/TypeScript source map 和 TypeScript 构建缓存。这些排除规则保留运行时代码、原生模块、WASM、数据文件（包括普通 `.map` 资源）、许可证和 notices；[外壳归档测试](../tests/shell-file-selection.spec.ts)检查保留文件的字节和排除项。
 
-[Office 转换提供方](../../../packages/document/office-to-pdf/README.zh.md)携带目标已声明的原生引擎；kit 未声明匹配原生目标时携带 WASM 引擎。准备阶段在打包前拒绝缺少目标引擎的情况。完整 Office 依赖（CLI、JavaScript 库和选定引擎的可执行文件、数据、许可证及 notices）解包到 `resources/app.asar.unpacked/dsh/node_modules/` 下。Desktop Host 将引擎清单解析到这些物理目录，并向加载的技能提供独立 Node 和解包后 CLI 的绝对路径。Node 位于 `resources/runtime/primary-runtime/dependencies/node/bin/`；CLI 位于解包后的 `@deepseek-ai/libreoffice-kit/lib/cli.js`。macOS 上的原生辅助程序获得 [LibreOffice UNO 桥](https://github.com/LibreOffice/core/blob/master/sysui/desktop/macosx/hardened_runtime.xcent.in)所需的 JIT entitlement。`@deepseek-ai/dsh-experimental-cua-macos/native/bin` 下的 Computer Use helper 应用也整体解包到 `resources/app.asar.unpacked/dsh/node_modules/` 下，提供方打开该副本。
+[Office 转换提供方](../../../packages/document/office-kit/README.zh.md)是 web-app 挂载的 Host 服务，因此所有加载 web-app 的应用（包括 `dsh web` 和 Desktop）都提供它以及 [Office 工具](../../../packages/document/tool-office/README.zh.md)。该提供方[自行解析 Kit 的引擎](../../../packages/document/office-kit/README.zh.md#understand-the-implementation)，包括把原生引擎清单映射到解包后的实体目录。Desktop 打包只负责携带和解包引擎：携带目标声明的原生引擎；kit 未声明匹配的原生目标时携带 WASM；目标引擎缺失时，准备阶段在打包前拒绝。完整的 Office 依赖（包括 JavaScript 库以及所选引擎的可执行文件、数据、许可证和声明）解包到 `resources/app.asar.unpacked/dsh/node_modules/` 下。Desktop 壳在 [main.ts](../src/main.ts) 中把主运行时位置传给 Host，由 Host 设为 `DSH_PRIMARY_RUNTIME`；两者都不传 Kit 位置。所有加载 web-app 的应用都提供 Office 技能，Desktop 从 `resources/app.asar` 内的技能包读取它们；只有 Desktop 挂载内置 Python 环境（`workspace-dependencies`）。在 macOS 上，原生 helper 获得 [LibreOffice UNO 桥](https://github.com/LibreOffice/core/blob/master/sysui/desktop/macosx/hardened_runtime.xcent.in)所需的 JIT 权限。`@deepseek-ai/dsh-cua-macos/native/bin` 下的 Computer Use helper 应用也整体解包到 `resources/app.asar.unpacked/dsh/node_modules/` 下，提供方打开该副本。
 
-打包应用运行编译后的 JavaScript 和预生成的 Typert 元数据，不编译 TypeScript 插件。源码级调试导航和编辑器声明仍可从开发包中获取。[复制规则测试](../tests/runtime-file-policy.spec.ts)覆盖排除项和保留资源；[产物 smoke](../tests/fixtures/runtime-payload-smoke.mjs) 在 Host smoke 和最终清单验证之前，使用 Electron RunAsNode 执行。产物 smoke 解析搜索工具使用的 ripgrep 可执行文件，并验证文本搜索和文件枚举。Windows 签名构建在依赖签名后运行这些检查；其他构建在 `prepare:dsh` 中运行。[Host smoke](../scripts/smoke-runtime.ts) 使用捆绑的 Python 创建 DOCX、XLSX 和 PPTX 输入，通过真实 Office 提供方逐一转换并检查 PDF 输出。每个组装后的应用（包括目录包和未签名构建）都会针对 ASAR 重复产物和 Host 检查。归档完整性检查将归档内完整描述符与准备结果比对，并核对归档和解包目录中的文件内容与清单、归档内文件记录的执行标志，以及解包文件的物理权限。转换失败会在写入发布记录前终止打包；macOS DMG/ZIP 构建在公证前执行这些检查。
+打包应用运行编译后的 JavaScript 和预生成的 Typert 元数据，不编译 TypeScript 插件。源码级调试导航和编辑器声明仍可从开发包中获取。[复制规则测试](../tests/runtime-file-policy.spec.ts)覆盖排除项和保留资源；[产物 smoke](../tests/fixtures/runtime-payload-smoke.mjs) 在 Host smoke 和最终清单验证之前，使用 Electron RunAsNode 执行。产物 smoke 解析搜索工具使用的 ripgrep 可执行文件，并验证文本搜索和文件枚举。Windows 签名构建在依赖签名后运行这些检查；其他构建在 `prepare:dsh` 中运行。[Host smoke](../scripts/smoke-runtime.ts) 使用捆绑的 Python 创建 DOCX、XLSX 和 PPTX 输入，并通过真实 Office 提供方逐一执行：PDF 转换、PNG 渲染、转换为对应的 OpenDocument 格式，以及针对 XLSX 的重算，检查每个输出的签名。每个组装后的应用（包括目录包和未签名构建）都会针对 ASAR 重复产物和 Host 检查。归档完整性检查将归档内完整描述符与准备结果比对，并核对归档和解包目录中的文件内容与清单、归档内文件记录的执行标志，以及解包文件的物理权限。转换失败会在写入发布记录前终止打包；macOS DMG/ZIP 构建在公证前执行这些检查。
 
 Windows 发布验收还需在 Desktop 构建后手动运行[目录和替换检查](../scripts/smoke-windows.ps1)。将 `$Makensis`、`$SevenZip` 和 `$PluginDir` 分别设为锁定版本构建器的 NSIS 编译器、7-Zip 可执行文件和 x86-unicode NSIS 插件目录；通过 `-FrameLibrary` 传入已准备好的 `window-frame.dll`，即可同时覆盖原生解压路径及其失败报告。从仓库根目录运行以下命令。它验证 目录替换与回滚和两种文件占用替换方式；不属于单元测试通道。
 
