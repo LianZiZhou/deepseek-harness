@@ -26,7 +26,8 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
+  margin-inline-start: auto;
+  flex-wrap: wrap;
 }
 
 .refresh {
@@ -105,67 +106,155 @@
   overflow: hidden;
 }
 
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 12px;
-}
-
 .section + .section {
-  border-top: 0.5px solid var(--dsw-alias-border-l2);
+  border-block-start: 0.5px solid var(--dsw-alias-border-l2);
 }
 
-.sectionHead {
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border: 0;
+  color: var(--dsw-alias-label-secondary);
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .row:hover {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.row:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+
+.row > svg { flex: none; }
+.chevron:dir(rtl) { transform: scaleX(-1); }
+
+.summary {
+  display: grid;
+  min-width: 0;
+}
+
+.sectionHead,
+.controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px 8px;
 }
 
-.sectionName {
-  font-family: var(--ds-font-family-code);
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--dsw-alias-label-secondary);
-}
-
+.sectionName,
+.oneLine,
 .text,
-.removedText,
 .prompt {
-  margin: 0;
-  max-height: 160px;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
   font-family: var(--ds-font-family-code);
   font-size: 12px;
   line-height: 18px;
-  color: var(--dsw-alias-label-primary);
-  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
-  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
-.removedText {
-  color: var(--dsw-alias-label-tertiary);
-  text-decoration: line-through;
-}
+.sectionName { overflow-wrap: anywhere; }
 
 .oneLine {
-  margin: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-family: var(--ds-font-family-code);
-  font-size: 12px;
-  line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
 }
 
+.text,
+.prompt {
+  box-sizing: border-box;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+  color: var(--dsw-alias-label-primary);
+}
+
+.section > .text { padding: 4px 12px 10px; }
+
 .prompt {
   max-height: 360px;
+  overflow: auto;
   padding: 10px 12px;
   border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-bg-layer-1);
+}
+
+.detail {
+  width: min(680px, 100%);
+  max-height: 100%;
+  overflow-wrap: anywhere;
+}
+
+.detailContent {
+  min-height: 0;
+  overflow: auto;
+}
+
+.detailContent .text { margin-block-start: 12px; }
+
+.detailContent,
+.prompt {
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.edit mark {
+  color: inherit;
+  background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 15%, transparent);
+  border-block-end: 2px solid var(--dsw-alias-state-warn-primary);
+}
+
+.edit del,
+.edit ins {
+  unicode-bidi: isolate;
+  box-decoration-break: clone;
+}
+
+.edit del {
+  color: var(--dsw-alias-file-diff-deleted-marker);
+  background: var(--dsw-alias-code-diff-deleted);
+  text-decoration: line-through;
+}
+
+.edit ins {
+  color: color-mix(in srgb, var(--dsw-alias-file-diff-added-marker) 75%, var(--dsw-alias-label-primary));
+  background: var(--dsw-alias-code-diff-added);
+  text-decoration: none;
+}
+
+.edit del::before { content: '−'; }
+.edit ins::before { content: '+'; }
+
+.edit del::before,
+.edit ins::before {
+  padding-inline: 0.25em;
+  user-select: none;
+}
+
+.edit[data-block],
+.edit[data-block] mark,
+.edit[data-block] ins,
+.edit[data-block] del {
+  display: block;
+}
+
+.variable {
+  text-decoration: underline dotted;
+  text-underline-offset: 0.2em;
+  cursor: help;
+}
+
+.variable:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
 }

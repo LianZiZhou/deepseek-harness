@@ -63,7 +63,7 @@ ctx.systemPrompt.section({
 })
 ```
 
-在段或动态上下文上设置 `interpolate: false` 可原样保留文本，包括生成的工具文档或目录名中的 `{{…}}` 组。其他贡献默认执行变量插值。
+在段或动态上下文上设置 `interpolate: false` 可原样保留文本，包括生成的工具文档或目录名中的 `{{…}}` 组。其他贡献默认执行变量插值。`renderPromptSection(section, variables, onVariable)` 使用相同的渲染器；可选回调报告实际展开的非空值在结果中的 UTF-16 起止偏移和原始占位符，不会将相同的字面文本标为变量。
 
 `refreshContext(assembly, context)` 在 pre-step 与路由准备之后刷新已注册的运行时事实。它保留已接纳的段、工具、变量及仅由组装 waterfall 添加的上下文，应用当前的可选上下文抑制，并恢复缺失的必需条目。将变化的事实放在上下文 provider 中；已注册上下文的文本会在准入前再次读取。
 

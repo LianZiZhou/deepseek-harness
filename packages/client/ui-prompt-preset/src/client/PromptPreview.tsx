@@ -7,17 +7,23 @@
  */
 
 import { useMemo, useState } from 'react'
-import { IconRefreshOutlineRegular, IconWarningOutlineRegular, Pill, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  Button, Checkbox, IconChevronDownOutlineRegular, IconChevronRightOutlineRegular, IconRefreshOutlineRegular,
+  IconWarningOutlineRegular, Modal, Pill, Tag, Tooltip,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PromptPresetPreviewSection, PromptPresetWarningCode } from '@deepseek-ai/dsh-prompt-presets/types'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PreviewState } from './section-store.ts'
 import type { PromptPresetKey } from './locales.ts'
+import { PreviewText, promptSource, sectionExcerpt } from './PreviewText.tsx'
 import css from './PromptPreview.module.css'
 
 /** How each Host warning code is worded; the Host sends codes, never sentences. */
 const WARNING_KEYS = {
   'invalid-pattern': 'preview.warn.invalidPattern',
   'pattern-too-long': 'preview.warn.patternTooLong',
+  'invalid-section-id': 'preview.warn.invalidSectionId',
+  'duplicate-section': 'preview.warn.duplicateSection',
   'unknown-section': 'preview.warn.unknownSection',
   'no-match': 'preview.warn.noMatch',
   'protected-section-kept': 'preview.warn.protectedKept',
@@ -56,10 +62,53 @@ export interface PromptPresetPreviewProps {
   t: TranslateNS<'settings.promptPreset'>
 }
 
-/** One row of the section list, with what the rules did to it. */
+/** Rows keep the full baseline for inspection, including sections missing from the candidate. */
 interface Row {
   section: PromptPresetPreviewSection
+  baseline: PromptPresetPreviewSection | undefined
   change: Change
+}
+
+function sectionRows(preview: Pick<PreviewState, 'sections' | 'baseline'>): Row[] {
+  const before = new Map(preview.baseline.map(section => [section.name, section]))
+  const present = new Set(preview.sections.map(section => section.name))
+  const rows: Row[] = []
+  // Anchor removed sections before the next surviving baseline neighbor; candidate order stays authoritative.
+  const preceding = new Map<string, Row[]>()
+  let removed: Row[] = []
+  for (const section of preview.baseline) {
+    if (!present.has(section.name)) removed.push({ section, baseline: section, change: 'removed' })
+    else if (removed.length > 0) {
+      preceding.set(section.name, removed)
+      removed = []
+    }
+  }
+  for (const section of preview.sections) {
+    const baseline = before.get(section.name)
+    const change = !baseline ? 'added' : section.text !== baseline.text ? 'changed' : undefined
+    for (const row of preceding.get(section.name) ?? []) rows.push(row)
+    rows.push({ section, baseline, change })
+  }
+  return rows.concat(removed)
+}
+
+function SectionTags({ row, t, changes }: { row: Row; t: PromptPresetPreviewProps['t']; changes: boolean }) {
+  return <>
+    {changes && row.change !== undefined && <Tag tone={CHANGE_TONE[row.change]}>{t(`preview.tag.${row.change}`)}</Tag>}
+    {row.section.protectedSection === true && <Tag tone="quiet">{t('preview.tag.protected')}</Tag>}
+  </>
+}
+
+function SectionText({ row, highlight }: { row: Row; highlight: boolean }) {
+  return <PreviewText className={css.text} current={highlight && row.change === 'removed' ? undefined : row.section}
+    baseline={row.baseline} highlight={highlight} />
+}
+
+function PromptText({ preview, highlight }: { preview: PreviewState; highlight: boolean }) {
+  const current = useMemo(() => promptSource(preview.prompt, preview.sections), [preview.prompt, preview.sections])
+  const baseline = useMemo(() => highlight ? promptSource(preview.baselinePrompt, preview.baseline) : undefined,
+    [highlight, preview.baselinePrompt, preview.baseline])
+  return <PreviewText current={current} baseline={baseline} highlight={highlight} className={css.prompt} />
 }
 
 /**
@@ -69,20 +118,23 @@ interface Row {
  */
 export function PromptPresetPreview({ preview, hasSession, onRefresh, t }: PromptPresetPreviewProps) {
   const [view, setView] = useState<'sections' | 'prompt'>('sections')
-
-  const rows = useMemo((): Row[] => {
-    const before = new Map(preview.baseline.map(section => [section.name, section.text]))
-    const after = new Set(preview.sections.map(section => section.name))
-    const kept: Row[] = preview.sections.map((section) => {
-      const previous = before.get(section.name)
-      if (previous === undefined) return { section, change: 'added' }
-      return { section, change: previous === section.text ? undefined : 'changed' }
+  const [layout, setLayout] = useState<'text' | 'grouped'>('text')
+  const [highlight, setHighlight] = useState(false)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
+  const { sections, baseline } = preview
+  const rows = useMemo(() => sectionRows({ sections, baseline }), [sections, baseline])
+  const detail = rows.find(row => row.section.name === selected)
+  if (selected !== null && detail === undefined) setSelected(null)
+  const groups = highlight ? rows : rows.filter(row => row.change !== 'removed')
+  function toggle(name: string) {
+    setExpanded((previous) => {
+      const next = new Set(previous)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
     })
-    const dropped: Row[] = preview.baseline
-      .filter(section => !after.has(section.name))
-      .map(section => ({ section, change: 'removed' as const }))
-    return [...kept, ...dropped]
-  }, [preview.baseline, preview.sections])
+  }
 
   if (!hasSession) {
     return (
@@ -106,15 +158,11 @@ export function PromptPresetPreview({ preview, hasSession, onRefresh, t }: Promp
           <Pill active={view === 'prompt'} aria-pressed={view === 'prompt'} onClick={() => { setView('prompt') }}>
             {t('preview.prompt')}
           </Pill>
-          <button
-            type="button"
-            className={css.refresh}
-            aria-label={t('preview.refresh')}
-            title={t('preview.refresh')}
-            onClick={onRefresh}
-          >
-            <IconRefreshOutlineRegular size={14} />
-          </button>
+          <Tooltip label={t('preview.refresh')} side="top" portal>
+            <button type="button" className={css.refresh} aria-label={t('preview.refresh')} onClick={onRefresh}>
+              <IconRefreshOutlineRegular size={14} />
+            </button>
+          </Tooltip>
         </span>
       </header>
 
@@ -137,26 +185,64 @@ export function PromptPresetPreview({ preview, hasSession, onRefresh, t }: Promp
         <p className={css.error} role="alert">{t('preview.error', { message: preview.error ?? '' })}</p>
       )}
 
-      {view === 'sections'
-        ? (
+      {view === 'prompt' && (
+        <div className={css.controls}>
+          <Pill active={layout === 'text'} aria-pressed={layout === 'text'} onClick={() => { setLayout('text') }}>
+            {t('preview.textOnly')}
+          </Pill>
+          <Pill active={layout === 'grouped'} aria-pressed={layout === 'grouped'} onClick={() => { setLayout('grouped') }}>
+            {t('preview.grouped')}
+          </Pill>
+          <Checkbox checked={highlight} onChange={setHighlight} label={t('preview.highlightChanges')} />
+        </div>
+      )}
+      {view === 'prompt' && layout === 'text'
+        ? <PromptText preview={preview} highlight={highlight} />
+        : <>
+          {view === 'prompt' && <div className={css.controls}>
+            <Button size="sm" disabled={!groups.some(row => expanded.has(row.section.name))}
+              onClick={() => { setExpanded(new Set()) }}>{t('preview.foldAll')}</Button>
+            <Button size="sm" disabled={groups.every(row => expanded.has(row.section.name))}
+              onClick={() => { setExpanded(new Set(groups.map(row => row.section.name))) }}>{t('preview.unfoldAll')}</Button>
+          </div>}
           <ul className={css.sections}>
-            {rows.map(({ section, change }) => (
-              <li className={css.section} key={`${change ?? 'kept'}-${section.name}`} data-change={change}>
-                <span className={css.sectionHead}>
-                  <code className={css.sectionName}>{section.name}</code>
-                  {change !== undefined && <Tag tone={CHANGE_TONE[change]}>{t(`preview.tag.${change}`)}</Tag>}
-                  {section.protectedSection === true && <Tag tone="quiet">{t('preview.tag.protected')}</Tag>}
-                </span>
-                {/* What the rules touched reads in full; an untouched section keeps one line, so
-                  the list stays short enough to reach the editor's actions. */}
-                <pre className={change === undefined ? css.oneLine : change === 'removed' ? css.removedText : css.text}>
-                  {section.text}
-                </pre>
+            {(view === 'sections' ? rows : groups).map((row) => {
+              const { section } = row
+              const list = view === 'sections'
+              const open = !list && expanded.has(section.name)
+              return <li className={css.section} key={section.name}>
+                <button type="button" className={css.row} aria-haspopup={list ? 'dialog' : undefined}
+                  aria-expanded={list ? undefined : open} onClick={(event) => {
+                    if (list) {
+                      event.currentTarget.focus()
+                      setSelected(section.name)
+                    } else toggle(section.name)
+                  }}>
+                  <span className={css.summary}>
+                    <span className={css.sectionHead}>
+                      <code className={css.sectionName} dir="auto">{section.name}</code>
+                      <SectionTags row={row} t={t} changes={list || highlight} />
+                    </span>
+                    {list && <span className={css.oneLine} dir="auto" aria-hidden="true">{sectionExcerpt(section)}</span>}
+                  </span>
+                  {open
+                    ? <IconChevronDownOutlineRegular size={14} aria-hidden="true" />
+                    : <IconChevronRightOutlineRegular className={css.chevron} size={14} aria-hidden="true" />}
+                </button>
+                {open && <SectionText row={row} highlight={highlight} />}
               </li>
-            ))}
+            })}
           </ul>
-        )
-        : <pre className={css.prompt}>{preview.prompt}</pre>}
+        </>}
+      {detail && <Modal open title={t('preview.detail', { section: detail.section.name })} closeLabel={t('preview.close')}
+        className={css.detail as string} contentClassName={css.detailContent as string}
+        backdropBlur={false} onClose={() => { setSelected(null) }}>
+        <div className={css.controls}>
+          <Checkbox checked={highlight} onChange={setHighlight} label={t('preview.highlightChanges')} />
+          <SectionTags row={detail} t={t} changes />
+        </div>
+        <SectionText row={detail} highlight={highlight} />
+      </Modal>}
     </section>
   )
 }

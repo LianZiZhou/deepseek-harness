@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt, {
-  AssembleContext, PromptAssembly, renderContextSections, renderContextSnapshot, renderPrompt,
+  AssembleContext, PromptAssembly, renderContextSections, renderContextSnapshot, renderPrompt, renderPromptSection,
 } from '@deepseek-ai/dsh-system-prompt'
-import type { PromptContextOrderName, PromptSectionOrderName } from '@deepseek-ai/dsh-system-prompt'
+import type { PromptContextOrderName, PromptSectionOrderName, PromptVariableSpan } from '@deepseek-ai/dsh-system-prompt'
 
 /**
  * Every assembly carries the plugin's own built-ins — `harness:identity`
@@ -694,6 +694,20 @@ describe('SystemPrompt', () => {
       ctx.systemPrompt.variable('cwd', () => '/work')
 
       expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\nYou run on deepseek-v4 in /work.`)
+    })
+
+    it('locates expanded variables in rendered UTF-16 text, not identical literals or nested braces in values', () => {
+      const section = { name: 'example', text: '🪶 M{{empty}}{{model}}/{{model}}{{note}}' }
+      const variables = { empty: '', model: 'M', note: '\n{{model}}' }
+      const spans: PromptVariableSpan[] = []
+      expect(renderPromptSection(section, variables, (span) => { spans.push(span) })).toBe('🪶 MM/M\n{{model}}')
+      expect(spans).toEqual([
+        { start: 4, end: 5, token: '{{model}}' }, { start: 6, end: 7, token: '{{model}}' },
+        { start: 7, end: 17, token: '{{note}}' },
+      ])
+      spans.length = 0
+      expect(renderPromptSection({ ...section, interpolate: false }, variables, (span) => { spans.push(span) })).toBe(section.text)
+      expect(spans).toEqual([])
     })
 
     it.each([

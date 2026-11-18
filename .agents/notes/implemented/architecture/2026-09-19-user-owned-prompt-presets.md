@@ -16,7 +16,7 @@ The obvious shape — one more plugin, a `system-prompt/assemble` listener, a te
 
 ### The rule stack
 
-Five kinds, applied in array index order, each over the previous one's output: `prepend` and `append` add one section at an end, `replace` makes its text the whole prompt, `remove` drops sections by exact name, and `substitute` rewrites matching text. A rule may create a section only at the ends: there is no insert-at-order rule, because no consumer needs one and `remove` plus an end rule expresses the same result.
+Rules run in order and target an existing section by its full ID. An end rule may name its section explicitly so later rules can refer to it across reordering; unnamed rules keep their position-derived IDs. See the [rule reference](../../../../packages/preset/prompt-presets/README.md).
 
 `applyRules` is pure and exported, so the live override and the preview answer identically rather than approximating each other.
 
@@ -34,7 +34,7 @@ The asymmetry is the point. The write path is where a person is looking, and a s
 
 ### Protected sections
 
-`Config.protectedSections` defaults to `tools:ptc-only` and `tool:structured_output`. Those two state rules the **executor** enforces — PTC mode, and the structured-output protocol for in-process children — so a prompt without them tells the model it may call tools that will be denied. A `replace` re-emits them ahead of its own text and warns; a `remove` naming one is refused at write time. It is a `Config` list, not a constant: a deployment that wants literally nothing protected sets `protectedSections: []`.
+`Config.protectedSections` defaults to `tools:ptc-only` and `tool:structured_output`. Those two state rules the **executor** enforces — PTC mode, and the structured-output protocol for in-process children — so a prompt without them tells the model it may call tools that will be denied. A `replace` re-emits them ahead of its own text and warns; a `remove` naming one is refused at write time. It is a `Config` list, not a constant: a deployment that wants literally nothing protected sets `protectedSections: []`. A whole-section rewrite can erase all guidance for an enforced protocol, so the same protection applies to `rewrite`; targeted `substitute` rules remain available.
 
 ## Alternatives considered
 

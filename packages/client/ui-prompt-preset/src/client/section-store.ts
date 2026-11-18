@@ -46,6 +46,8 @@ export interface PreviewState {
   error: string | null
   /** Sections the assembly produces with no preset at all. */
   baseline: readonly PromptPresetPreviewSection[]
+  /** Exact names available before each rule, when supplied by the Host. */
+  ruleSectionNames?: readonly (readonly string[])[] | undefined
   /** Sections after the candidate's rules. */
   sections: readonly PromptPresetPreviewSection[]
   /** The rendered prompt a step would commit under the candidate. */
@@ -62,6 +64,8 @@ export interface PromptPresetSectionState {
   error: string | null
   /** Whether this deployment can store a preset at all. */
   writable: boolean
+  /** Deployment protections also apply to manually entered names without a session. */
+  protectedSections: readonly string[]
   rows: readonly PromptPresetRow[]
   /** Preset used by tasks that name none; `''` when there is none. */
   defaultId: string
@@ -97,6 +101,7 @@ const INITIAL: PromptPresetSectionState = {
   error: null,
   writable: false,
   rows: [],
+  protectedSections: [],
   defaultId: '',
   busy: false,
   selectedId: null,
@@ -156,6 +161,7 @@ export class PromptPresetSectionController {
   setPreviewSession(sessionId: SessionId | undefined): void {
     if (this.previewSession === sessionId) return
     this.previewSession = sessionId
+    this.set({ preview: EMPTY_PREVIEW })
     this.schedulePreview({ immediate: true })
   }
 
@@ -203,6 +209,7 @@ export class PromptPresetSectionController {
       status: 'ready',
       error: null,
       writable: roster.writable,
+      protectedSections: roster.protectedSections,
       rows: roster.presets,
       defaultId: roster.default,
     })
@@ -278,9 +285,20 @@ export class PromptPresetSectionController {
 
   /** Patch the open draft and mark it edited. */
   private patchDraft(patch: Partial<PresetDraft>, redraw = true): void {
-    const draft = this.store.getSnapshot().draft
+    const { draft, preview } = this.store.getSnapshot()
     if (draft === null) return
-    this.set({ draft: { ...draft, ...patch, dirty: true }, saveError: null })
+    let ruleSectionNames = preview.ruleSectionNames
+    if (patch.rules !== undefined) {
+      this.previewGeneration += 1
+      // Rule N's input still matches when the first changed rule is N itself.
+      const firstChange = patch.rules.findIndex((entry, i) => entry !== draft.rules[i])
+      ruleSectionNames = ruleSectionNames?.slice(0, firstChange < 0 ? patch.rules.length : firstChange + 1)
+    }
+    this.set({
+      draft: { ...draft, ...patch, dirty: true },
+      preview: ruleSectionNames === preview.ruleSectionNames ? preview : { ...preview, ruleSectionNames },
+      saveError: null,
+    })
     if (redraw) this.schedulePreview()
   }
 
@@ -372,7 +390,7 @@ export class PromptPresetSectionController {
     const state = this.store.getSnapshot()
     const draft = state.draft
     if (draft === null || !draft.dirty || state.saving) return
-    if (draftBlocker(draft) !== undefined) return
+    if (draftBlocker(draft, state.preview.baseline.map(section => section.name), state.protectedSections) !== undefined) return
     this.set({ saving: true, saveError: null })
     const result = await this.ctx.remote.promptPresets.update(
       draft.id,
@@ -539,6 +557,7 @@ export class PromptPresetSectionController {
       status: 'ready',
       error: null,
       sections: result.value.sections,
+      ruleSectionNames: result.value.ruleSectionNames,
       prompt: result.value.prompt,
       baseline: result.value.baselineSections,
       baselinePrompt: result.value.baselinePrompt,

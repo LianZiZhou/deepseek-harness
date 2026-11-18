@@ -35,6 +35,10 @@ kind: "package-reference"
 
 保存后编辑器在其卡片上收起；「取消」、再次点击「编辑」或打开另一个预设时，若有未保存的修改会先询问。所有界面都通过 `ctx.remote.promptPresets` 读取同一份名册，并在 `prompt-presets` 命名空间的 `settings/document-updated`、Host 自己的 `prompt-preset/changed`，以及 `connection/reset` 时一起刷新。
 
+打开「小节」中的一行，可在弹窗里阅读该小节的全文。「提示词」可显示纯文本，也可按完整 ID 分组，并保留模型看到的顺序。分组可分别或全部折叠、展开。「显示改动」将草稿与同一任务未应用预设的正文比较；悬停或聚焦已展开的变量值可查看原占位符，例如 `{{model}}`。
+
+按 ID 筛选规则的作用小节。找不到目标时可手动添加完整 ID，例如另一个任务才有的小节。「修改小节」和「插入」选择一个目标；「移除」和「查找替换」可多选，筛选不会清除已选项。
+
 ### 切换器是控件，不是标签
 
 agent-preset 的界面分成事前的 chip 与只读的标题栏标签，因为任务的组合一旦开始就被固定。提示词预设不是：系统提示词每一步都会重新渲染，因此标题栏提供实时菜单，文案也明说改动自下一轮起生效、已发送的消息不受影响。该控件沿用相邻元素的几何：在新任务界面上与 agent-preset chip 一致，在标题栏中则采用 agent-preset 标签较小的尺寸。
@@ -56,7 +60,7 @@ agent-preset 的界面分成事前的 chip 与只读的标题栏标签，因为�
 | [`src/client/seat-store.ts`](src/client/seat-store.ts) | 切换器的控制器：菜单名册与写入 |
 | [`src/client/preset-model.ts`](src/client/preset-model.ts) | 纯草稿模型，以及决定是否提供「保存」的检查 |
 | [`src/client/PromptPresetSection.tsx`](src/client/PromptPresetSection.tsx) | 页面：沿用模型页面列表形式的预设卡片、就地编辑器、对话框 |
-| [`src/client/RuleCard.tsx`](src/client/RuleCard.tsx) / [`RuleFields.tsx`](src/client/RuleFields.tsx) | 单条规则的外框，以及各类型各自的字段；预览给出的小节名以 chip 形式供选取 |
+| [`src/client/RuleCard.tsx`](src/client/RuleCard.tsx) / [`RuleFields.tsx`](src/client/RuleFields.tsx) | 规则控件、字段及可筛选的小节选择器 |
 | [`src/client/PromptPreview.tsx`](src/client/PromptPreview.tsx) | 警告、小节列表与最终提示词 |
 | [`src/client/TextArea.tsx`](src/client/TextArea.tsx) | 包内自有的多行字段 |
 | [`src/client/locales.ts`](src/client/locales.ts) | 本界面文案的唯一归属地 |
@@ -98,7 +102,6 @@ agent-preset 的界面分成事前的 chip 与只读的标题栏标签，因为�
 <a id="known-limitations-and-deferred-work"></a>
 
 - **预览需要一个打开的任务**——它针对某个任务自己的作用域组装，因此主视图没有任务时页面会直说，而不是去猜。
-- **最终提示词没有差异视图**——小节列表会标出新增、移除与改动的小节，但提示词页签展示的是结果而非与基线的 diff。
 - **重排序用按钮而非拖拽**——`ui-primitives` 中没有可复用的共享拖拽能力，而按规则的移动按钮无需它即可用键盘触达。
 - **多行字段是包内自有的**——`ui-primitives` 不提供 `TextArea`，而别处那两个原生 textarea 是不同的控件；把它提升上去应当交给第一个真正需要在两个包里用到它的改动。
 

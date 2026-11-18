@@ -253,3 +253,106 @@ describe('the insert rule', () => {
       .toEqual(['harness:identity', 'tools:ptc-only', 'tool:bash'])
   })
 })
+
+describe('exact section IDs', () => {
+  it('rewrites just the named section in place, using the new interpolation setting', () => {
+    const result = applyRules(SECTIONS, preset(
+      { kind: 'rewrite', section: 'harness:identity', text: 'literal {{model}}' },
+      { kind: 'rewrite', section: 'tool:bash', text: 'use {{model}}', interpolate: true },
+    ), OPTIONS)
+    expect(result.sections).toEqual([
+      { name: 'harness:identity', text: 'literal {{model}}', interpolate: false },
+      SECTIONS[1],
+      { name: 'tool:bash', text: 'use {{model}}', interpolate: true },
+    ])
+    expect(result.warnings).toEqual([])
+  })
+
+  it('skips missing or protected rewrites but still substitutes inside protected text', () => {
+    const result = applyRules(SECTIONS, preset(
+      { kind: 'rewrite', section: 'tool', text: 'wrong' },
+      { kind: 'rewrite', section: 'tools:ptc-only', text: 'wrong' },
+      { kind: 'substitute', sections: ['tools:ptc-only'], pattern: 'Only', replacement: 'Always' },
+    ), OPTIONS)
+    expect(result.sections.map(section => section.text))
+      .toEqual(['You are an agent.', 'Always call tools through code.', 'Prefer bash for files.'])
+    expect(result.warnings).toEqual([
+      { code: 'unknown-section', rule: 0, section: 'tool' },
+      { code: 'protected-section-kept', rule: 1, section: 'tools:ptc-only' },
+    ])
+  })
+
+  it('reserves a later rule’s generated ID before accepting a custom ID', () => {
+    const result = applyRules([{ name: 'base', text: 'BASE' }], preset(
+      { kind: 'append', sectionId: 'prompt-preset:replace-1', text: 'CUSTOM' },
+      { kind: 'replace', text: 'EXPECTED' },
+    ), OPTIONS)
+    expect(result.sections.map(section => section.text)).toEqual(['EXPECTED'])
+    expect(result.warnings).toEqual([{ code: 'duplicate-section', rule: 0, section: 'prompt-preset:replace-1' }])
+  })
+
+  it('keeps baseline IDs reserved after removing a section', () => {
+    const result = applyRules([{ name: 'guide', text: 'Original' }], preset(
+      { kind: 'remove', sections: ['guide'] },
+      { kind: 'append', sectionId: 'guide', text: 'Collision' },
+    ), OPTIONS)
+    expect(result.sections).toEqual([])
+    expect(result.warnings).toEqual([{ code: 'duplicate-section', rule: 1, section: 'guide' }])
+  })
+
+  it('skips a malformed or previously claimed custom ID without dropping later rules', () => {
+    const result = applyRules([], preset(
+      { kind: 'append', sectionId: 'bad id', text: 'Invalid' },
+      { kind: 'append', sectionId: 'mine', text: 'First' },
+      { kind: 'remove', sections: ['mine'] },
+      { kind: 'append', sectionId: 'mine', text: 'Duplicate' },
+      { kind: 'append', text: 'Tail' },
+    ), OPTIONS)
+    expect(result.sections.map(section => section.text)).toEqual(['Tail'])
+    expect(result.warnings).toEqual([
+      { code: 'invalid-section-id', rule: 0, section: 'bad id' },
+      { code: 'duplicate-section', rule: 3, section: 'mine' },
+    ])
+  })
+
+  it('reports the input at every rule and attributes only successful creations', () => {
+    const inputs: (readonly AssembledSection[])[] = []
+    const created: [number, string][] = []
+    const result = applyRules([], preset(
+      { kind: 'prepend', sectionId: 'mine:head', text: 'first' },
+      { kind: 'append', sectionId: 'mine:head', text: 'duplicate' },
+      { kind: 'rewrite', section: 'mine:head', text: 'second' },
+      { kind: 'replace', text: 'disabled', enabled: false },
+      { kind: 'append', sectionId: '', text: 'tail' },
+      { kind: 'insert', after: 'mine:head', text: 'middle' },
+      { kind: 'replace', text: 'last' },
+    ), OPTIONS, {
+      beforeRule(index, sections) { inputs[index] = sections },
+      created(index, name) { created.push([index, name]) },
+    })
+    expect(inputs.map(sections => sections.map(section => section.text))).toEqual([
+      [], ['first'], ['first'], ['second'], ['second'], ['second', 'tail'], ['second', 'middle', 'tail'],
+    ])
+    expect(created).toEqual([
+      [0, 'mine:head'], [4, ruleSectionName('append', 4)], [5, ruleSectionName('insert', 5)],
+      [6, ruleSectionName('replace', 6)],
+    ])
+    expect(result.sections.map(section => section.text)).toEqual(['last'])
+    expect(result.warnings).toEqual([{ code: 'duplicate-section', rule: 1, section: 'mine:head' }])
+  })
+
+  it('skips an entire creation on a baseline collision, including a replace', () => {
+    const existing = [...SECTIONS, { name: ruleSectionName('replace', 1), text: 'keep' }]
+    const result = applyRules(existing, preset(
+      { kind: 'append', sectionId: 'tool:bash', text: 'duplicate' },
+      { kind: 'replace', text: 'wrong' },
+      { kind: 'append', sectionId: 'my:tail', text: 'end' },
+      { kind: 'rewrite', section: 'my:tail', text: 'done' },
+    ), OPTIONS)
+    expect(result.sections).toEqual([...existing, { name: 'my:tail', text: 'done', interpolate: false }])
+    expect(result.warnings).toEqual([
+      { code: 'duplicate-section', rule: 0, section: 'tool:bash' },
+      { code: 'duplicate-section', rule: 1, section: ruleSectionName('replace', 1) },
+    ])
+  })
+})

@@ -11,6 +11,8 @@
 
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { AssembledSection } from '@deepseek-ai/dsh-system-prompt'
+import { createdSectionName, sectionIdIssues, type CreatingRule } from './section-id.ts'
+export { ruleSectionName } from './section-id.ts'
 import type { PromptPresetWarning } from './types.ts'
 
 /** Regular-expression flags a `substitute` rule accepts. */
@@ -30,6 +32,8 @@ interface PromptRuleCommon {
 export interface PromptRulePrepend extends PromptRuleCommon {
   /** Discriminant selecting this rule kind. */
   readonly kind: 'prepend'
+  /** Exact new section name; absent or empty uses the position-derived name. */
+  readonly sectionId?: string
   /** The text, used verbatim. */
   readonly text: string
   /**
@@ -44,6 +48,8 @@ export interface PromptRulePrepend extends PromptRuleCommon {
 export interface PromptRuleAppend extends PromptRuleCommon {
   /** Discriminant selecting this rule kind. */
   readonly kind: 'append'
+  /** Exact new section name; absent or empty uses the position-derived name. */
+  readonly sectionId?: string
   /** The text, used verbatim. */
   readonly text: string
   /** Interpolate `{{variable}}` references in this text. Defaults to false. */
@@ -73,6 +79,18 @@ export interface PromptRuleReplace extends PromptRuleCommon {
   /** The text, used verbatim. */
   readonly text: string
   /** Interpolate `{{variable}}` references in this text. Defaults to false. */
+  readonly interpolate?: boolean
+}
+
+/** Replace the contents of one named section without moving it. */
+export interface PromptRuleRewrite extends PromptRuleCommon {
+  /** Discriminant selecting this rule kind. */
+  readonly kind: 'rewrite'
+  /** Exact name of the existing section. */
+  readonly section: string
+  /** Replacement text for the entire section. */
+  readonly text: string
+  /** Interpolate `{{variable}}` references in the replacement. Defaults to false. */
   readonly interpolate?: boolean
 }
 
@@ -109,6 +127,7 @@ export type PromptRule =
   | PromptRuleAppend
   | PromptRuleInsert
   | PromptRuleReplace
+  | PromptRuleRewrite
   | PromptRuleRemove
   | PromptRuleSubstitute
 
@@ -127,10 +146,26 @@ export interface PromptPreset {
 
 /** Deployment bounds and protections one application runs under. */
 export interface RuleApplyOptions {
-  /** Sections a `replace` keeps and a `remove` may not name. */
+  /** Sections a `replace` keeps and a `remove` or `rewrite` may not target. */
   readonly protectedSections: readonly string[]
   /** Longest accepted regular-expression source. */
   readonly maxPatternLength: number
+}
+
+/** Preview observations from one ordered application of a preset. */
+export interface RuleObserver {
+  /**
+   * Inspect the input to a rule, including disabled rules.
+   * @param index - zero-based position of the rule.
+   * @param sections - sections present before the rule runs.
+   */
+  beforeRule(index: number, sections: readonly AssembledSection[]): void
+  /**
+   * Record the section a rule successfully created.
+   * @param index - zero-based position of the creating rule.
+   * @param name - exact name of the new section.
+   */
+  created(index: number, name: string): void
 }
 
 /** What one application produced. */
@@ -141,28 +176,39 @@ export interface RuleApplyResult {
   readonly warnings: readonly PromptPresetWarning[]
 }
 
-/**
- * The name a text-creating rule's section carries.
- *
- * Deterministic and position-derived so a later rule can name it, and prefixed
- * so it can never collide with a registered section.
- * @param kind - the creating rule's discriminant.
- * @param index - the rule's position in its preset.
- * @returns the section name.
- */
-export function ruleSectionName(kind: 'prepend' | 'append' | 'insert' | 'replace', index: number): string {
-  return `prompt-preset:${kind}-${index}`
-}
-
-/** Build the one section a text-creating rule contributes. */
-function createdSection(
-  rule: PromptRulePrepend | PromptRuleAppend | PromptRuleInsert | PromptRuleReplace,
+/** Place the new section at the position selected by its rule. */
+function addSection(
+  current: readonly AssembledSection[],
+  rule: CreatingRule,
   index: number,
-): AssembledSection {
-  return {
-    name: ruleSectionName(rule.kind, index),
-    text: rule.text,
-    interpolate: rule.interpolate === true,
+  options: RuleApplyOptions,
+  warnings: PromptPresetWarning[],
+  name: string,
+): AssembledSection[] {
+  const section = { name, text: rule.text, interpolate: rule.interpolate === true }
+  switch (rule.kind) {
+    case 'prepend':
+      return [section, ...current]
+    case 'append':
+      return [...current, section]
+    case 'insert': {
+      const at = current.findIndex(existing => existing.name === rule.after)
+      if (at < 0) {
+        warnings.push({ code: 'unknown-section', rule: index, section: rule.after })
+        return [...current, section]
+      }
+      return [...current.slice(0, at + 1), section, ...current.slice(at + 1)]
+    }
+    case 'replace': {
+      const kept = current.filter(existing => options.protectedSections.includes(existing.name))
+      for (const existing of kept) {
+        warnings.push({ code: 'protected-section-kept', rule: index, section: existing.name })
+      }
+      return [...kept, section]
+    }
+    /* v8 ignore next 2 -- all creating rule kinds are handled above. */
+    default:
+      return assertNever(rule, 'addSection')
   }
 }
 
@@ -181,41 +227,46 @@ function createdSection(
  * @param sections - the assembly's sections, left untouched.
  * @param preset - the preset whose rules to apply.
  * @param options - the deployment's protections and bounds.
+ * @param observer - optional preview consumer of rule inputs and successful creations.
  * @returns the replacement sections and what did not happen as written.
  */
 export function applyRules(
   sections: readonly AssembledSection[],
   preset: PromptPreset,
   options: RuleApplyOptions,
+  observer?: RuleObserver,
 ): RuleApplyResult {
   const warnings: PromptPresetWarning[] = []
   let current: AssembledSection[] = sections.map(section => ({ ...section }))
 
+  const idIssues = sectionIdIssues(preset.rules, sections.map(section => section.name))
   preset.rules.forEach((rule, index) => {
+    observer?.beforeRule(index, current)
     if (rule.enabled === false) return
     switch (rule.kind) {
       case 'prepend':
-        current = [createdSection(rule, index), ...current]
-        return
       case 'append':
-        current = [...current, createdSection(rule, index)]
-        return
-      case 'insert': {
-        const at = current.findIndex(section => section.name === rule.after)
-        if (at < 0) warnings.push({ code: 'unknown-section', rule: index, section: rule.after })
-        // A missing anchor lands the text at the end rather than dropping it:
-        // the author asked for this text in the prompt, and only said where.
-        const before = at < 0 ? current : current.slice(0, at + 1)
-        const after = at < 0 ? [] : current.slice(at + 1)
-        current = [...before, createdSection(rule, index), ...after]
+      case 'insert':
+      case 'replace': {
+        const issue = idIssues.get(index)
+        if (issue) {
+          warnings.push({ ...issue, rule: index })
+          return
+        }
+        const name = createdSectionName(rule, index)
+        current = addSection(current, rule, index, options, warnings, name)
+        observer?.created(index, name)
         return
       }
-      case 'replace': {
-        const kept = current.filter(section => options.protectedSections.includes(section.name))
-        for (const section of kept) {
-          warnings.push({ code: 'protected-section-kept', rule: index, section: section.name })
+      case 'rewrite': {
+        const at = current.findIndex(section => section.name === rule.section)
+        if (at < 0) {
+          warnings.push({ code: 'unknown-section', rule: index, section: rule.section })
+        } else if (options.protectedSections.includes(rule.section)) {
+          warnings.push({ code: 'protected-section-kept', rule: index, section: rule.section })
+        } else {
+          current = current.with(at, { name: rule.section, text: rule.text, interpolate: rule.interpolate === true })
         }
-        current = [...kept, createdSection(rule, index)]
         return
       }
       case 'remove': {

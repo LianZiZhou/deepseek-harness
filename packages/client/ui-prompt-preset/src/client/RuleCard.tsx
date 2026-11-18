@@ -26,15 +26,14 @@ export interface RuleCardProps {
   total: number
   /** Whether an earlier enabled `replace` leaves this rule nothing to act on. */
   shadowed: boolean
-  /**
-   * A complaint the stack as a whole makes about this rule, which its own
-   * fields cannot see — a second enabled `replace` is only wrong in context.
-   */
+  /** The first save blocker, when it belongs to this card. */
   stackBlocker?: Blocker | undefined
   /** Whether a save is in flight. */
   disabled: boolean
   /** Section names the current preview offers. */
   sectionNames: readonly string[]
+  /** Names the deployment protects from removal and rewriting. */
+  protectedSections: readonly string[]
   /** Replace this rule's own fields. */
   onChange: (rule: PromptRule) => void
   /** Turn the rule on or off without deleting it. */
@@ -53,11 +52,12 @@ export interface RuleCardProps {
  * @returns the card.
  */
 export function RuleCard({
-  entry, position, total, shadowed, disabled, sectionNames, stackBlocker,
+  entry, position, total, shadowed, disabled, sectionNames, protectedSections, stackBlocker,
   onChange, onToggle, onMove, onDelete, t,
 }: RuleCardProps) {
   const enabled = entry.rule.enabled !== false
-  const invalid = enabled && (ruleBlocker(entry.rule) !== undefined || stackBlocker !== undefined)
+  const blocker = stackBlocker ?? ruleBlocker(entry.rule, protectedSections)
+  const invalid = enabled && blocker !== undefined
   const kindName = t(`rule.${entry.rule.kind}.name`)
 
   return (
@@ -122,10 +122,12 @@ export function RuleCard({
         onChange={onChange}
         disabled={disabled || !enabled}
         sectionNames={sectionNames}
+        protectedSections={protectedSections}
+        blocker={blocker}
         t={t}
       />
-      {stackBlocker !== undefined && (
-        <p className={css.error} role="alert">{t(stackBlocker.key, stackBlocker.params)}</p>
+      {blocker !== undefined && (
+        <p className={css.error} role="alert">{t(blocker.key, blocker.params)}</p>
       )}
     </li>
   )

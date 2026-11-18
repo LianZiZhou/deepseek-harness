@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, harness } from './harness.ts'
+import type { Context } from '@deepseek-ai/cordis'
+import { createScope } from '@deepseek-ai/dsh-scope'
+import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type { PromptPresetInput } from '@deepseek-ai/dsh-prompt-presets'
 
 afterEach(cleanup)
@@ -31,6 +34,54 @@ describe('previewing a preset', () => {
       .toContainEqual(['prompt-preset:append-0', 'BE LOUD.', 0])
     expect(preview.sections.find(section => section.name === 'harness:identity'))
       .toEqual({ name: 'harness:identity', text: IDENTITY })
+  })
+
+  it('previews the same named rewrite as a live assembly, with exact variable ranges and per-rule choices', async () => {
+    const draft = { name: 'Review', rules: [
+      { kind: 'prepend', sectionId: 'house:review', text: 'Original' },
+      { kind: 'rewrite', section: 'house:review', text: 'M {{model}} M', interpolate: true },
+      { kind: 'remove', sections: ['house:review'], enabled: false },
+    ] } satisfies PromptPresetInput
+    const bench = await harness({ presets: { review: draft } }, [{ name: 'house:base', order: 1, text: '{{model}}' }])
+    bench.ctx.systemPrompt.variable('model', () => 'M')
+    const agent = bench.agent()
+    const preview = await bench.store.preview(agent, draft, SIGNAL)
+    expect(preview.ruleSectionNames?.[0]).not.toContain('house:review')
+    expect(preview.ruleSectionNames?.[1]).toContain('house:review')
+    expect(preview.ruleSectionNames?.[2]).toContain('house:review')
+    expect(preview.sections[0]).toEqual({
+      name: 'house:review', text: 'M M M', fromRule: 0, variables: [{ start: 2, end: 3, token: '{{model}}' }],
+    })
+    expect(preview.baselineSections.find(section => section.name === 'house:base')?.variables)
+      .toEqual([{ start: 0, end: 1, token: '{{model}}' }])
+    await bench.store.select(agent, 'review')
+    expect(renderPrompt(await bench.ctx.systemPrompt.assemble({ agent }))).toBe(preview.prompt)
+  })
+
+  it('shows a render failure with the untouched baseline and no candidate attribution', async () => {
+    const bench = await harness()
+    const preview = await bench.store.preview(bench.agent(), {
+      name: 'Unresolved', rules: [{ kind: 'append', sectionId: 'custom', text: '{{missing}}', interpolate: true }],
+    }, SIGNAL)
+    expect(preview.warnings.find(warning => warning.code === 'render-failed')?.detail).toContain('{{missing}}')
+    expect(preview.sections).toEqual(preview.baselineSections)
+    expect(preview.prompt).toBe(preview.baselinePrompt)
+  })
+
+  it('honors the same scope-specific finalizer as the live task without attributing skipped rules', async () => {
+    const bench = await harness({ presets: PRESETS })
+    const agent = bench.agent()
+    await bench.ctx.plugin(Object.assign((inner: Context) => {
+      const scope = createScope(inner, agent)
+      scope.ctx.systemPrompt.finalize(assembly => ({ ...assembly, sections: [{ name: 'scope:only', text: 'SCOPED' }] }))
+    }, { inject: ['systemPrompt'] }))
+    const preview = await bench.store.preview(agent, PRESETS.shout, SIGNAL)
+    await bench.store.select(agent, 'shout')
+    expect(renderPrompt(await bench.ctx.systemPrompt.assemble({ agent, scope: agent }))).toBe('SCOPED')
+    expect(preview.prompt).toBe('SCOPED')
+    expect(preview.baselinePrompt).toBe('SCOPED')
+    expect(preview.sections).toEqual([{ name: 'scope:only', text: 'SCOPED' }])
+    expect(preview.ruleSectionNames).toBeUndefined()
   })
 
   it('marks a protected section the deployment keeps through a replace', async () => {
@@ -120,7 +171,7 @@ ${IDENTITY}`)
     expect(preview.sections.map(section => section.name)).toEqual(['prompt-preset:replace-0'])
   })
 
-  it('stops between its two assemblies when the caller cancels', async () => {
+  it('stops previewing when the caller cancels', async () => {
     const bench = await harness({ presets: PRESETS })
     const controller = new AbortController()
     controller.abort()

@@ -204,6 +204,7 @@
     "apps/web/tests/clickable-links-gallery.e2e.ts",
     "apps/web/tests/queue-actions.e2e.ts",
     "apps/web/tests/prompt-admission.e2e.ts",
+    "apps/web/tests/prompt-preset-sections.e2e.ts",
     "apps/web/tests/idle-submission-handoff.e2e.ts",
     "apps/web/tests/queue-image.e2e.ts",
     "apps/web/tests/skill-invocation-policy.e2e.ts",

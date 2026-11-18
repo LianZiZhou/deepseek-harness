@@ -3202,7 +3202,7 @@ export interface Config {
   presets: Volatile<Record<string, PromptPreset>>
   /** Preset stamped into blank sessions; `''` means none. Volatile, as above. */
   default: Volatile<string>
-  /** Sections a `replace` keeps and a `remove` may not name. */
+  /** Sections a `replace` keeps and a `remove` or `rewrite` may not target. */
   protectedSections: string[]
   /** Most presets one deployment stores. */
   maxPresets: number
@@ -3230,6 +3230,7 @@ export type PromptRule =
   | PromptRuleAppend
   | PromptRuleInsert
   | PromptRuleReplace
+  | PromptRuleRewrite
   | PromptRuleRemove
   | PromptRuleSubstitute
 
@@ -3237,6 +3238,8 @@ export type PromptRule =
 export interface PromptRulePrepend extends PromptRuleCommon {
   /** Discriminant selecting this rule kind. */
   readonly kind: 'prepend'
+  /** Exact new section name; absent or empty uses the position-derived name. */
+  readonly sectionId?: string
   /** The text, used verbatim. */
   readonly text: string
   /**
@@ -3251,6 +3254,8 @@ export interface PromptRulePrepend extends PromptRuleCommon {
 export interface PromptRuleAppend extends PromptRuleCommon {
   /** Discriminant selecting this rule kind. */
   readonly kind: 'append'
+  /** Exact new section name; absent or empty uses the position-derived name. */
+  readonly sectionId?: string
   /** The text, used verbatim. */
   readonly text: string
   /** Interpolate `{{variable}}` references in this text. Defaults to false. */
@@ -3280,6 +3285,18 @@ export interface PromptRuleReplace extends PromptRuleCommon {
   /** The text, used verbatim. */
   readonly text: string
   /** Interpolate `{{variable}}` references in this text. Defaults to false. */
+  readonly interpolate?: boolean
+}
+
+/** Replace the contents of one named section without moving it. */
+export interface PromptRuleRewrite extends PromptRuleCommon {
+  /** Discriminant selecting this rule kind. */
+  readonly kind: 'rewrite'
+  /** Exact name of the existing section. */
+  readonly section: string
+  /** Replacement text for the entire section. */
+  readonly text: string
+  /** Interpolate `{{variable}}` references in the replacement. Defaults to false. */
   readonly interpolate?: boolean
 }
 

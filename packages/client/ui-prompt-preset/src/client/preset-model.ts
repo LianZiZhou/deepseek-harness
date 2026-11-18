@@ -7,6 +7,8 @@
  * person sees the mistake beside the field instead of after a round trip.
  */
 
+import { sectionIdIssues } from '@deepseek-ai/dsh-prompt-presets/section-id'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { PromptRule, PromptRuleKind } from '@deepseek-ai/dsh-prompt-presets/types'
 import type { PromptPresetKey } from './locales.ts'
 
@@ -18,7 +20,7 @@ const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/
 
 /** Every rule kind, in the order the add menu offers them. */
 export const RULE_KINDS: readonly PromptRuleKind[] = [
-  'prepend', 'append', 'insert', 'replace', 'remove', 'substitute',
+  'prepend', 'append', 'insert', 'rewrite', 'replace', 'remove', 'substitute',
 ]
 
 /** One rule as the editor holds it: the wire rule plus a key React can track. */
@@ -74,19 +76,24 @@ export function emptyRule(kind: PromptRuleKind): PromptRule {
       return { kind, text: '' }
     case 'insert':
       return { kind, after: '', text: '' }
+    case 'rewrite':
+      return { kind, section: '', text: '' }
     case 'remove':
       return { kind, sections: [] }
-    default:
-      return { kind: 'substitute', pattern: '', replacement: '' }
+    case 'substitute':
+      return { kind, pattern: '', replacement: '' }
+    /* v8 ignore next -- all wire kinds are handled above. */
+    default: return assertNever(kind)
   }
 }
 
 /**
  * Judge one rule.
  * @param rule - the rule to judge.
+ * @param protectedSections - names this deployment does not let a rule remove or rewrite.
  * @returns the first complaint, or `undefined` when the rule is usable.
  */
-export function ruleBlocker(rule: PromptRule): Blocker | undefined {
+export function ruleBlocker(rule: PromptRule, protectedSections: readonly string[] = []): Blocker | undefined {
   switch (rule.kind) {
     case 'prepend':
     case 'append':
@@ -95,9 +102,15 @@ export function ruleBlocker(rule: PromptRule): Blocker | undefined {
     case 'insert':
       if (rule.after.trim() === '') return { key: 'rule.error.anchorRequired' }
       return rule.text.trim() === '' ? { key: 'rule.error.textRequired' } : undefined
-    case 'remove':
+    case 'rewrite':
+      if (rule.section.trim() === '') return { key: 'rule.error.sectionRequired' }
+      return protectedSections.includes(rule.section) ? protectedBlocker(rule.section) : undefined
+    case 'remove': {
+      const protectedName = rule.sections.find(name => protectedSections.includes(name))
+      if (protectedName !== undefined) return protectedBlocker(protectedName)
       return rule.sections.length === 0 ? { key: 'rule.error.sectionsRequired' } : undefined
-    default: {
+    }
+    case 'substitute': {
       if (rule.pattern === '') return { key: 'rule.error.patternRequired' }
       const flags = rule.flags ?? ''
       const invalid = Array.from(flags).some((flag, position) =>
@@ -115,45 +128,69 @@ export function ruleBlocker(rule: PromptRule): Blocker | undefined {
       }
       return undefined
     }
+    /* v8 ignore next -- all wire kinds are handled above. */
+    default: return assertNever(rule)
   }
+}
+
+function protectedBlocker(section: string): Blocker {
+  return { key: 'rule.error.protectedSection', params: { section } }
 }
 
 /**
  * Judge a whole draft, locating the rule at fault.
  * @param draft - the draft to judge.
+ * @param baseline - names already contributed by the assembly.
+ * @param protectedSections - names protected by the deployment, even without a preview.
  * @returns the first offending rule index with its complaint, or `undefined`.
  */
-export function draftBlocker(draft: PresetDraft): { index: number; blocker: Blocker } | undefined {
+export function draftBlocker(
+  draft: PresetDraft,
+  baseline: readonly string[] = [],
+  protectedSections: readonly string[] = [],
+): { index: number; blocker: Blocker } | undefined {
+  const idIssues = sectionIdIssues(draft.rules.map(entry => entry.rule), baseline)
   let replaced = false
-  for (const [index, entry] of draft.rules.entries()) {
-    if (entry.rule.enabled === false) continue
-    if (entry.rule.kind === 'replace') {
+  for (const [index, { rule }] of draft.rules.entries()) {
+    const issue = idIssues.get(index)
+    if (issue) {
+      const blocker: Blocker = issue.code === 'invalid-section-id'
+        ? { key: 'rule.error.sectionIdInvalid' }
+        : { key: 'rule.error.duplicateSection', params: { section: issue.section } }
+      return { index, blocker }
+    }
+    if (rule.enabled === false) {
+      const blocker = rule.kind === 'rewrite' ? ruleBlocker(rule, protectedSections) : undefined
+      if (blocker !== undefined) return { index, blocker }
+      continue
+    }
+    if (rule.kind === 'replace') {
       if (replaced) return { index, blocker: { key: 'rule.error.replaceDuplicate' } }
       replaced = true
     }
-    const blocker = ruleBlocker(entry.rule)
+    const blocker = ruleBlocker(rule, protectedSections)
     if (blocker !== undefined) return { index, blocker }
   }
   return undefined
 }
 
 /**
- * Whether a rule can still change the prompt, given the rules before it.
- *
- * An enabled `replace` leaves only its own text and the protected sections, so
- * a later rule that targets existing sections has nothing of theirs to act on.
+ * Whether an earlier enabled replacement leaves this rule no target.
  * @param rules - the whole ordered stack.
  * @param index - the rule to judge.
- * @returns whether an earlier `replace` makes this rule inert.
+ * @param available - Host names immediately before this rule, when previewed.
+ * @returns whether the rule has no remaining target after a replacement.
  */
-export function isShadowed(rules: readonly DraftRule[], index: number): boolean {
+export function isShadowed(rules: readonly DraftRule[], index: number, available?: readonly string[]): boolean {
   const rule = rules[index]?.rule
   if (rule === undefined || rule.enabled === false) return false
-  // An `insert` names an anchor a `replace` already dropped, so it is shadowed
-  // the same way a `remove` or a `substitute` is.
-  if (rule.kind !== 'remove' && rule.kind !== 'substitute' && rule.kind !== 'insert') return false
-  return rules.slice(0, index)
-    .some(entry => entry.rule.kind === 'replace' && entry.rule.enabled !== false)
+  if (!rules.slice(0, index).some(entry => entry.rule.kind === 'replace' && entry.rule.enabled !== false)) return false
+  // Insert still appends its text if its anchor disappeared.
+  if (rule.kind !== 'remove' && rule.kind !== 'substitute' && rule.kind !== 'rewrite') return false
+  if (available === undefined) return rule.kind !== 'rewrite'
+  const targets = rule.kind === 'rewrite' ? [rule.section] : rule.sections
+  if (!targets?.length) return available.length === 0
+  return !targets.some(name => available.includes(name))
 }
 
 /**
@@ -179,13 +216,4 @@ export function idBlocker(id: string, taken: readonly string[]): Blocker | undef
 export function wireRules(draft: PresetDraft): PromptRule[] {
   return draft.rules.map(entry =>
     ruleBlocker(entry.rule) === undefined ? entry.rule : { ...entry.rule, enabled: false })
-}
-
-/**
- * Parse a comma-separated section list the way the field displays it.
- * @param text - the raw field text.
- * @returns the named sections, empty entries dropped.
- */
-export function parseSections(text: string): string[] {
-  return text.split(',').map(entry => entry.trim()).filter(entry => entry !== '')
 }

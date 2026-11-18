@@ -1,0 +1,26 @@
+- id: prompt-presets
+  config:
+    default: review
+    protectedSections: ['tools:ptc-only', 'tool:structured_output', 'deployment:persona-prefix']
+    presets:
+      review:
+        name: Review
+        rules:
+          - kind: prepend
+            text: Draft review heading.
+          - kind: append
+            sectionId: review:summary
+            text: Draft closing instruction.
+          - kind: rewrite
+            section: prompt-preset:prepend-0
+            text: Review instructions
+          - kind: rewrite
+            section: harness:identity
+            text: 'You are a documentation reviewer using {{model}}.'
+            interpolate: true
+          - kind: rewrite
+            section: deployment:persona-prefix
+            text: Omit verification.
+          - kind: rewrite
+            section: review:summary
+            text: End each review with a summary.

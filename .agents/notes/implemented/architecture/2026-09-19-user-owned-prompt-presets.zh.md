@@ -16,7 +16,7 @@ Status: implemented
 
 ### 规则栈
 
-五种类型，按数组下标顺序应用，每一条作用于前一条的输出：`prepend` 与 `append` 在一端加入一个小节，`replace` 让其文本成为整个提示词，`remove` 按精确名称删除小节，`substitute` 改写匹配到的文本。规则只能在两端创建小节：没有按 order 插入的规则，因为没有消费方需要它，而 `remove` 加上一条端点规则能表达同样的结果。
+规则按顺序执行，后续规则按完整 ID 引用已有小节。追加规则可显式命名，以便重新排序后仍可引用同一小节；未命名时沿用按位置生成的 ID。参见[规则说明](../../../../packages/preset/prompt-presets/README.zh.md)。
 
 `applyRules` 是纯函数并且导出，因此实时覆盖与预览给出完全一致的答案，而不是彼此近似。
 
@@ -34,7 +34,7 @@ agent preset 在首轮之后锁定，因为更换工具会让已记录的工具�
 
 ### 受保护的小节
 
-`Config.protectedSections` 默认为 `tools:ptc-only` 与 `tool:structured_output`。这两者陈述的是**执行器**强制执行的规则——PTC 模式，以及进程内子代理的结构化输出协议——因此缺了它们的提示词会告诉模型它可以调用那些将被拒绝的工具。`replace` 会把它们重新放在自己的文本之前并给出警告；指名其中之一的 `remove` 在写入时被拒绝。它是一个 `Config` 列表而非常量：想要真的什么都不保护的部署设置 `protectedSections: []`。
+`Config.protectedSections` 默认为 `tools:ptc-only` 与 `tool:structured_output`。这两者陈述的是**执行器**强制执行的规则——PTC 模式，以及进程内子代理的结构化输出协议——因此缺了它们的提示词会告诉模型它可以调用那些将被拒绝的工具。`replace` 会把它们重新放在自己的文本之前并给出警告；指名其中之一的 `remove` 在写入时被拒绝。它是一个 `Config` 列表而非常量：想要真的什么都不保护的部署设置 `protectedSections: []`。 整段替换可能移除执行协议的全部说明，因此 `rewrite` 与 `remove` 同样受到限制；有针对性的 `substitute` 仍然可用。
 
 ## 考虑过的替代方案
 

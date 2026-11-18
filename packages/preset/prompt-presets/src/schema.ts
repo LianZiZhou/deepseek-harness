@@ -12,6 +12,7 @@
 import z from '@deepseek-ai/schemastery'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { errorText, SUBSTITUTE_FLAGS } from './rules.ts'
+import { sectionIdIssues } from './section-id.ts'
 import type { PromptPreset, PromptRule, RuleApplyOptions } from './rules.ts'
 
 /** The `[a-z0-9][a-z0-9-]*` grammar a preset id must match. */
@@ -21,12 +22,14 @@ export const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/
 export const PromptRuleSchema: z<PromptRule> = z.union([
   z.object({
     kind: z.const('prepend').required(),
+    sectionId: z.string(),
     text: z.string().required(),
     interpolate: z.boolean(),
     enabled: z.boolean(),
   }),
   z.object({
     kind: z.const('append').required(),
+    sectionId: z.string(),
     text: z.string().required(),
     interpolate: z.boolean(),
     enabled: z.boolean(),
@@ -40,6 +43,13 @@ export const PromptRuleSchema: z<PromptRule> = z.union([
   }),
   z.object({
     kind: z.const('replace').required(),
+    text: z.string().required(),
+    interpolate: z.boolean(),
+    enabled: z.boolean(),
+  }),
+  z.object({
+    kind: z.const('rewrite').required(),
+    section: z.string().required(),
     text: z.string().required(),
     interpolate: z.boolean(),
     enabled: z.boolean(),
@@ -112,21 +122,41 @@ export function presetViolation(
   if (preset.rules.length > limits.maxRules) {
     return { reason: `a preset carries at most ${limits.maxRules} rules` }
   }
+  const idIssues = sectionIdIssues(preset.rules)
   for (const [index, rule] of preset.rules.entries()) {
     const violation = ruleViolation(rule, limits)
     if (violation !== undefined) return { ...violation, rule: index }
+    const issue = idIssues.get(index)
+    if (issue) {
+      const reason = issue.code === 'invalid-section-id'
+        ? 'a section id cannot contain whitespace'
+        : `more than one rule creates section "${issue.section}"`
+      return { rule: index, reason }
+    }
   }
   return undefined
 }
 
 /** Judge one rule; the caller attaches its index. */
 function ruleViolation(rule: PromptRule, limits: PresetLimits): { reason: string } | undefined {
+  if (rule.kind !== 'prepend' && rule.kind !== 'append' && 'sectionId' in rule) {
+    return { reason: 'only prepend and append rules accept a section id' }
+  }
   switch (rule.kind) {
     case 'insert':
       if (rule.after === '') return { reason: 'an insert rule needs the section it goes after' }
       return textViolation(rule.text, limits)
     case 'prepend':
     case 'append':
+      return textViolation(rule.text, limits)
+    case 'rewrite':
+      if (rule.section.trim() === '') {
+        return { reason: 'a rewrite rule needs a section id' }
+      }
+      if (limits.protectedSections.includes(rule.section)) {
+        return { reason: `section "${rule.section}" states a rule the executor enforces and cannot be rewritten` }
+      }
+      return textViolation(rule.text, limits)
     case 'replace':
       return textViolation(rule.text, limits)
     case 'remove':

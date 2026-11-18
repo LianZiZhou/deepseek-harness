@@ -22,8 +22,8 @@ import type { ProjectionHandle } from '@deepseek-ai/dsh-session-projection'
 import z from '@deepseek-ai/schemastery'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent'
-import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
-import type { AssembledSection, PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
+import { renderPrompt, renderPromptSection } from '@deepseek-ai/dsh-system-prompt'
+import type { AssembleContext, AssembledSection, PromptAssembly, PromptVariableSpan } from '@deepseek-ai/dsh-system-prompt'
 import { SettingsConflictError } from '@deepseek-ai/dsh-settings'
 import type { SettingsDescriptor, SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-session-projection'
@@ -33,7 +33,7 @@ import type { CommandDefinitionId, CommandResult } from '@deepseek-ai/dsh-comman
 import type {} from '@deepseek-ai/dsh-commands'
 // Type-only: the Loader's Fiber.entry and `loader/volatile-update` merges.
 import type {} from '@deepseek-ai/cordis-plugin-loader'
-import { applyRules, errorText, ruleSectionName } from './rules.ts'
+import { applyRules, errorText } from './rules.ts'
 import type { PromptPreset, PromptRule } from './rules.ts'
 import {
   PRESET_ID,
@@ -112,7 +112,7 @@ export interface Config {
   presets: Volatile<Record<string, PromptPreset>>
   /** Preset stamped into blank sessions; `''` means none. Volatile, as above. */
   default: Volatile<string>
-  /** Sections a `replace` keeps and a `remove` may not name. */
+  /** Sections a `replace` keeps and a `remove` or `rewrite` may not target. */
   protectedSections: string[]
   /** Most presets one deployment stores. */
   maxPresets: number
@@ -258,23 +258,28 @@ export default class PromptPresetStore extends TypertRemoteService {
    */
   private finalize(
     assembly: PromptAssembly,
-    context: { agent?: Agent; preview?: boolean; promptPresetOverride?: { preset: PromptPreset | null } },
+    context: AssembleContext,
   ): PromptAssembly {
     const override = context.promptPresetOverride
     const resolved = override !== undefined
       ? (override.preset === null ? null : { id: '', preset: override.preset })
       : this.presetForAgent(context.agent)
     if (resolved === null) return assembly
-    const { sections, warnings } = applyRules(assembly.sections, resolved.preset, this.limits)
+    const observer = override?.observer
+    const { sections, warnings } = applyRules(assembly.sections, resolved.preset, this.limits, observer)
+    const report = (warning: PromptPresetWarning) => {
+      if (observer) observer.warning(warning)
+      else this.warn(context.agent, resolved.id, warning)
+    }
+    for (const warning of warnings) report(warning)
     const next: PromptAssembly = { ...assembly, sections }
     let rendered: string
     try {
       rendered = renderPrompt(next)
     } catch (error) {
-      this.warn(context.agent, resolved.id, { code: 'render-failed', detail: errorText(error) })
+      report({ code: 'render-failed', detail: errorText(error) })
       return assembly
     }
-    for (const warning of warnings) this.warn(context.agent, resolved.id, warning)
     if (context.preview !== true) this.record(context.agent, rendered)
     return next
   }
@@ -695,7 +700,7 @@ export default class PromptPresetStore extends TypertRemoteService {
    * the draft in front of the person instead of making them save first.
    * @param agent - the session whose composition to preview against.
    * @param document - the candidate, or `null` for the untransformed prompt.
-   * @param signal - cancels between the candidate and baseline assemblies.
+   * @param signal - cancels assembly or stops before applying the candidate.
    * @returns the rendered sections, the final prompt, and the baseline to compare.
    */
   @Remote('preview')
@@ -707,25 +712,33 @@ export default class PromptPresetStore extends TypertRemoteService {
     // No validation: every way a rule can fail is already contained in
     // `applyRules` and reported as a warning, and a draft mid-edit is exactly
     // what this call exists to show.
-    const preset: PromptPreset | null = document === null
-      ? null
-      : { name: document.name, rules: document.rules }
     const base = assembleContextFor(agent)
     const warnings: PromptPresetWarning[] = []
     const baseline = await this.selfCtx.systemPrompt.assemble({
       ...base,
       preview: true,
+      signal,
       promptPresetOverride: { preset: null },
     })
     signal.throwIfAborted()
+    const creators = new Map<string, number>()
+    const ruleSectionNames: string[][] = []
     let candidate = baseline
-    if (preset !== null) {
+    if (document !== null) {
       candidate = await this.selfCtx.systemPrompt.assemble({
-        ...base,
-        preview: true,
-        promptPresetOverride: { preset },
+        ...base, preview: true, signal,
+        promptPresetOverride: {
+          preset: document,
+          observer: {
+            beforeRule: (index, sections) => { ruleSectionNames[index] = sections.map(section => section.name) },
+            created: (index, name) => { creators.set(name, index) },
+            warning: (warning) => {
+              warnings.push(warning)
+              if (warning.code === 'render-failed') creators.clear()
+            },
+          },
+        },
       })
-      warnings.push(...applyRules(baseline.sections, preset, this.limits).warnings)
       // A baseline of exactly one section that the candidate did not keep is a
       // `complete: true` contribution the rules replaced.
       const [only] = baseline.sections
@@ -733,23 +746,29 @@ export default class PromptPresetStore extends TypertRemoteService {
         warnings.push({ code: 'complete-section-overridden', section: only.name })
       }
     }
-    const prompt = renderPrompt(candidate)
+    const baselineSections = baseline.sections.map(section => this.previewSection(section, baseline))
+    const baselinePrompt = renderPrompt(baseline)
+    const prompt = candidate === baseline ? baselinePrompt : renderPrompt(candidate)
     if (prompt.length === 0) warnings.push({ code: 'empty-prompt' })
     return {
-      sections: candidate.sections.map(section => this.previewSection(section, candidate)),
+      sections: candidate === baseline ? baselineSections : candidate.sections.map(section =>
+        this.previewSection(section, candidate, creators.get(section.name))),
       prompt,
-      baselineSections: baseline.sections.map(section => this.previewSection(section, baseline)),
-      baselinePrompt: renderPrompt(baseline),
+      baselineSections,
+      baselinePrompt,
+      ...ruleSectionNames.length > 0 ? { ruleSectionNames } : {},
       warnings,
     }
   }
 
   /** One assembled section as the preview shows it: rendered, attributed, marked. */
-  private previewSection(section: AssembledSection, assembly: PromptAssembly): PromptPresetPreviewSection {
-    const fromRule = ruleIndexOf(section.name)
+  private previewSection(section: AssembledSection, assembly: PromptAssembly, fromRule?: number): PromptPresetPreviewSection {
+    const variables: PromptVariableSpan[] = []
+    const text = renderPromptSection(section, assembly.variables, (span) => { variables.push(span) })
     return {
       name: section.name,
-      text: renderPrompt({ ...assembly, sections: [section] }),
+      text,
+      ...variables.length > 0 ? { variables } : {},
       ...fromRule === undefined ? {} : { fromRule },
       ...this.limits.protectedSections.includes(section.name) ? { protectedSection: true as const } : {},
     }
@@ -859,17 +878,5 @@ function usage(): CommandResult {
 function rosterRank(row: PromptPresetRow): number {
   return row.source === 'deployment' ? 0 : 1
 }
-
-/** The rule index a created section's name records, when it records one. */
-function ruleIndexOf(name: string): number | undefined {
-  for (const kind of ['prepend', 'append', 'replace'] as const) {
-    const prefix = ruleSectionName(kind, 0).slice(0, -1)
-    if (!name.startsWith(prefix)) continue
-    const index = Number(name.slice(prefix.length))
-    if (Number.isInteger(index)) return index
-  }
-  return undefined
-}
-
 
 export type { PromptRule, PromptPreset }

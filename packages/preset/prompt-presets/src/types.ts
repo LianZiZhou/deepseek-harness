@@ -1,6 +1,7 @@
 /** Client-safe payloads and declaration merges owned by the prompt-preset domain. */
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { PromptPreset, PromptRule } from './rules.ts'
+import type { PromptVariableSpan } from '@deepseek-ai/dsh-system-prompt'
+import type { PromptPreset, PromptRule, RuleObserver } from './rules.ts'
 
 export type {
   PromptPreset,
@@ -10,6 +11,7 @@ export type {
   PromptRulePrepend,
   PromptRuleRemove,
   PromptRuleReplace,
+  PromptRuleRewrite,
   PromptRuleSubstitute,
 } from './rules.ts'
 
@@ -41,9 +43,13 @@ export type PromptPresetWarningCode =
   | 'pattern-too-long'
   /** The rule names a section this assembly does not contain. */
   | 'unknown-section'
+  /** A rule would create a section whose ID is already in use. */
+  | 'duplicate-section'
+  /** A custom section ID contains whitespace; the creation rule was skipped. */
+  | 'invalid-section-id'
   /** The rule's pattern matched nothing in any section it targeted. */
   | 'no-match'
-  /** A `replace` kept a protocol-bearing section the deployment protects. */
+  /** A rule kept a protocol-bearing section the deployment protects. */
   | 'protected-section-kept'
   /** The rules replaced a section another contribution declared complete. */
   | 'complete-section-overridden'
@@ -97,7 +103,7 @@ export interface PromptPresetRoster {
   readonly writable: boolean
   /** Bounds every write is checked against. */
   readonly limits: PromptPresetLimits
-  /** Section names a `remove` may not name and a `replace` keeps. */
+  /** Sections a `replace` keeps and a `remove` or `rewrite` may not target. */
   readonly protectedSections: readonly string[]
 }
 
@@ -117,6 +123,8 @@ export interface PromptPresetPreviewSection {
   readonly name: string
   /** Rendered text: interpolated unless the section declares otherwise. */
   readonly text: string
+  /** Variable references that produced non-empty ranges of this text. */
+  readonly variables?: readonly PromptVariableSpan[]
   /** Index of the rule that created this section, when one did. */
   readonly fromRule?: number
   /** Whether the deployment protects this section from replacement. */
@@ -133,6 +141,8 @@ export interface PromptPresetPreview {
   readonly baselineSections: readonly PromptPresetPreviewSection[]
   /** `renderPrompt` of the baseline, for a difference view. */
   readonly baselinePrompt: string
+  /** Available section IDs before each rule in the candidate, including disabled rules. */
+  readonly ruleSectionNames?: readonly (readonly string[])[]
   /** What the candidate did not do exactly as written. */
   readonly warnings: readonly PromptPresetWarning[]
 }
@@ -181,6 +191,15 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   }
 }
 
+/** Observations from the preset finalizer selected for this preview assembly. */
+interface PreviewObserver extends RuleObserver {
+  /**
+   * Report a contained failure without consuming the live task's warning.
+   * @param warning - rule or rendering problem found during this preview.
+   */
+  warning(warning: PromptPresetWarning): void
+}
+
 declare module '@deepseek-ai/dsh-system-prompt' {
   interface AssembleContext {
     /**
@@ -188,6 +207,6 @@ declare module '@deepseek-ai/dsh-system-prompt' {
      * an explicit `null` (assemble with no preset) stays distinct from an
      * absent field (assemble with whatever the session selected).
      */
-    promptPresetOverride?: { readonly preset: PromptPreset | null }
+    promptPresetOverride?: { readonly preset: PromptPreset | null; readonly observer?: PreviewObserver }
   }
 }

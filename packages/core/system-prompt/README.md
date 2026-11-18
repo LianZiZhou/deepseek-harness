@@ -63,7 +63,7 @@ ctx.systemPrompt.section({
 })
 ```
 
-Set `interpolate: false` on a section or dynamic context to preserve its text literally, including `{{…}}` groups in generated tool documentation or directory names. Other contributions interpolate variables by default.
+Set `interpolate: false` on a section or dynamic context to preserve its text literally, including `{{…}}` groups in generated tool documentation or directory names. Other contributions interpolate variables by default. `renderPromptSection(section, variables, onVariable)` uses the same renderer. Its optional callback reports the UTF-16 range and original placeholder for each non-empty expansion, never for a matching literal.
 
 `refreshContext(assembly, context)` refreshes registered runtime facts after pre-step and route preparation. It preserves accepted sections, tools, variables, and contexts contributed only by the assembly waterfall, applies current optional-context suppression, and restores missing required entries. Put changing facts in context providers; registered context text is read again before admission.
 

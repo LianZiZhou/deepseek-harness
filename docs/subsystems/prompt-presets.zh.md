@@ -29,6 +29,7 @@ type PromptRule =
   | PromptRuleAppend
   | PromptRuleInsert
   | PromptRuleReplace
+  | PromptRuleRewrite
   | PromptRuleRemove
   | PromptRuleSubstitute
 ```
@@ -76,7 +77,7 @@ interface PromptPresetRoster {
   readonly writable: boolean
   /** Bounds every write is checked against. */
   readonly limits: PromptPresetLimits
-  /** Section names a `remove` may not name and a `replace` keeps. */
+  /** Sections a `replace` keeps and a `remove` or `rewrite` may not target. */
   readonly protectedSections: readonly string[]
 }
 ```
@@ -113,7 +114,7 @@ interface PromptPresetInput {
 
 ## 预览
 
-预览针对会话自己的作用域组装两次——一次不带预设，一次带候选项——且两次组装都被标记为 `preview`，因此绘制预览不会记录任何 per-agent（按智能体）状态，也不会给会话正在运行的步骤改错路由。`prompt` 正是一个步骤会提交的文本，`baselinePrompt` 则是不带预设时会提交的文本，于是客户端可以展示两者之差，而不是整篇提示词。
+预览在同一会话的作用域中分别组装未应用预设的基线和候选提示词。两次都使用实际任务的最终处理器；只有该处理器执行了候选规则，响应才包含各规则的可选小节 ID。预览不会切换预设或写入会话。
 
 ```ts type-equiv
 /** What one candidate would produce for one session, and what it costs. */
@@ -126,6 +127,8 @@ interface PromptPresetPreview {
   readonly baselineSections: readonly PromptPresetPreviewSection[]
   /** `renderPrompt` of the baseline, for a difference view. */
   readonly baselinePrompt: string
+  /** Available section IDs before each rule in the candidate, including disabled rules. */
+  readonly ruleSectionNames?: readonly (readonly string[])[]
   /** What the candidate did not do exactly as written. */
   readonly warnings: readonly PromptPresetWarning[]
 }
@@ -138,6 +141,8 @@ interface PromptPresetPreviewSection {
   readonly name: string
   /** Rendered text: interpolated unless the section declares otherwise. */
   readonly text: string
+  /** Variable references that produced non-empty ranges of this text. */
+  readonly variables?: readonly PromptVariableSpan[]
   /** Index of the rule that created this section, when one did. */
   readonly fromRule?: number
   /** Whether the deployment protects this section from replacement. */
@@ -224,7 +229,7 @@ It owns one data set with create, read, update, delete, and selection; it neithe
  * the draft in front of the person instead of making them save first.
  * @param agent - the session whose composition to preview against.
  * @param document - the candidate, or `null` for the untransformed prompt.
- * @param signal - cancels between the candidate and baseline assemblies.
+ * @param signal - cancels assembly or stops before applying the candidate.
  * @returns the rendered sections, the final prompt, and the baseline to compare.
  */
 @Remote('preview') async preview( agent: Agent, document: PromptPresetInput | null, signal: AbortSignal, ): Promise<PromptPresetPreview>

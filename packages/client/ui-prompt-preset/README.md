@@ -35,6 +35,10 @@ Add the `dsh.client` row to the Web roster; there is nothing to configure. The n
 
 A save closes the editor on its card; Cancel, a second Edit, or opening another preset asks before dropping unsaved edits. All surfaces read one roster over `ctx.remote.promptPresets` and refresh together on a `settings/document-updated` for the `prompt-presets` namespace, on the Host's own `prompt-preset/changed`, and on `connection/reset`.
 
+Open a row under **Sections** to read its full text in a dialog. Under **Prompt**, choose **Text only** or **Group by ID** to read the complete sections in model order. Expand or collapse individual groups or all of them. **Show changes** compares the draft with the same task without a preset. Hover or focus an expanded variable value to see its original placeholder, such as `{{model}}`.
+
+Filter rule targets by ID. If an ID is absent, enter it manually, for example when writing a preset for a different task. Editing a section and inserting after one take one target; removal and find-and-replace allow multiple selections that remain selected across searches.
+
 ### The switcher is a control, not a label
 
 The agent-preset surfaces split into a before-the-fact chip and a read-only header label, because a task's composition is fixed once it starts. A prompt preset is not: the system prompt is re-rendered every step, so the header offers a live menu and the copy says a change applies from the next turn and leaves sent messages alone. The control takes each neighbor's geometry: the agent-preset chip's on the new-task screen, and the agent-preset label's smaller size in the header.
@@ -56,7 +60,7 @@ The agent-preset surfaces split into a before-the-fact chip and a read-only head
 | [`src/client/seat-store.ts`](src/client/seat-store.ts) | The switcher's controller: the menu roster and the write |
 | [`src/client/preset-model.ts`](src/client/preset-model.ts) | Pure draft model and the checks that decide whether Save is offered |
 | [`src/client/PromptPresetSection.tsx`](src/client/PromptPresetSection.tsx) | The page: preset cards in the Models page's list form, the in-place editor, dialogs |
-| [`src/client/RuleCard.tsx`](src/client/RuleCard.tsx) / [`RuleFields.tsx`](src/client/RuleFields.tsx) | One rule's chrome, and the fields each kind owns, with the preview's section names offered as chips |
+| [`src/client/RuleCard.tsx`](src/client/RuleCard.tsx) / [`RuleFields.tsx`](src/client/RuleFields.tsx) | Rule controls, fields, and searchable section selection |
 | [`src/client/PromptPreview.tsx`](src/client/PromptPreview.tsx) | Warnings, the section list, and the final prompt |
 | [`src/client/TextArea.tsx`](src/client/TextArea.tsx) | Package-local multi-line field |
 | [`src/client/locales.ts`](src/client/locales.ts) | The one home of this surface's copy |
@@ -98,7 +102,6 @@ None directly. A switch made here writes through the Host, whose own contract re
 <a id="known-limitations-and-deferred-work"></a>
 
 - **The preview needs an open task** — it assembles for one task's own scope, so the page says so rather than guessing when the main view shows none.
-- **No difference view over the final prompt** — the section list marks added, removed, and changed sections, but the prompt tab shows the result rather than a diff against the baseline.
 - **Reordering is buttons, not dragging** — there is no shared drag affordance in `ui-primitives` to reuse, and per-rule move buttons are reachable from a keyboard without one.
 - **The multi-line field is package-local** — `ui-primitives` ships no `TextArea`, and the two raw textareas elsewhere are different controls; promoting one belongs to the first change that genuinely needs it in two packages.
 

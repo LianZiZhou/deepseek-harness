@@ -3162,7 +3162,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: '@Remote(\'preview\') async preview( agent: Agent, document: PromptPresetInput | null, signal: AbortSignal, ): Promise<PromptPresetPreview>',
         description: 'What one candidate preset would produce for one live session.\n\nIt runs the real assembly for that agent\'s own scope, so the preview shows the same sections, tool guidance, and resolved variables a step would, and marks the assembly `preview` so no listener records a route from it. The candidate is a document rather than a stored id, so an editor previews the draft in front of the person instead of making them save first.',
-        parameters: [{ name: 'agent', description: 'the session whose composition to preview against.' }, { name: 'document', description: 'the candidate, or `null` for the untransformed prompt.' }, { name: 'signal', description: 'cancels between the candidate and baseline assemblies.' }],
+        parameters: [{ name: 'agent', description: 'the session whose composition to preview against.' }, { name: 'document', description: 'the candidate, or `null` for the untransformed prompt.' }, { name: 'signal', description: 'cancels assembly or stops before applying the candidate.' }],
         returns: 'the rendered sections, the final prompt, and the baseline to compare.',
       },
     ],
@@ -9387,11 +9387,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PromptPresetPreview',
-    declaration: 'export interface PromptPresetPreview {\n    readonly sections: readonly PromptPresetPreviewSection[];\n    readonly prompt: string;\n    readonly baselineSections: readonly PromptPresetPreviewSection[];\n    readonly baselinePrompt: string;\n    readonly warnings: readonly PromptPresetWarning[];\n}',
+    declaration: 'export interface PromptPresetPreview {\n    readonly sections: readonly PromptPresetPreviewSection[];\n    readonly prompt: string;\n    readonly baselineSections: readonly PromptPresetPreviewSection[];\n    readonly baselinePrompt: string;\n    readonly ruleSectionNames?: readonly (readonly string[])[];\n    readonly warnings: readonly PromptPresetWarning[];\n}',
   },
   {
     name: 'PromptPresetPreviewSection',
-    declaration: 'export interface PromptPresetPreviewSection {\n    readonly name: string;\n    readonly text: string;\n    readonly fromRule?: number;\n    readonly protectedSection?: true;\n}',
+    declaration: 'export interface PromptPresetPreviewSection {\n    readonly name: string;\n    readonly text: string;\n    readonly variables?: readonly PromptVariableSpan[];\n    readonly fromRule?: number;\n    readonly protectedSection?: true;\n}',
   },
   {
     name: 'PromptPresetRoster',
@@ -9411,15 +9411,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PromptPresetWarningCode',
-    declaration: 'export type PromptPresetWarningCode = \'invalid-pattern\' | \'pattern-too-long\' | \'unknown-section\' | \'no-match\' | \'protected-section-kept\' | \'complete-section-overridden\' | \'render-failed\' | \'unknown-preset\' | \'empty-prompt\';',
+    declaration: 'export type PromptPresetWarningCode = \'invalid-pattern\' | \'pattern-too-long\' | \'unknown-section\' | \'duplicate-section\' | \'invalid-section-id\' | \'no-match\' | \'protected-section-kept\' | \'complete-section-overridden\' | \'render-failed\' | \'unknown-preset\' | \'empty-prompt\';',
   },
   {
     name: 'PromptRule',
-    declaration: 'export type PromptRule = PromptRulePrepend | PromptRuleAppend | PromptRuleInsert | PromptRuleReplace | PromptRuleRemove | PromptRuleSubstitute;',
+    declaration: 'export type PromptRule = PromptRulePrepend | PromptRuleAppend | PromptRuleInsert | PromptRuleReplace | PromptRuleRewrite | PromptRuleRemove | PromptRuleSubstitute;',
   },
   {
     name: 'PromptRuleAppend',
-    declaration: 'export interface PromptRuleAppend extends PromptRuleCommon {\n    readonly kind: \'append\';\n    readonly text: string;\n    readonly interpolate?: boolean;\n}',
+    declaration: 'export interface PromptRuleAppend extends PromptRuleCommon {\n    readonly kind: \'append\';\n    readonly sectionId?: string;\n    readonly text: string;\n    readonly interpolate?: boolean;\n}',
   },
   {
     name: 'PromptRuleInsert',
@@ -9427,7 +9427,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PromptRulePrepend',
-    declaration: 'export interface PromptRulePrepend extends PromptRuleCommon {\n    readonly kind: \'prepend\';\n    readonly text: string;\n    readonly interpolate?: boolean;\n}',
+    declaration: 'export interface PromptRulePrepend extends PromptRuleCommon {\n    readonly kind: \'prepend\';\n    readonly sectionId?: string;\n    readonly text: string;\n    readonly interpolate?: boolean;\n}',
   },
   {
     name: 'PromptRuleRemove',
@@ -9436,6 +9436,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PromptRuleReplace',
     declaration: 'export interface PromptRuleReplace extends PromptRuleCommon {\n    readonly kind: \'replace\';\n    readonly text: string;\n    readonly interpolate?: boolean;\n}',
+  },
+  {
+    name: 'PromptRuleRewrite',
+    declaration: 'export interface PromptRuleRewrite extends PromptRuleCommon {\n    readonly kind: \'rewrite\';\n    readonly section: string;\n    readonly text: string;\n    readonly interpolate?: boolean;\n}',
   },
   {
     name: 'PromptRuleSubstitute',
@@ -9460,6 +9464,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PromptSubmitResult',
     declaration: 'export type PromptSubmitResult = {\n    text: string;\n    context?: readonly string[];\n    drop?: undefined;\n} | {\n    drop: string;\n    text?: undefined;\n    context?: undefined;\n};',
+  },
+  {
+    name: 'PromptVariableSpan',
+    declaration: 'export interface PromptVariableSpan {\n    readonly start: number;\n    readonly end: number;\n    readonly token: string;\n}',
   },
   {
     name: 'ProviderRequestId',

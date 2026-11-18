@@ -23,8 +23,9 @@ describe('the stored-preset schema', () => {
   it('admits every rule kind and keeps each one\'s own fields', () => {
     const value = PromptPresetSettingsSchema(settings({
       all: preset([
-        { kind: 'prepend', text: 'a', interpolate: true },
-        { kind: 'append', text: 'b' },
+        { kind: 'prepend', sectionId: 'my:head', text: 'a', interpolate: true },
+        { kind: 'append', sectionId: 'my:tail', text: 'b' },
+        { kind: 'rewrite', section: 'my:head', text: 'new', interpolate: false, enabled: true },
         { kind: 'insert', after: 'harness:identity', text: 'i' },
         { kind: 'replace', text: 'c' },
         { kind: 'remove', sections: ['x'] },
@@ -33,8 +34,9 @@ describe('the stored-preset schema', () => {
     }))
 
     expect(value.presets['all']?.rules).toEqual([
-      { kind: 'prepend', text: 'a', interpolate: true },
-      { kind: 'append', text: 'b' },
+      { kind: 'prepend', sectionId: 'my:head', text: 'a', interpolate: true },
+      { kind: 'append', sectionId: 'my:tail', text: 'b' },
+      { kind: 'rewrite', section: 'my:head', text: 'new', interpolate: false, enabled: true },
       { kind: 'insert', after: 'harness:identity', text: 'i' },
       { kind: 'replace', text: 'c' },
       { kind: 'remove', sections: ['x'] },
@@ -79,6 +81,50 @@ describe('presetViolation()', () => {
     // An insert may name a protected section: it adds beside one, never removes it.
     expect(presetViolation(preset([{ kind: 'insert', after: 'tools:ptc-only', text: 'ok' }]), LIMITS))
       .toBeUndefined()
+  })
+
+  it('validates a rewrite target, its protection and its UTF-8 text bound', () => {
+    const rewrite = (section: string, text = ''): PresetViolation | undefined =>
+      presetViolation(preset([{ kind: 'rewrite', section, text }]), LIMITS)
+
+    expect(rewrite('')).toEqual({ rule: 0, reason: 'a rewrite rule needs a section id' })
+    expect(rewrite('my:custom section')).toBeUndefined()
+    expect(rewrite('tools:ptc-only')).toEqual({ rule: 0, reason: 'section "tools:ptc-only" states a rule the executor enforces and cannot be rewritten' })
+    expect(rewrite('my:section', '你好呀')).toEqual({ rule: 0, reason: 'rule text is 9 bytes, over the 8-byte limit' })
+    expect(rewrite('my:section')).toBeUndefined()
+  })
+
+  it('accepts an empty custom id, but never trims or splits a nonempty one', () => {
+    for (const kind of ['prepend', 'append'] as const) {
+      expect(presetViolation(preset([{ kind, sectionId: '', text: 'ok' }]), LIMITS)).toBeUndefined()
+      for (const sectionId of [' ', 'a ', 'one two', '\tx']) {
+        expect(presetViolation(preset([{ kind, sectionId, text: 'ok' }]), LIMITS))
+          .toEqual({ rule: 0, reason: 'a section id cannot contain whitespace' })
+      }
+    }
+  })
+
+  it('refuses a section id on rule kinds that do not support one', () => {
+    const rule = { kind: 'insert', after: 'my:head', text: 'ok', sectionId: 'bad' } as const
+    expect(presetViolation(preset([rule]), LIMITS))
+      .toEqual({ rule: 0, reason: 'only prepend and append rules accept a section id' })
+  })
+
+  it('rejects duplicate effective creation IDs, excluding disabled rules', () => {
+    const append = { kind: 'append', sectionId: 'my:section', text: 'a' } as const
+    const prepend = { kind: 'prepend', sectionId: 'my:section', text: 'b' } as const
+    const insert = { kind: 'insert', after: 'anchor', text: 'c' } as const
+    for (const [rules, offending] of [
+      [[append, prepend], 1],
+      [[{ ...append, sectionId: 'prompt-preset:insert-1' }, insert], 0],
+      [[insert, { ...append, sectionId: 'prompt-preset:insert-0' }], 1],
+    ] as const) {
+      const violation = presetViolation(preset([...rules]), LIMITS)
+      expect(violation?.rule).toBe(offending)
+      expect(violation?.reason).toContain('more than one rule creates section')
+    }
+    expect(presetViolation(preset([{ ...prepend, enabled: false }, append]), LIMITS)).toBeUndefined()
+    expect(presetViolation(preset([append, { ...prepend, enabled: false }]), LIMITS)).toBeUndefined()
   })
 
   it('bounds created text and a replacement separately', () => {

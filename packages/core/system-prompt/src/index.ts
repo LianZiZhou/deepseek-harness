@@ -306,9 +306,34 @@ export interface Config {
  */
 export function renderPrompt(assembly: PromptAssembly): string {
   return assembly.sections
-    .map(section => section.interpolate === false ? section.text : interpolate(section, assembly.variables, 'section'))
+    .map(section => renderPromptSection(section, assembly.variables))
     .filter(text => text.length > 0)
     .join('\n\n')
+}
+
+/** A non-empty variable expansion in a rendered section, in UTF-16 code units. */
+export interface PromptVariableSpan {
+  /** Inclusive offset in the rendered text. */
+  readonly start: number
+  /** Exclusive offset in the rendered text. */
+  readonly end: number
+  /** Exact reference from the template, including its double braces. */
+  readonly token: string
+}
+
+/**
+ * Render one section with the same interpolation rules as the complete prompt.
+ * @param section - section text and interpolation policy.
+ * @param variables - resolved variables for this assembly.
+ * @param onVariable - receives each non-empty expansion in output order, never literal text.
+ * @returns the exact text contributed by this section, including whitespace.
+ */
+export function renderPromptSection(
+  section: AssembledSection,
+  variables: PromptAssembly['variables'],
+  onVariable?: (span: PromptVariableSpan) => void,
+): string {
+  return section.interpolate === false ? section.text : interpolate(section, variables, 'section', onVariable)
 }
 
 /**
@@ -358,6 +383,7 @@ function interpolate(
   input: AssembledSection | AssembledContext,
   variables: Record<string, string | undefined>,
   kind: 'section' | 'context',
+  onVariable?: (span: PromptVariableSpan) => void,
 ): string {
   const text = input.text
   let result = ''
@@ -387,7 +413,9 @@ function interpolate(
     if (value === undefined) {
       throw new Error(`prompt variable "{{${name}}}" has no value for this assembly (${kind} "${input.name}")`)
     }
-    result += text.slice(last, open) + value
+    result += text.slice(last, open)
+    if (value.length > 0) onVariable?.({ start: result.length, end: result.length + value.length, token: group[0] })
+    result += value
     last = open + group[0].length
   }
   return result + text.slice(last)

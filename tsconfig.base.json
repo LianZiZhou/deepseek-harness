@@ -199,6 +199,7 @@
       "@deepseek-ai/dsh-agent-preset-registry/tools": ["./packages/preset/agent-preset-registry/src/tools.ts"],
       "@deepseek-ai/dsh-agent-preset-registry/types": ["./packages/preset/agent-preset-registry/src/types.ts"],
       "@deepseek-ai/dsh-prompt-presets/types": ["./packages/preset/prompt-presets/src/types.ts"],
+      "@deepseek-ai/dsh-prompt-presets/section-id": ["./packages/preset/prompt-presets/src/section-id.ts"],
       "@deepseek-ai/dsh-agent-preset-registry/display": ["./packages/preset/agent-preset-registry/src/display.ts"],
       "@deepseek-ai/dsh-pwsh-local": ["./packages/shell/pwsh-local/src/index.ts"],
       "@deepseek-ai/dsh-tool-pwsh": ["./packages/shell/tool-pwsh/src/index.ts"],

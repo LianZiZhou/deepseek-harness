@@ -6,10 +6,11 @@
  */
 
 import clsx from 'clsx'
-import { Checkbox, Input, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Checkbox, Input } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PromptRule } from '@deepseek-ai/dsh-prompt-presets/types'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
-import { parseSections, ruleBlocker } from './preset-model.ts'
+import type { Blocker } from './preset-model.ts'
+import { SectionPicker } from './SectionPicker.tsx'
 import { TextArea } from './TextArea.tsx'
 import css from './RuleCard.module.css'
 
@@ -21,58 +22,18 @@ export interface RuleFieldsProps {
   onChange: (rule: PromptRule) => void
   /** Whether editing is blocked while a save is in flight. */
   disabled: boolean
-  /** The section names this preview offers, as chips beside the section fields. */
+  /** Names available at this rule in the preview. */
   sectionNames: readonly string[]
+  /** Names the deployment protects from removal and rewriting. */
+  protectedSections: readonly string[]
+  /** First field or stack complaint for this rule. */
+  blocker: Blocker | undefined
   /** Localized copy. */
   t: TranslateNS<'settings.promptPreset'>
 }
 
-/**
- * The section names this preview offers, as chips that fill the field beside them.
- * @param props - the names, which are chosen, the group's name, and the pick callback.
- * @returns the chips, or null while no preview has named any section.
- */
-function SectionPicker({ names, chosen, label, disabled, onPick }: {
-  names: readonly string[]
-  chosen: readonly string[]
-  label: string
-  disabled: boolean
-  onPick: (name: string) => void
-}) {
-  if (names.length === 0) return null
-  return (
-    <div className={css.picker} role="group" aria-label={label}>
-      {names.map((name) => {
-        const active = chosen.includes(name)
-        return (
-          <Pill
-            key={name}
-            className={css.pick}
-            active={active}
-            aria-pressed={active}
-            disabled={disabled}
-            onClick={() => { onPick(name) }}
-          >
-            {name}
-          </Pill>
-        )
-      })}
-    </div>
-  )
-}
-
-/**
- * Add a section name to a list, or take it out when it is already there.
- * @param sections - the names chosen so far.
- * @param name - the name picked.
- * @returns the list with `name` toggled, in pick order.
- */
-function toggleSection(sections: readonly string[], name: string): string[] {
-  return sections.includes(name) ? sections.filter(entry => entry !== name) : [...sections, name]
-}
-
 /** The rule kinds that carry text and may interpolate variables into it. */
-type TextRule = Extract<PromptRule, { kind: 'prepend' | 'append' | 'replace' | 'insert' }>
+type TextRule = Extract<PromptRule, { kind: 'prepend' | 'append' | 'replace' | 'insert' | 'rewrite' }>
 
 /**
  * The text field and interpolation checkbox every text-carrying rule shows.
@@ -114,85 +75,80 @@ function RuleText({ rule, onChange, rows, invalid, disabled, t }: {
  * @param props - the rule, its change callback, and localized copy.
  * @returns the field set.
  */
-export function RuleFields({ rule, onChange, disabled, sectionNames, t }: RuleFieldsProps) {
-  const blocker = ruleBlocker(rule)
-  const message = blocker === undefined ? undefined : t(blocker.key, blocker.params)
-
+export function RuleFields({ rule, onChange, disabled, sectionNames, protectedSections, blocker, t }: RuleFieldsProps) {
+  const picker = { names: sectionNames, disabled, t }
   if (rule.kind === 'prepend' || rule.kind === 'append' || rule.kind === 'replace') {
+    const invalidId = blocker?.key === 'rule.error.duplicateSection' || blocker?.key === 'rule.error.sectionIdInvalid'
     return (
       <div className={css.fields}>
+        {rule.kind !== 'replace' && (
+          <label className={css.label}>
+            {t('rule.field.sectionId')}
+            <Input
+              value={rule.sectionId ?? ''}
+              placeholder={t('rule.field.autoId')}
+              aria-invalid={invalidId}
+              disabled={disabled}
+              spellCheck={false}
+              onChange={(event) => {
+                const { sectionId: _previous, ...rest } = rule
+                const sectionId = event.target.value
+                onChange(sectionId === '' ? rest : { ...rest, sectionId })
+              }}
+            />
+          </label>
+        )}
         <RuleText
           rule={rule}
           onChange={onChange}
           rows={rule.kind === 'replace' ? 6 : 3}
-          invalid={message !== undefined}
+          invalid={blocker?.key === 'rule.error.textRequired'}
           disabled={disabled}
           t={t}
         />
-        {message !== undefined && <p className={css.error} role="alert">{message}</p>}
       </div>
     )
   }
 
-  if (rule.kind === 'insert') {
+  if (rule.kind === 'insert' || rule.kind === 'rewrite') {
+    const insert = rule.kind === 'insert'
+    const value = insert ? rule.after : rule.section
     return (
       <div className={css.fields}>
-        <label className={css.label}>
-          {t('rule.field.after')}
-          <Input
-            value={rule.after}
-            placeholder={t('rule.field.afterPlaceholder')}
-            aria-label={t('rule.field.after')}
-            aria-invalid={message !== undefined && rule.after.trim() === ''}
-            className={clsx(message !== undefined && rule.after.trim() === '' && css.invalid)}
-            disabled={disabled}
-            onChange={(event) => { onChange({ ...rule, after: event.target.value.trim() }) }}
-          />
-        </label>
         <SectionPicker
-          names={sectionNames}
-          chosen={[rule.after]}
-          label={t('rule.field.after')}
-          disabled={disabled}
-          onPick={(after) => { onChange({ ...rule, after }) }}
+          {...picker}
+          multiple={false}
+          selected={value === '' ? [] : [value]}
+          label={t(insert ? 'rule.field.after' : 'rule.field.section')}
+          invalid={blocker !== undefined && blocker.key !== 'rule.error.textRequired'}
+          {...insert ? {} : { protectedSections }}
+          onChange={([section = '']) => {
+            onChange(insert ? { ...rule, after: section } : { ...rule, section })
+          }}
         />
         <RuleText
           rule={rule}
           onChange={onChange}
           rows={3}
-          invalid={message !== undefined && rule.after.trim() !== ''}
+          invalid={blocker?.key === 'rule.error.textRequired'}
           disabled={disabled}
           t={t}
         />
-        {message !== undefined && <p className={css.error} role="alert">{message}</p>}
       </div>
     )
   }
 
   if (rule.kind === 'remove') {
     return (
-      <div className={css.fields}>
-        <label className={css.label}>
-          {t('rule.field.sections')}
-          <Input
-            value={rule.sections.join(', ')}
-            placeholder={t('rule.field.sectionsPlaceholder')}
-            aria-label={t('rule.field.sections')}
-            aria-invalid={message !== undefined}
-            className={clsx(message !== undefined && css.invalid)}
-            disabled={disabled}
-            onChange={(event) => { onChange({ ...rule, sections: parseSections(event.target.value) }) }}
-          />
-        </label>
-        <SectionPicker
-          names={sectionNames}
-          chosen={rule.sections}
-          label={t('rule.field.sections')}
-          disabled={disabled}
-          onPick={(name) => { onChange({ ...rule, sections: toggleSection(rule.sections, name) }) }}
-        />
-        {message !== undefined && <p className={css.error} role="alert">{message}</p>}
-      </div>
+      <SectionPicker
+        {...picker}
+        multiple
+        selected={rule.sections}
+        label={t('rule.field.sections')}
+        protectedSections={protectedSections}
+        invalid={blocker !== undefined}
+        onChange={(sections) => { onChange({ ...rule, sections }) }}
+      />
     )
   }
 
@@ -205,8 +161,8 @@ export function RuleFields({ rule, onChange, disabled, sectionNames, t }: RuleFi
             value={rule.pattern}
             placeholder={t('rule.field.patternPlaceholder')}
             aria-label={t('rule.field.pattern')}
-            aria-invalid={message !== undefined}
-            className={clsx(message !== undefined && css.invalid)}
+            aria-invalid={blocker !== undefined}
+            className={clsx(blocker !== undefined && css.invalid)}
             spellCheck={false}
             disabled={disabled}
             onChange={(event) => { onChange({ ...rule, pattern: event.target.value }) }}
@@ -233,24 +189,14 @@ export function RuleFields({ rule, onChange, disabled, sectionNames, t }: RuleFi
         monospace
         disabled={disabled}
       />
-      <label className={css.label}>
-        {t('rule.field.sections')}
-        <Input
-          value={(rule.sections ?? []).join(', ')}
-          placeholder={t('rule.field.sectionsAll')}
-          aria-label={t('rule.field.sections')}
-          disabled={disabled}
-          onChange={(event) => { onChange({ ...rule, sections: parseSections(event.target.value) }) }}
-        />
-      </label>
       <SectionPicker
-        names={sectionNames}
-        chosen={rule.sections ?? []}
+        {...picker}
+        multiple
+        selected={rule.sections ?? []}
         label={t('rule.field.sections')}
-        disabled={disabled}
-        onPick={(name) => { onChange({ ...rule, sections: toggleSection(rule.sections ?? [], name) }) }}
+        emptySelectionLabel={t('rule.field.sectionsAll')}
+        onChange={(sections) => { onChange({ ...rule, sections }) }}
       />
-      {message !== undefined && <p className={css.error} role="alert">{message}</p>}
     </div>
   )
 }

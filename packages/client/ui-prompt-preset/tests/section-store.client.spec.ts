@@ -15,7 +15,7 @@ function roster(presets: PromptPresetRoster['presets']): PromptPresetRoster {
     revision: 3,
     writable: true,
     limits: { maxPresets: 8, maxRules: 8, maxPatternLength: 64, maxTextBytes: 1024 },
-    protectedSections: [],
+    protectedSections: ['guard'],
   }
 }
 
@@ -77,6 +77,7 @@ function bench(options: { failList?: 'unavailable' | 'error' } = {}) {
           prompt: 'identity',
           baselineSections: [{ name: 'harness:identity', text: 'identity' }],
           baselinePrompt: 'identity',
+          ruleSectionNames: document?.rules.map(() => ['harness:identity']),
           warnings: [],
         },
       })
@@ -143,6 +144,37 @@ describe('editing one preset', () => {
     controller.addRule('remove')
     await controller.save()
     expect(calls.filter(call => call.startsWith('update'))).toEqual([])
+  })
+
+  it('blocks protected targets and conflicting IDs even on a direct save', async () => {
+    const { controller, calls } = bench()
+    await controller.load()
+    controller.setPreviewSession(SESSION)
+    controller.select('shout')
+    await vi.runOnlyPendingTimersAsync()
+    const initial = controller.store.getSnapshot()
+    expect(initial.protectedSections).toEqual(['guard'])
+    expect(initial.preview.ruleSectionNames).toEqual([['harness:identity']])
+    const key = initial.draft!.rules[0]!.key
+    for (const rule of [
+      { kind: 'rewrite', section: 'guard', text: 'x' },
+      { kind: 'remove', sections: ['guard'] },
+      { kind: 'prepend', sectionId: 'harness:identity', text: 'x' },
+    ] as const) {
+      controller.patchRule(key, rule)
+      expect(controller.store.getSnapshot().preview.ruleSectionNames).toEqual([['harness:identity']])
+      await controller.save()
+      expect(calls.filter(call => call.startsWith('update'))).toEqual([])
+    }
+    controller.addRule('append')
+    const other = controller.store.getSnapshot().draft!.rules[1]!.key
+    controller.patchRule(other, { kind: 'append', text: 'other' })
+    controller.patchRule(key, { kind: 'prepend', sectionId: 'prompt-preset:append-1', text: 'x' })
+    await controller.save()
+    expect(calls.filter(call => call.startsWith('update'))).toEqual([])
+    controller.setRuleEnabled(other, false)
+    await controller.save()
+    expect(calls).toContain('update:shout:2')
   })
 
   it('asks before abandoning a dirty draft, and honours either answer', async () => {
@@ -245,6 +277,22 @@ describe('the preview', () => {
     await vi.advanceTimersByTimeAsync(400)
     expect(calls.filter(call => call.startsWith('preview')).length).toBe(before + 1)
     expect(controller.store.getSnapshot().preview).toMatchObject({ status: 'ready', prompt: 'identity' })
+  })
+
+  it('drops stale per-rule choices after the first edited rule while the next preview is pending', async () => {
+    const { controller } = bench()
+    await controller.load()
+    controller.setPreviewSession(SESSION)
+    controller.select('shout')
+    controller.addRule('insert')
+    await vi.advanceTimersByTimeAsync(400)
+    expect(controller.store.getSnapshot().preview.ruleSectionNames).toHaveLength(2)
+    const first = controller.store.getSnapshot().draft!.rules[0]!
+    controller.patchRule(first.key, { kind: 'prepend', text: 'new', sectionId: 'custom' })
+    expect(controller.store.getSnapshot().preview.ruleSectionNames).toEqual([['harness:identity']])
+    controller.removeRule(controller.store.getSnapshot().draft!.rules[1]!.key)
+    controller.removeRule(first.key)
+    expect(controller.store.getSnapshot().preview.ruleSectionNames).toEqual([])
   })
 
   it('draws nothing while no task is open', async () => {

@@ -6,7 +6,7 @@ import { en, zh } from '../src/client/locales.ts'
 const WARNING_CODES = [
   'invalid-pattern', 'pattern-too-long', 'unknown-section', 'no-match',
   'protected-section-kept', 'complete-section-overridden', 'render-failed',
-  'unknown-preset', 'empty-prompt',
+  'unknown-preset', 'empty-prompt', 'duplicate-section', 'invalid-section-id',
 ] as const
 
 describe('the prompt-preset dictionaries', () => {

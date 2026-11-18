@@ -29,6 +29,7 @@ type PromptRule =
   | PromptRuleAppend
   | PromptRuleInsert
   | PromptRuleReplace
+  | PromptRuleRewrite
   | PromptRuleRemove
   | PromptRuleSubstitute
 ```
@@ -76,7 +77,7 @@ interface PromptPresetRoster {
   readonly writable: boolean
   /** Bounds every write is checked against. */
   readonly limits: PromptPresetLimits
-  /** Section names a `remove` may not name and a `replace` keeps. */
+  /** Sections a `replace` keeps and a `remove` or `rewrite` may not target. */
   readonly protectedSections: readonly string[]
 }
 ```
@@ -113,7 +114,7 @@ interface PromptPresetInput {
 
 ## Preview
 
-A preview assembles twice for the session's own scope — once with no preset and once with the candidate — and both assemblies are marked `preview`, so drawing one records no per-agent state and cannot reroute a step the session is running. `prompt` is exactly the text a step would commit, and `baselinePrompt` is what it would commit with no preset, so a client can show the difference rather than the whole prompt.
+Preview assembles the baseline without a preset and the candidate in the same session scope. Both use the finalizer that a live step would select. Per-rule section IDs are reported only if the preset finalizer ran the candidate. A preview neither changes the selection nor writes to the session.
 
 ```ts type-equiv
 /** What one candidate would produce for one session, and what it costs. */
@@ -126,6 +127,8 @@ interface PromptPresetPreview {
   readonly baselineSections: readonly PromptPresetPreviewSection[]
   /** `renderPrompt` of the baseline, for a difference view. */
   readonly baselinePrompt: string
+  /** Available section IDs before each rule in the candidate, including disabled rules. */
+  readonly ruleSectionNames?: readonly (readonly string[])[]
   /** What the candidate did not do exactly as written. */
   readonly warnings: readonly PromptPresetWarning[]
 }
@@ -138,6 +141,8 @@ interface PromptPresetPreviewSection {
   readonly name: string
   /** Rendered text: interpolated unless the section declares otherwise. */
   readonly text: string
+  /** Variable references that produced non-empty ranges of this text. */
+  readonly variables?: readonly PromptVariableSpan[]
   /** Index of the rule that created this section, when one did. */
   readonly fromRule?: number
   /** Whether the deployment protects this section from replacement. */
@@ -224,7 +229,7 @@ It owns one data set with create, read, update, delete, and selection; it neithe
  * the draft in front of the person instead of making them save first.
  * @param agent - the session whose composition to preview against.
  * @param document - the candidate, or `null` for the untransformed prompt.
- * @param signal - cancels between the candidate and baseline assemblies.
+ * @param signal - cancels assembly or stops before applying the candidate.
  * @returns the rendered sections, the final prompt, and the baseline to compare.
  */
 @Remote('preview') async preview( agent: Agent, document: PromptPresetInput | null, signal: AbortSignal, ): Promise<PromptPresetPreview>

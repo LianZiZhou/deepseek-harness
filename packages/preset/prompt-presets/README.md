@@ -46,7 +46,7 @@ Mount this row wherever agents run and a settings provider is composed; it provi
 |---|---|---|
 | `presets` | `{}` | Every stored preset, keyed by id. Volatile: an edit reaches the running store without a remount |
 | `default` | `''` | Preset stamped into a blank session; `''` stamps none. Volatile, as above |
-| `protectedSections` | `['tools:ptc-only', 'tool:structured_output']` | Sections a `replace` keeps and a `remove` may not name |
+| `protectedSections` | `['tools:ptc-only', 'tool:structured_output']` | Sections a `replace` keeps and a `remove` or `rewrite` may not target |
 | `maxPresets` | `64` | Most presets one deployment stores |
 | `maxRules` | `32` | Most rules one preset carries |
 | `maxPatternLength` | `512` | Longest accepted regular-expression source |
@@ -68,8 +68,11 @@ Rules apply in array order, and each one sees what the one before it produced �
 | `append` | Adds one section after everything, so its text closes the rendered prompt |
 | `insert` | Adds one section directly behind the section `after` names; an anchor nothing carries warns and lands the text at the end |
 | `replace` | Makes its text the whole prompt, keeping only protected sections |
+| `rewrite` | Replaces all text of the named `section` in place; its ID and position stay the same. Protected sections are not valid targets |
 | `remove` | Drops sections by exact name |
 | `substitute` | Rewrites matching text; `sections` restricts it, and absent or empty means every section |
+
+A `prepend` or `append` rule may set a whitespace-free `sectionId`. Omit it or leave it empty to use `prompt-preset:<kind>-<index>`. Two enabled creation rules may not claim the same ID. If creation would collide with a section in a task, the rule is skipped with a warning and the existing section is untouched.
 
 Rule text is literal by default. Set `interpolate: true` on a text rule to resolve `{{provider}}`, `{{model}}`, and `{{cwd}}` in it; leaving it off is what keeps a pasted prompt containing braces from failing a turn. `enabled: false` keeps a rule stored without applying it.
 
@@ -93,7 +96,7 @@ Terminal front doors that complete command arguments get Tab completion of these
 
 ### Preview before committing
 
-`preview(agent, id, signal)` assembles twice for that session's own scope — once with no preset, once with the candidate — and returns both rendered prompts, the candidate's sections with the rule that created each, and everything the candidate could not do as written. The assemblies are marked as previews, so drawing one cannot disturb a step the session is running.
+`preview(agent, document, signal)` returns the untransformed and candidate prompts using the finalizer the task would actually run. It includes variable expansion ranges, the rule that created each new section, and the IDs available before each applied or disabled rule. Previewing neither selects a preset nor records a model message.
 
 ### What a rule cannot do
 
@@ -164,7 +167,7 @@ Read these when the package-level contract is not enough.
 
 #### What the model sees
 
-Whatever the session's preset produces, and nothing else from the prompt registry. With no preset selected the model sees the assembly exactly as every other contribution built it. With one selected, the model sees that assembly after the preset's rules: text the rules added opens or closes the prompt, a `replace` leaves only the deployment's protected sections plus the rule's own text, a `remove` drops the named sections, and a `substitute` rewrites matching text in those that remain. The text is the user's, so this package pins none of it; the sections it creates are named `prompt-preset:<kind>-<index>` and their text is literal unless the rule asked for interpolation. A rule that cannot run is skipped and the model sees the rest of the stack applied; a result that could not render leaves the model seeing the untransformed prompt.
+The model receives the assembled prompt after the selected preset’s rules run in order. With no preset, it receives the original assembly. A missing target or a collision skips the affected operation; if the resulting prompt cannot render, the model receives the untransformed prompt.
 
 #### Token effect
 

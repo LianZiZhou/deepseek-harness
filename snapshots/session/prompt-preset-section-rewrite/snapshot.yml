@@ -1,0 +1,9 @@
+version: 1
+scenario: prompt-preset-section-rewrite
+profile: headless
+composition: default
+recording: authored
+header:
+  class: prompt-preset-section-rewrite
+  pin: true
+  toolSchemasSource: text-turn

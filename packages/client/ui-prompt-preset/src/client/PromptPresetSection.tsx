@@ -215,8 +215,8 @@ function Editor(props: PartProps) {
   /* v8 ignore next -- PresetCard renders the editor only while a draft is open. */
   if (draft === null) return null
 
-  const blocked = draftBlocker(draft)
   const sectionNames = state.preview.baseline.map(section => section.name)
+  const blocked = draftBlocker(draft, sectionNames, state.protectedSections)
 
   return (
     <div className={css.editor}>
@@ -256,12 +256,11 @@ function Editor(props: PartProps) {
                   entry={entry}
                   position={index + 1}
                   total={draft.rules.length}
-                  shadowed={isShadowed(draft.rules, index)}
-                  stackBlocker={blocked?.index === index && blocked.blocker.key === 'rule.error.replaceDuplicate'
-                    ? blocked.blocker
-                    : undefined}
+                  shadowed={isShadowed(draft.rules, index, state.preview.ruleSectionNames?.[index])}
+                  stackBlocker={blocked?.index === index ? blocked.blocker : undefined}
                   disabled={state.saving}
-                  sectionNames={sectionNames}
+                  sectionNames={state.preview.ruleSectionNames?.[index] ?? sectionNames}
+                  protectedSections={state.protectedSections}
                   onChange={(rule) => { patchRule(entry.key, rule) }}
                   onToggle={(enabled) => { setRuleEnabled(entry.key, enabled) }}
                   onMove={(direction) => { moveRule(entry.key, direction) }}

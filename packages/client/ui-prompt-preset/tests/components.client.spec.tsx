@@ -8,6 +8,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { PromptRule } from '@deepseek-ai/dsh-prompt-presets/types'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import { PromptPresetSeat } from '../src/client/PromptPresetSeat.tsx'
 import type { PromptPresetSeatProps } from '../src/client/PromptPresetSeat.tsx'
@@ -45,6 +46,7 @@ const SECTION_READY: PromptPresetSectionState = {
   status: 'ready',
   error: null,
   writable: true,
+  protectedSections: [],
   rows: [
     { promptPreset: 'shipped', name: 'Shipped', rules: [], source: 'deployment', isDefault: true },
     {
@@ -124,7 +126,11 @@ function renderSection(state: Partial<PromptPresetSectionState> = {}, overrides:
     addRule: vi.fn(),
     removeRule: vi.fn(),
     moveRule: vi.fn(),
-    patchRule: vi.fn(),
+    patchRule: vi.fn((key: string, rule: PromptRule) => {
+      const current = store.getSnapshot()
+      const draft = current.draft!
+      store.set({ ...current, draft: { ...draft, rules: draft.rules.map(entry => entry.key === key ? { key, rule } : entry) } })
+    }),
     setRuleEnabled: vi.fn(),
     save: vi.fn(() => Promise.resolve()),
     closeEditor: vi.fn(),
@@ -551,16 +557,17 @@ describe('the rule editor', () => {
     })
     const cards = screen.getAllByRole('listitem').filter(item => item.getAttribute('aria-label') !== null)
 
-    fireEvent.change(
-      within(cards[0]!).getByRole('textbox', { name: en['rule.field.sections'] }),
-      { target: { value: 'a, b' } },
-    )
+    const removeFilter = within(cards[0]!).getByLabelText(en['rule.field.filter'])
+    fireEvent.change(removeFilter, { target: { value: 'b' } })
+    fireEvent.keyDown(removeFilter, { key: 'Enter' })
     expect(actions.patchRule).toHaveBeenCalledWith(expect.any(String), { kind: 'remove', sections: ['a', 'b'] })
 
     fireEvent.change(within(cards[1]!).getByLabelText(en['rule.field.pattern']), { target: { value: 'q' } })
     fireEvent.change(within(cards[1]!).getByLabelText(en['rule.field.flags']), { target: { value: 'gi' } })
     fireEvent.change(within(cards[1]!).getByLabelText(en['rule.field.replacement']), { target: { value: 's' } })
-    fireEvent.change(within(cards[1]!).getByRole('textbox', { name: en['rule.field.sections'] }), { target: { value: 'x' } })
+    const scopeFilter = within(cards[1]!).getByLabelText(en['rule.field.filter'])
+    fireEvent.change(scopeFilter, { target: { value: 'x' } })
+    fireEvent.click(within(cards[1]!).getByRole('button', { name: translate('rule.field.addId', { section: 'x' }) }))
     expect(actions.patchRule).toHaveBeenCalledTimes(5)
   })
 
@@ -720,16 +727,16 @@ describe('reporting what is wrong', () => {
 })
 
 describe('the insert rule card', () => {
-  it('edits its anchor and its text, trimming the anchor as typed', () => {
+  it('adds its exact anchor with Enter, then edits its text', () => {
     const actions = renderSection({
       selectedId: 'shout',
       draft: draftOf({ kind: 'insert', after: 'harness:identity', text: 'HERE.' }),
     })
     const card = screen.getAllByRole('listitem').find(item => item.getAttribute('aria-label') !== null)!
 
-    fireEvent.change(within(card).getByRole('textbox', { name: en['rule.field.after'] }), {
-      target: { value: '  tool:bash  ' },
-    })
+    const filter = within(card).getByLabelText(en['rule.field.filter'])
+    fireEvent.change(filter, { target: { value: '  tool:bash  ' } })
+    fireEvent.keyDown(filter, { key: 'Enter' })
     expect(actions.patchRule).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ kind: 'insert', after: 'tool:bash' }),
@@ -811,13 +818,14 @@ describe('picking sections', () => {
       { kind: 'remove', sections: ['tool:bash', 'harness:identity'] },
     )
     fireEvent.click(within(picker).getByRole('button', { name: 'tool:bash' }))
-    expect(actions.patchRule).toHaveBeenLastCalledWith(expect.any(String), { kind: 'remove', sections: [] })
+    expect(actions.patchRule).toHaveBeenLastCalledWith(expect.any(String), { kind: 'remove', sections: ['harness:identity'] })
   })
 
   it('narrows a substitution to the picked sections', () => {
     const actions = renderSection({
       selectedId: 'shout',
       draft: draftOf({ kind: 'substitute', pattern: 'p', replacement: 'r' }),
+      protectedSections: ['tool:bash'],
       preview: PREVIEW,
     })
     const picker = screen.getByRole('group', { name: en['rule.field.sections'] })
@@ -828,12 +836,86 @@ describe('picking sections', () => {
     )
   })
 
-  it('offers nothing to pick before the preview names any section', () => {
-    renderSection({
+  it('keeps selections visible and removable across queries, including IDs absent from preview', () => {
+    const actions = renderSection({
       selectedId: 'shout',
       draft: draftOf({ kind: 'remove', sections: ['a'] }),
-      preview: { ...SECTION_READY.preview, baseline: [] },
+      preview: PREVIEW,
     })
-    expect(screen.queryByRole('group', { name: en['rule.field.sections'] })).toBeNull()
+    const picker = within(screen.getByRole('group', { name: en['rule.field.sections'] }))
+    const filter = picker.getByLabelText(en['rule.field.filter'])
+    fireEvent.change(filter, { target: { value: 'BASH' } })
+    expect(picker.queryByRole('button', { name: 'harness:identity' })).toBeNull()
+    fireEvent.click(picker.getByRole('button', { name: 'tool:bash' }))
+    fireEvent.change(filter, { target: { value: 'other,section' } })
+    fireEvent.keyDown(filter, { key: 'Enter', isComposing: true })
+    expect(actions.patchRule).toHaveBeenCalledTimes(1)
+    expect(picker.getByRole('button', { name: 'tool:bash', pressed: true })).toBeTruthy()
+    fireEvent.keyDown(filter, { key: 'Enter' })
+    expect(actions.patchRule.mock.lastCall?.[1]).toEqual({ kind: 'remove', sections: ['a', 'tool:bash', 'other,section'] })
+    fireEvent.change(filter, { target: { value: 'other,section' } })
+    fireEvent.keyDown(filter, { key: 'Enter' })
+    expect(actions.patchRule).toHaveBeenCalledTimes(2)
+    fireEvent.click(picker.getByRole('button', { name: 'a', pressed: true }))
+    expect(actions.patchRule.mock.lastCall?.[1]).toEqual({ kind: 'remove', sections: ['tool:bash', 'other,section'] })
+  })
+
+  it('uses each rule’s host-provided names, including an empty list, and allows manual entry', () => {
+    const actions = renderSection({
+      selectedId: 'shout',
+      draft: draftOf({ kind: 'append', sectionId: 'new', text: 'a' }, { kind: 'rewrite', section: '', text: 'b' }),
+      preview: { ...PREVIEW, ruleSectionNames: [[], ['new']] },
+    })
+    const picker = within(screen.getByRole('group', { name: en['rule.field.section'] }))
+    expect(picker.queryByRole('button', { name: 'tool:bash' })).toBeNull()
+    fireEvent.click(picker.getByRole('button', { name: 'new' }))
+    const filter = picker.getByLabelText(en['rule.field.filter'])
+    fireEvent.change(filter, { target: { value: 'unseen' } })
+    fireEvent.keyDown(filter, { key: 'Enter' })
+    expect(picker.queryByRole('button', { name: 'new', pressed: true })).toBeNull()
+    expect(actions.patchRule.mock.lastCall?.[1]).toEqual({ kind: 'rewrite', section: 'unseen', text: 'b' })
+    fireEvent.click(screen.getAllByLabelText(en['rule.field.interpolate'])[1]!)
+    expect(actions.patchRule.mock.lastCall?.[1]).toEqual({ kind: 'rewrite', section: 'unseen', text: 'b', interpolate: true })
+    fireEvent.click(picker.getByRole('button', { name: 'unseen', pressed: true }))
+    expect(screen.getByText(en['rule.error.sectionRequired'])).toBeTruthy()
+    cleanup()
+    renderSection({
+      selectedId: 'shout', draft: draftOf({ kind: 'remove', sections: ['custom'] }),
+      preview: { ...PREVIEW, ruleSectionNames: [[]] },
+    })
+    const empty = within(screen.getByRole('group', { name: en['rule.field.sections'] }))
+    expect(empty.queryByRole('button', { name: 'tool:bash' })).toBeNull()
+    expect(empty.getByRole('button', { name: 'custom', pressed: true })).toBeTruthy()
+  })
+
+  it.each(['rewrite', 'remove'] as const)('blocks protected %s targets from the list and the keyboard', (kind) => {
+    const actions = renderSection({
+      selectedId: 'shout', protectedSections: ['tool:bash', 'unseen'],
+      draft: draftOf(kind === 'remove' ? { kind, sections: ['a'] } : { kind, section: 'a', text: 'new' }),
+      preview: PREVIEW,
+    })
+    const picker = within(screen.getByRole('group', { name: en[kind === 'rewrite' ? 'rule.field.section' : 'rule.field.sections'] }))
+    const refused = picker.getByRole('button', { name: /tool:bash/ })
+    expect(refused.hasAttribute('disabled')).toBe(true)
+    expect(refused.textContent).toContain(en['rule.field.protected'])
+    const filter = picker.getByLabelText(en['rule.field.filter'])
+    fireEvent.change(filter, { target: { value: 'unseen' } })
+    expect(picker.getByRole('button', { name: /unseen/ }).hasAttribute('disabled')).toBe(true)
+    fireEvent.keyDown(filter, { key: 'Enter' })
+    expect(actions.patchRule).not.toHaveBeenCalled()
+  })
+
+  it('blocks a duplicate created ID, then returns to an omitted ID when cleared', () => {
+    const actions = renderSection({ selectedId: 'shout', draft: draftOf({ kind: 'append', text: 'x' }) })
+    const field = screen.getByLabelText(en['rule.field.sectionId'])
+    fireEvent.change(field, { target: { value: 'harness:identity' } })
+    expect(screen.getByText(translate('rule.error.duplicateSection', { section: 'harness:identity' }))).toBeTruthy()
+    expect(field.getAttribute('aria-invalid')).toBe('true')
+    fireEvent.change(field, { target: { value: 'not one ID' } })
+    expect(screen.getByText(en['rule.error.sectionIdInvalid'])).toBeTruthy()
+    expect(screen.getByRole('button', { name: en.save }).hasAttribute('disabled')).toBe(true)
+    fireEvent.change(field, { target: { value: '' } })
+    expect(actions.patchRule.mock.lastCall?.[1]).toEqual({ kind: 'append', text: 'x' })
+    expect(screen.getByRole('button', { name: en.save }).hasAttribute('disabled')).toBe(false)
   })
 })

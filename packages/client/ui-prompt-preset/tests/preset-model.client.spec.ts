@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PromptRule } from '@deepseek-ai/dsh-prompt-presets/types'
 import {
-  RULE_KINDS, draftBlocker, emptyRule, idBlocker, isShadowed, mintRuleKey, parseSections,
+  RULE_KINDS, draftBlocker, emptyRule, idBlocker, isShadowed, mintRuleKey,
   ruleBlocker, wireRules,
 } from '../src/client/preset-model.ts'
 import type { DraftRule, PresetDraft } from '../src/client/preset-model.ts'
@@ -24,6 +24,7 @@ describe('emptyRule()', () => {
       { kind: 'prepend', text: '' },
       { kind: 'append', text: '' },
       { kind: 'insert', after: '', text: '' },
+      { kind: 'rewrite', section: '', text: '' },
       { kind: 'replace', text: '' },
       { kind: 'remove', sections: [] },
       { kind: 'substitute', pattern: '', replacement: '' },
@@ -83,6 +84,47 @@ describe('draftBlocker()', () => {
   })
 })
 
+describe('section IDs', () => {
+  it('reserves generated names on either side of a custom ID, including insert and replace', () => {
+    for (const creator of [
+      { kind: 'prepend', text: 'first' }, { kind: 'append', text: 'last' },
+      { kind: 'insert', after: 'anchor', text: 'next' }, { kind: 'replace', text: 'only' },
+    ] as const) {
+      for (const index of [0, 1]) {
+        const section = `prompt-preset:${creator.kind}-${String(index)}`
+        const custom = { kind: 'append', text: 'other', sectionId: section } as const
+        const rules = index === 0 ? [creator, custom] : [custom, creator]
+        expect(draftBlocker(draft(...rules))).toEqual({
+          index: 1 - index, blocker: { key: 'rule.error.duplicateSection', params: { section } },
+        })
+      }
+    }
+  })
+
+  it('accepts unused IDs with legacy prefixes and ignores disabled creators', () => {
+    const rule = { kind: 'prepend', text: 'first', sectionId: 'prompt-preset:append-1' } as const
+    expect(draftBlocker(draft(rule, { kind: 'append', text: 'last', enabled: false }))).toBeUndefined()
+    expect(draftBlocker(draft(rule, { ...rule, enabled: false }))).toBeUndefined()
+    expect(draftBlocker(draft(rule, rule))?.blocker.key).toBe('rule.error.duplicateSection')
+    expect(draftBlocker(draft({ ...rule, sectionId: 'not one' }))?.blocker.key).toBe('rule.error.sectionIdInvalid')
+    expect(draftBlocker(draft({ ...rule, enabled: false, sectionId: 'not one' }))?.blocker.key).toBe('rule.error.sectionIdInvalid')
+    expect(draftBlocker(draft({ kind: 'rewrite', section: 'protected', text: '', enabled: false }), [], ['protected'])?.blocker.key)
+      .toBe('rule.error.protectedSection')
+    expect(draftBlocker(draft({ kind: 'rewrite', section: 'free', text: '', enabled: false }))).toBeUndefined()
+    expect(draftBlocker(draft({ ...rule, sectionId: '' }))).toBeUndefined()
+    expect(draftBlocker(draft({ kind: 'append', text: 'x' }), ['prompt-preset:append-0'])?.blocker.key)
+      .toBe('rule.error.duplicateSection')
+  })
+
+  it('judges rewrite text and target separately and permits protected anchors and substitution scopes', () => {
+    expect(ruleBlocker({ kind: 'rewrite', section: '', text: 'ok' })?.key).toBe('rule.error.sectionRequired')
+    expect(ruleBlocker({ kind: 'rewrite', section: 'a', text: '' })).toBeUndefined()
+    expect(ruleBlocker({ kind: 'rewrite', section: 'real id', text: 'ok' })).toBeUndefined()
+    expect(ruleBlocker({ kind: 'insert', after: 'a', text: 'ok' }, ['a'])).toBeUndefined()
+    expect(ruleBlocker({ kind: 'substitute', sections: ['a'], pattern: 'a', replacement: '' }, ['a'])).toBeUndefined()
+  })
+})
+
 describe('isShadowed()', () => {
   it('marks a later remove or substitute inert once an enabled replace runs', () => {
     const rules = draft(
@@ -93,6 +135,21 @@ describe('isShadowed()', () => {
     expect(isShadowed(rules, 0)).toBe(false)
     expect(isShadowed(rules, 1)).toBe(true)
     expect(isShadowed(rules, 2)).toBe(false)
+  })
+
+  it('does not mark protected, replaced or newly created targets inert if the Host still offers them', () => {
+    const rules = draft(
+      { kind: 'replace', text: 'only' },
+      { kind: 'append', sectionId: 'extra', text: 'later' },
+      { kind: 'rewrite', section: 'extra', text: 'new' },
+      { kind: 'substitute', pattern: 'a', replacement: 'b' },
+      { kind: 'insert', after: 'missing', text: 'last' },
+    ).rules
+    expect(isShadowed(rules, 2, ['extra'])).toBe(false)
+    expect(isShadowed(rules, 2, [])).toBe(true)
+    expect(isShadowed(rules, 3, ['protected'])).toBe(false)
+    expect(isShadowed(rules, 3, [])).toBe(true)
+    expect(isShadowed(rules, 4, [])).toBe(false)
   })
 
   it('marks nothing when the replace is off, and nothing for a disabled rule', () => {
@@ -129,13 +186,6 @@ describe('wireRules()', () => {
       { kind: 'append', text: 'ok' },
       { kind: 'substitute', pattern: '(', replacement: '', enabled: false },
     ])
-  })
-})
-
-describe('parseSections()', () => {
-  it('reads a comma-separated list and drops the empty entries', () => {
-    expect(parseSections(' a , ,b,  ')).toEqual(['a', 'b'])
-    expect(parseSections('')).toEqual([])
   })
 })
 
