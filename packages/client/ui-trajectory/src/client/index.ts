@@ -1,7 +1,4 @@
-/**
- * Browser trajectory plugin contributing one entry to the conversation view
- * slot without defining a service.
- */
+/** Conversation views for the trajectory ledger and model context editor. */
 import type { Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -46,8 +43,7 @@ export type {
 export const inject = ['slots', 'sessions', 'uiSession', 'uiConversation', 'locale', 'remote', 'remote.session', 'remote.toolResults']
 
 /**
- * Client plugin body: register the trajectory view tab. The registration
- * rides the slot service's effect wrapper, so plugin unload removes the tab.
+ * Registers the trajectory ledger and context editor for the plugin's lifetime.
  * @param ctx - client root context.
  */
 export function apply(ctx: Context): void {
@@ -118,7 +114,7 @@ export function apply(ctx: Context): void {
   }, TrajectoryView))
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
-    id: 'context',
+    id: 'trajectory-context-editor',
     order: 20,
     locale: NS,
     label: () => t('view.context'),

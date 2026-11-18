@@ -2874,7 +2874,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     occupants: [
       'client-ui-chat ChatView id \'chat\'',
       'client-ui-trajectory TrajectoryView id \'trajectory\'',
-      'client-ui-trajectory ContextView id \'context\'',
+      'client-ui-trajectory ContextView id \'trajectory-context-editor\'',
       'experimental-client-ui-stats StatsView id \'stats\'',
     ],
     replaceRisk: 'none',

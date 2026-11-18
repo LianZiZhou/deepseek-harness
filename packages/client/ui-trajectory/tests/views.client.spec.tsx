@@ -1,13 +1,6 @@
 // @vitest-environment jsdom
 import { contextMenuHook } from '@deepseek-ai/dsh-client-test-runtime'
-/**
- * View registration acceptance on the real framework stack: the plugin fiber
- * registers Trajectory into a real SlotRegistry view ring, tabs
- * switch inside ConversationRoot (renderSlot share driven by the same tab
- * projection apply uses) without collapsing chat, trajectory renders the
- * event ledger with its timing overview, and fiber disposal removes the tab.
- * Timeline projection and inclusive focus edge cases ride along.
- */
+/** Conversation tab registration, plugin disposal, and trajectory interactions. */
 import type { GlobalStandardProps, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -260,7 +253,7 @@ type ConversationTargetSources = {
 }
 
 /** Real-stack bench: root Context + real SlotRegistry ring + the plugin fiber. */
-async function bench(snapshot = historySnapshot(NODES)) {
+async function bench(snapshot = historySnapshot(NODES), externalContext?: 'before' | 'after') {
   const runtime = await SlotTestRuntime.create()
   runtime.remote.provideNamespaces({ toolResults: {} })
   runtimes.push(runtime)
@@ -317,7 +310,12 @@ async function bench(snapshot = historySnapshot(NODES)) {
   // The generated Remote face reaches namespaces as properties of `ctx.remote`.
   Object.assign(ctx.get('remote') ?? {}, { session: sessionRemote })
   const provide = vi.spyOn(ctx.uiSession, 'provide')
+  const registerDashboard = () => slots.register({
+    name: 'conversation.view', id: 'context', order: 20, label: 'Context',
+  }, () => <div>External dashboard</div>)
+  if (externalContext === 'before') registerDashboard()
   const feature = await runtime.mount({ inject: [...inject], apply })
+  if (externalContext === 'after') registerDashboard()
   const sourceDescriptor = provide.mock.calls[0]?.[0]
   if (sourceDescriptor === undefined) throw new Error('ui-trajectory did not provide its standard source')
   return {
@@ -456,25 +454,30 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
 }
 
 describe('plugin registration', () => {
-  it('registers trajectory and context after chat on the ring', async () => {
-    const b = await bench()
-    expect(tabsOf(b.slots)).toEqual([
-      { id: 'chat', label: 'Chat' },
-      { id: 'trajectory', label: 'Trajectory' },
-      { id: 'context', label: 'Context' },
-    ])
-  })
-
-  it('fiber disposal removes the tab and leaves chat standing', async () => {
-    const b = await bench()
+  it.each(['before', 'after'] as const)('preserves the external context dashboard registered %s the built-in views', async (order) => {
+    const b = await bench(undefined, order)
+    const view = mount(b)
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent).sort())
+      .toEqual(['Chat', 'Context', 'Context editor', 'Trajectory'])
+    fireEvent.click(screen.getByRole('tab', { name: 'Context editor' }))
+    expect(await screen.findByRole('toolbar', { name: '上下文工具栏' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: 'Context' }))
+    expect(screen.getByText('External dashboard')).toBeTruthy()
     expect(b.events.entries().length).toBeGreaterThan(0)
     expect(b.views.entries()).toHaveLength(1)
 
+    view.unmount()
     await b.feature.dispose()
 
-    expect(tabsOf(b.slots).map(v => v.id)).toEqual(['chat'])
+    expect(tabsOf(b.slots)).toEqual([
+      { id: 'chat', label: 'Chat' },
+      { id: 'context', label: 'Context' },
+    ])
     expect(b.events.entries()).toEqual([])
     expect(b.views.entries()).toEqual([])
+    mount(b)
+    fireEvent.click(screen.getByRole('tab', { name: 'Context' }))
+    expect(screen.getByText('External dashboard')).toBeTruthy()
   })
 
   it('keeps one total standard source for a Session binding', async () => {
@@ -544,7 +547,7 @@ describe('tab switching in ConversationRoot', () => {
     const b = await bench()
     const view = mount(b)
     expect(screen.getByTestId('chat-body')).toBeTruthy()
-    expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(['Chat', 'Trajectory', 'Context'])
+    expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(['Chat', 'Trajectory', 'Context editor'])
 
     fireEvent.click(screen.getByRole('tab', { name: 'Trajectory' }))
     expect(screen.queryByText(/turns ·/)).toBeNull()
@@ -566,21 +569,25 @@ describe('tab switching in ConversationRoot', () => {
   it('switches to the context view and reads the Session model context', async () => {
     const b = await bench()
     mount(b)
-    fireEvent.click(screen.getByRole('tab', { name: 'Context' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Context editor' }))
     await waitFor(() => { expect(b.sessionRemote.context).toHaveBeenCalledWith({ sessionId: SID }) })
     expect(screen.getByRole('toolbar', { name: '上下文工具栏' })).toBeTruthy()
     expect(screen.queryByTestId('chat-body')).toBeNull()
   })
 
-  it('labels the trajectory tab in the active locale', async () => {
+  it('labels the built-in views in the active locale', async () => {
     const b = await bench()
-    const labelOf = () => tabsOf(b.slots).find(tab => tab.id === 'trajectory')?.label
-    expect(labelOf()).toBe('Trajectory')
     const locale = b.ctx.get('locale') as { setLocale(id: string): void }
     locale.setLocale('zh')
-    expect(labelOf()).toBe('轨迹')
+    expect(tabsOf(b.slots).slice(1)).toEqual([
+      { id: 'trajectory', label: '轨迹' },
+      { id: 'trajectory-context-editor', label: '上下文编辑器' },
+    ])
     locale.setLocale('en')
-    expect(labelOf()).toBe('Trajectory')
+    expect(tabsOf(b.slots).slice(1)).toEqual([
+      { id: 'trajectory', label: 'Trajectory' },
+      { id: 'trajectory-context-editor', label: 'Context editor' },
+    ])
   })
 
   it('opens a local record inspector and switches payload tabs without opening chat details', async () => {

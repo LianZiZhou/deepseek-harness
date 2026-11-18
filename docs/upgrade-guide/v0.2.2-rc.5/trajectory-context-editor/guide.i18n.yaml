@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.2-rc.5/trajectory-context-editor/guide.md
+/:
+  en: d46defc1229e838f
+  zh: e0404bf019828100
+/the-built-in-context-editor-has-its-own-view-id:
+  en: 80cc2b3b42883214
+  zh: 18afc2667154b877
+/the-built-in-context-editor-has-its-own-view-id/change:
+  en: 7e0165bbad7b04e5
+  zh: 81042f20e044dcdc
+/the-built-in-context-editor-has-its-own-view-id/migration:
+  en: 5e7927f6c8e53946
+  zh: eb831da709aab380

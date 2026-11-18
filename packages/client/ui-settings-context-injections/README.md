@@ -65,7 +65,7 @@ None directly. A saved change reaches the Host, whose own contract records that 
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **No preview** — the page shows no example of the original text a row would send; the Context tab of a task shows what was sent.
+- **No preview** — the page shows no example of the original text a row would send; the task’s Context editor tab shows what was sent.
 
 <a id="dev-note"></a>
 ### Dev Note

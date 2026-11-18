@@ -3,8 +3,8 @@
  * Real tsdown artifact shape: lib/client.js hands off through
  * window.__ModuleLoader__.load, resolves externals through the injected
  * require, returns the exports (apply + inject), and a mounted apply
- * registers the view tab into a real SlotRegistry ring. Skips when dist/ is
- * not built (`pnpm --filter @deepseek-ai/dsh-client-ui-trajectory bundle`).
+ * registers both conversation views in a real SlotRegistry. Skips when the
+ * built `lib/client.js` is absent.
  */
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { readFileSync } from 'node:fs'
@@ -79,7 +79,7 @@ describe('tsdown client artifact', () => {
     ])
   })
 
-  it.skipIf(code === undefined)('mounted as an object plugin, apply registers the view tab on the real ring', async () => {
+  it.skipIf(code === undefined)('mounted as an object plugin, apply registers both conversation views', async () => {
     const { exports } = await loadArtifact()
     const ctx = new Context()
     onTestFinished(() => ctx.fiber.dispose())
@@ -107,8 +107,7 @@ describe('tsdown client artifact', () => {
     await ctx.plugin({ inject: [...locale.inject], apply: locale.apply })
     const fiber = ctx.plugin(exports as { apply: (ctx: Context) => void })
     await fiber.await()
-    // The Trajectory ledger and the Context inspector both ride the view ring.
-    expect(slots.entries('conversation.view').map(e => e.options.id)).toEqual(['trajectory', 'context'])
+    expect(slots.entries('conversation.view').map(e => e.options.id)).toEqual(['trajectory', 'trajectory-context-editor'])
     expect(events.entries().length).toBeGreaterThan(0)
     expect(views.entries()).toHaveLength(1)
     await fiber.dispose()

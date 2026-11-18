@@ -264,6 +264,22 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     expect(await code.textContent()).toBe(source)
   }, 60_000)
 
+  it.skipIf(MODE === 'record')('opens the recorded user message in the Context editor', async () => {
+    await ensureSeedOpen(page)
+    const tab = page.getByRole('tab', { name: 'Context editor', exact: true })
+    const viewport = page.viewportSize()!
+    await page.setViewportSize({ ...viewport, width: 390 })
+    await tab.waitFor({ state: 'hidden' })
+    await page.getByRole('button', { name: 'More conversation views' }).click()
+    await page.getByRole('menuitem', { name: 'Context editor', exact: true }).click()
+    await page.setViewportSize(viewport)
+    const row = page.getByRole('list', { name: 'Context messages' }).getByRole('listitem')
+      .filter({ has: page.getByText(PROMPT_TURN1, { exact: true }) })
+    await row.waitFor()
+    await compareOrRefreshGolden(join(SNAPSHOT_DIR, 'context-editor.expected.md'),
+      [await tab.ariaSnapshot(), await row.ariaSnapshot()].join('\n'), MODE)
+  })
+
   it.skipIf(MODE === 'record')('renders the trajectory ledger and opens its local record inspector', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-trajectory'))
     await ensureSeedOpen(page)
@@ -675,7 +691,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     ])
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.v3.jsonl', 'search-id-results.expected.md', 'search-results.expected.md', 'trajectory.expected.md',
-      'terminal-card.expected.md', 'timing.expected.md',
+      'context-editor.expected.md', 'terminal-card.expected.md', 'timing.expected.md',
     ])
   })
   it.skipIf(MODE === 'record')('inspects a live tool value without adding it to the Session journal', async () => {
