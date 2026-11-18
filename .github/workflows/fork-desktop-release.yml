@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   plan:
-    if: github.repository == 'LianZiZhou/deepseek-harness' && github.ref_name == github.event.repository.default_branch
+    if: github.repository == 'LianZiZhou/deepseek-harness' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     outputs:
       releases: ${{ steps.plan.outputs.releases }}
@@ -28,7 +28,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - run: python3 -m unittest discover -s .github/fork-release
+      - run: python3 -B -m unittest discover -s .github/fork-release
       - id: plan
         env:
           GH_TOKEN: ${{ github.token }}

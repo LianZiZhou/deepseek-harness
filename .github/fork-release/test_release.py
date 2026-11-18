@@ -2,8 +2,8 @@
 
 import base64
 from contextlib import chdir
+from fnmatch import fnmatchcase
 import hashlib
-import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -32,7 +32,7 @@ class ReleaseTests(unittest.TestCase):
         self.git("switch", "-q", "fork")
         self.commit_file("fork change", "fork")
         self.initial = self.merge("master")
-        self.control = self.commit_file("release automation", "CI3 enabled")
+        self.control = self.commit_file(".github/fork-release/release.py", "CI3 enabled")
         self.git("switch", "-q", "master")
         self.new_master = self.commit_file("later", "next upstream")
         self.git("switch", "-q", "fork")
@@ -75,6 +75,13 @@ class ReleaseTests(unittest.TestCase):
         self.assertTrue(item["prerelease"])
         item, = self.select(activation=self.initial)
         self.assertEqual(item["commit"], self.initial)
+
+    def test_inventory_fetches_and_peels_an_annotated_release_tag(self):
+        self.git("config", f"url.{Path.cwd().as_uri()}.insteadOf", f"https://github.com/{release.UPSTREAM}.git")
+        with patch.object(release, "release_list", return_value=self.published):
+            item, = release.inventory("HEAD")
+        self.assertEqual((item["commit"], item["upstreamTagCommit"]), (self.control, self.rc))
+        self.assertNotEqual(self.git("rev-parse", f"refs/tags/{self.tag}"), self.rc)
 
     def test_skips_tags_without_publications_and_drafts(self):
         self.assertEqual(self.select(publications={}), [])
@@ -131,6 +138,49 @@ class ReleaseTests(unittest.TestCase):
         (directory / "dsh-cli-win-x64.zip").unlink()
         with self.assertRaisesRegex(ValueError, "Incomplete"):
             release.manifest(item, directory)
+
+    def test_publish_requires_draft_digests_before_exposing_release(self):
+        item, = self.select()
+        assets = Path("fork-dist")
+        assets.mkdir()
+        for name in release.asset_names():
+            (assets / name).write_text(name)
+        tag = item["tag"]
+        draft = {"id": 123, "draft": True, "assets": []}
+
+        def upload(command, release_tag, *files):
+            self.assertEqual((command, release_tag, files[-1]), ("upload", tag, "--clobber"))
+            draft["assets"] = [{"name": Path(name).name, "digest": "sha256:" + hashlib.sha256(
+                Path(name).read_bytes()).hexdigest()} for name in files[:-1]]
+
+        with patch.object(release, "fetch_default_branch", return_value="HEAD"), \
+                patch.object(release, "inventory", return_value=[item]), \
+                patch.object(release, "remote_tags", return_value={tag: self.control}), \
+                patch.object(release, "release_list", return_value={tag: draft}), \
+                patch.object(release, "gh_release") as gh, patch.object(release, "output") as api:
+            with self.assertRaisesRegex(ValueError, "Uploaded draft"):
+                release.publish(item)
+            api.assert_not_called()
+            # The next runner downloads the original six package artifacts again.
+            (assets / "SHA256SUMS").unlink()
+            (assets / "fork-release.json").unlink()
+            gh.side_effect = upload
+            release.publish(item)
+            command, = api.call_args_list
+            self.assertIn(f"repos/{release.FORK}/releases/123", command.args)
+            self.assertIn("prerelease=true", command.args)
+            self.assertIn("draft=false", command.args)
+
+    def test_stable_artifact_download_excludes_release_candidate(self):
+        workflow = (Path(__file__).resolve().parents[1] / "workflows/fork-build-release.yml").read_text()
+        tag = "${{ fromJSON(inputs.release).tag }}"
+        pattern, = [line.split("pattern:", 1)[1].strip() for line in workflow.splitlines()
+                    if "pattern:" in line and tag in line]
+        name, = [line.split("name:", 1)[1].strip() for line in workflow.splitlines()
+                 if "name:" in line and tag in line]
+        glob = pattern.replace(tag, "fork-v1.2.0")
+        self.assertTrue(fnmatchcase(name.replace(tag, "fork-v1.2.0"), glob))
+        self.assertFalse(fnmatchcase(name.replace(tag, "fork-v1.2.0-rc.4"), glob))
 
     def test_release_order(self):
         versions = ["1.0.0", "1.1.0-rc.2", "1.1.0-rc.10", "1.1.0", "1.10.0"]

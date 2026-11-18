@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from urllib.request import urlopen
 import re
 import subprocess
 import sys
@@ -220,8 +221,15 @@ def publish(item):
                  "Packages are unsigned. macOS uses an ad-hoc signature and requires manual installation.")
         gh_release("create", tag, "--verify-tag", "--draft", "--title", tag, "--notes", notes)
     gh_release("upload", tag, *map(str, sorted(directory.iterdir())), "--clobber")
+    draft = release_list(FORK)[tag]
+    expected = {a["name"]: "sha256:" + a["sha256"] for a in release["assets"]}
+    for filename in ("fork-release.json", "SHA256SUMS"):
+        expected[filename] = "sha256:" + hashlib.sha256((directory / filename).read_bytes()).hexdigest()
+    observed = {a["name"]: a.get("digest") for a in draft["assets"]}
+    if not draft["draft"] or observed != expected:
+        raise ValueError(f"Uploaded draft {tag} differs from its verified distribution set")
     # Publication makes the complete build visible in one operation.
-    output("gh", "api", "-X", "PATCH", f"repos/{FORK}/releases/{release_list(FORK)[tag]['id']}",
+    output("gh", "api", "-X", "PATCH", f"repos/{FORK}/releases/{draft['id']}",
            "-F", "draft=false", "-F", f"prerelease={str(item['prerelease']).lower()}",
            "-f", "make_latest=false" if item["prerelease"] else "make_latest=legacy")
 
@@ -253,7 +261,7 @@ def feeds():
     available = {tag: r for tag, r in releases.items() if not r["draft"]}
     stable = [tag for tag in available if tag.startswith("fork-v") and VERSION.fullmatch(tag[6:])]
     selected = [max(stable, key=lambda tag: version_key(tag[6:]))] if stable else []
-    # CI1's fork heads, including fork-only commits, are ordered by first-parent history.
+    # Fully synced fork heads, including fork-only commits, are ordered by first-parent history.
     nightly = next((f"fork-nightly-{row[0]}" for row in history(default)
                     if f"fork-nightly-{row[0]}" in available), None)
     if nightly:
@@ -280,6 +288,11 @@ def feeds():
             gh_release("upload", FEED, *changes, "--clobber")
         if not current or current["draft"]:
             gh_release("edit", FEED, "--draft=false", "--latest=false")
+        for file in changes:
+            path = Path(file)
+            with urlopen(f"{BASE_URL}/{FEED}/{path.name}", timeout=30) as response:
+                if response.read() != path.read_bytes():
+                    raise ValueError(f"Public feed differs from the published manifest: {path.name}")
 
 
 if __name__ == "__main__":
@@ -287,6 +300,8 @@ if __name__ == "__main__":
         sys.exit("CI3 runs only in the fork")
     mode, = sys.argv[1:]
     if mode == "plan":
+        if (os.getenv("SYNC_SHA") or os.getenv("UPSTREAM_SHA")) and os.environ["GITHUB_ACTOR"] != "github-actions[bot]":
+            sys.exit("Run Fork upstream sync to request a nightly. Manual release reconciliation takes no SHAs.")
         pending = unpublished(inventory("HEAD", os.getenv("SYNC_SHA", ""), os.getenv("UPSTREAM_SHA", "")))
         with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
             print("releases=" + json.dumps(pending, separators=(",", ":")), file=stream)
