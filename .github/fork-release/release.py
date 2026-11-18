@@ -4,6 +4,7 @@ import base64
 from bisect import bisect_left
 from functools import cache
 import hashlib
+from itertools import groupby
 import json
 import os
 from pathlib import Path
@@ -35,7 +36,8 @@ def release_list(repository):
 
 
 def remote_tags(repository, pattern):
-    refs = output("git", "ls-remote", "--tags", f"https://github.com/{repository}.git", f"refs/tags/{pattern}")
+    refs = output("git", "ls-remote", "--tags", f"https://github.com/{repository}.git",
+                  f"refs/tags/{pattern}", f"refs/tags/{pattern}^{{}}")
     objects = {}
     peeled = {}
     for line in refs.splitlines():
@@ -81,7 +83,7 @@ def checkpoints(rows, master, activation):
         if merged:
             latest = row[2]
         active = active or fork == activation
-        if active and latest and (merged or fork == activation):
+        if active and latest:
             captured.append((fork, latest))
     return captured
 
@@ -93,7 +95,16 @@ def contains_tag(master, tag_commit):
     return result.returncode == 0
 
 
-def select(rows, captured, tags, publications, sync="", upstream=""):
+def first_matching_sync(candidates, version):
+    """Return the CI3 activation or sync commit on which both product versions first matched."""
+    for master, group in groupby(candidates, key=lambda pair: pair[1]):
+        fork, _ = next(group)
+        if product_at(master) == version and product_at(fork) == version:
+            return fork, master
+    return None
+
+
+def select(rows, captured, tags, publications, pins, sync="", upstream=""):
     planned = []
     if sync or upstream:
         if not SHA.fullmatch(sync) or not SHA.fullmatch(upstream):
@@ -101,8 +112,7 @@ def select(rows, captured, tags, publications, sync="", upstream=""):
         position = next((i for i, row in enumerate(rows) if row[0] == sync), None)
         if position is None:
             raise ValueError("Sync SHA is outside the default branch's first-parent history")
-        captures = dict(captured)
-        integrated = next((captures[r[0]] for r in rows[position:] if r[0] in captures), None)
+        integrated = dict(captured).get(sync)
         if upstream != integrated:
             raise ValueError("The supplied upstream SHA differs from the selected fork head's checkpoint")
         product = product_at(sync)
@@ -128,13 +138,27 @@ def select(rows, captured, tags, publications, sync="", upstream=""):
         if not contains_tag(captured[-1][1], tag_commit):
             continue
         start = bisect_left(captured, True, key=lambda pair: contains_tag(pair[1], tag_commit))
-        match = next(((fork, master) for fork, master in captured[start:]
-                      if product_at(fork) == version and product_at(master) == version), None)
-        if match:
-            fork, master = match
-            planned.append(dict(tag=f"fork-v{version}", channel="stable", version=version, commit=fork,
+        fork_tag = f"fork-v{version}"
+        candidates = captured[start:]
+        for master, group in groupby(candidates, key=lambda pair: pair[1]):
+            if product_at(master) != version:
+                continue
+            eligible = [fork for fork, _ in group if product_at(fork) == version]
+            if not eligible:
+                continue
+            fork = pins.get(fork_tag, eligible[-1])
+            if fork not in eligible:
+                original = first_matching_sync(candidates, version)
+                if original is None or original[0] != fork:
+                    raise ValueError(f"Existing fork release {fork_tag} points outside its eligible fork commits")
+                fork, master = original
+            planned.append(dict(tag=fork_tag, channel="stable", version=version, commit=fork,
                                 prerelease=bool("-" in version or publication["prerelease"]),
                                 upstreamCommit=master, upstreamTag=tag, upstreamTagCommit=tag_commit))
+            break
+        else:
+            if fork_tag in pins:
+                raise ValueError(f"Existing fork release {fork_tag} has no eligible fork commit")
     return planned
 
 
@@ -150,12 +174,20 @@ def inventory(ref, sync="", upstream=""):
                    ".github/fork-release/release.py").splitlines()
     if not added:
         raise ValueError("CI3 installation commit is missing from the selected branch")
-    return select(rows, checkpoints(rows, master, added[-1]), tags, release_list(UPSTREAM), sync, upstream)
-
-
-def unpublished(planned):
+    fork_tags = remote_tags(FORK, "fork-*")
     releases = release_list(FORK)
-    tags = remote_tags(FORK, "fork-*")
+    pins = dict(fork_tags)
+    for tag, release in releases.items():
+        if tag.startswith("fork-v") and tag not in pins:
+            target = release.get("target_commitish", "")
+            if not release["draft"] or not SHA.fullmatch(target):
+                raise ValueError(f"Fork release {tag} has no pinned commit")
+            pins[tag] = target
+    planned = select(rows, checkpoints(rows, master, added[-1]), tags, release_list(UPSTREAM), pins, sync, upstream)
+    return planned, unpublished(planned, fork_tags, releases)
+
+
+def unpublished(planned, tags, releases):
     pending = []
     for item in planned:
         tag = item["tag"]
@@ -201,10 +233,10 @@ def gh_release(*args):
 def publish(item):
     default = fetch_default_branch()
     nightly = item["channel"] == "nightly"
-    planned = inventory(default, item["commit"] if nightly else "", item["upstreamCommit"] if nightly else "")
+    planned, pending = inventory(default, item["commit"] if nightly else "", item["upstreamCommit"] if nightly else "")
     if item not in planned:
         raise ValueError("Fork checkpoint, upstream tag, or publication changed during the build")
-    if not unpublished([item]):
+    if item not in pending:
         return
     directory = Path("fork-dist")
     release = manifest(item, directory)
@@ -302,7 +334,7 @@ if __name__ == "__main__":
     if mode == "plan":
         if (os.getenv("SYNC_SHA") or os.getenv("UPSTREAM_SHA")) and os.environ["GITHUB_ACTOR"] != "github-actions[bot]":
             sys.exit("Run Fork upstream sync to request a nightly. Manual release reconciliation takes no SHAs.")
-        pending = unpublished(inventory("HEAD", os.getenv("SYNC_SHA", ""), os.getenv("UPSTREAM_SHA", "")))
+        _, pending = inventory("HEAD", os.getenv("SYNC_SHA", ""), os.getenv("UPSTREAM_SHA", ""))
         with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
             print("releases=" + json.dumps(pending, separators=(",", ":")), file=stream)
     elif mode == "publish":

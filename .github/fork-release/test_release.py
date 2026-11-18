@@ -33,6 +33,7 @@ class ReleaseTests(unittest.TestCase):
         self.commit_file("fork change", "fork")
         self.initial = self.merge("master")
         self.control = self.commit_file(".github/fork-release/release.py", "CI3 enabled")
+        self.repair = self.commit_file("package fix", "repair before the next upstream merge")
         self.git("switch", "-q", "master")
         self.new_master = self.commit_file("later", "next upstream")
         self.git("switch", "-q", "fork")
@@ -60,27 +61,35 @@ class ReleaseTests(unittest.TestCase):
         self.git("merge", "-q", "--no-ff", "-m", "fixture checkpoint", ref)
         return self.git("rev-parse", "HEAD")
 
-    def select(self, tags=None, publications=None, sync="", upstream="", activation=None):
-        rows = release.history("HEAD")
+    def select(self, tags=None, publications=None, sync="", upstream="", activation=None, ref="HEAD", pins=None):
+        rows = release.history(ref)
         master = set(self.git("rev-list", "--first-parent", "master").splitlines())
         captured = release.checkpoints(rows, master, activation or self.control)
         return release.select(rows, captured, self.tags if tags is None else tags,
-                              self.published if publications is None else publications, sync, upstream)
+                              self.published if publications is None else publications, pins or {}, sync, upstream)
 
     def test_side_branch_release_builds_first_captured_matching_tree(self):
         self.assertNotIn(self.rc, self.git("rev-list", "--first-parent", "master").splitlines())
-        item, = self.select()
+        item, = self.select(ref=self.control)
         self.assertEqual((item["commit"], item["upstreamCommit"], item["upstreamTagCommit"]),
                          (self.control, self.master, self.rc))
         self.assertTrue(item["prerelease"])
-        item, = self.select(activation=self.initial)
+        item, = self.select(activation=self.initial, ref=self.initial)
         self.assertEqual(item["commit"], self.initial)
+        for ref in (self.repair, self.next, self.tip):
+            item, = self.select(ref=ref)
+            self.assertEqual((item["commit"], item["upstreamCommit"]), (self.repair, self.master))
 
     def test_inventory_fetches_and_peels_an_annotated_release_tag(self):
-        self.git("config", f"url.{Path.cwd().as_uri()}.insteadOf", f"https://github.com/{release.UPSTREAM}.git")
-        with patch.object(release, "release_list", return_value=self.published):
-            item, = release.inventory("HEAD")
+        for repo in (release.UPSTREAM, release.FORK):
+            self.git("config", "--add", f"url.{Path.cwd().as_uri()}.insteadOf", f"https://github.com/{repo}.git")
+        self.git("tag", "-a", "fork-v1.1.0-rc.4", self.control, "-m", "Fork RC")
+        with patch.object(release, "release_list", side_effect=lambda repo: self.published if repo == release.UPSTREAM else {}):
+            planned, pending = release.inventory("HEAD")
+        item, = planned
+        self.assertEqual(pending, planned)
         self.assertEqual((item["commit"], item["upstreamTagCommit"]), (self.control, self.rc))
+        self.assertEqual(release.remote_tags(release.FORK, item["tag"]), {item["tag"]: self.control})
         self.assertNotEqual(self.git("rev-parse", f"refs/tags/{self.tag}"), self.rc)
 
     def test_skips_tags_without_publications_and_drafts(self):
@@ -101,25 +110,55 @@ class ReleaseTests(unittest.TestCase):
         nightly, stable = self.select(sync=self.tip, upstream=self.new_master)
         self.assertEqual(nightly["tag"], "fork-nightly-" + self.tip)
         self.assertEqual(nightly["upstreamCommit"], self.new_master)
-        self.assertEqual(stable["commit"], self.control)
+        self.assertEqual(stable["commit"], self.repair)
         self.assertEqual(self.select(sync=self.tip, upstream=self.new_master)[0], nightly)
         for sync, upstream in [(self.tip, self.master), (self.rc, self.new_master), (self.tip, "")]:
             with self.subTest(sync=sync, upstream=upstream), self.assertRaises(ValueError):
                 self.select(sync=sync, upstream=upstream)
 
-    def test_already_published_skipped_drafts_resume_and_tag_movement_fails(self):
-        item, = self.select()
-        tag = item["tag"]
-        with patch.object(release, "remote_tags", return_value={tag: self.control}), \
-                patch.object(release, "release_list", return_value={tag: {"draft": False}}):
-            self.assertEqual(release.unpublished([item]), [])
-        with patch.object(release, "remote_tags", return_value={tag: self.control}), \
-                patch.object(release, "release_list", return_value={tag: {"draft": True}}):
-            self.assertEqual(release.unpublished([item]), [item])
-        with patch.object(release, "remote_tags", return_value={tag: self.next}), \
-                patch.object(release, "release_list", return_value={}):
-            with self.assertRaisesRegex(ValueError, "different commit"):
-                release.unpublished([item])
+    def test_existing_pins_stay_in_the_original_upstream_checkpoint(self):
+        tag = "fork-v1.1.0-rc.4"
+        for sha in (self.initial, self.rc, self.next, self.tip):
+            with self.subTest(sha=sha), self.assertRaisesRegex(ValueError, "outside"):
+                self.select(pins={tag: sha})
+        item, = self.select(pins={tag: self.control})
+        self.assertEqual(item["commit"], self.control)
+        self.assertEqual(release.unpublished([item], {tag: self.control}, {tag: {"draft": False}}), [])
+        self.assertEqual(release.unpublished([item], {tag: self.control}, {tag: {"draft": True}}), [item])
+
+    def test_existing_pin_at_first_version_matching_sync_survives_an_earlier_fork_version_repair(self):
+        self.git("switch", "-qc", "legacy-fork", self.initial)
+        self.commit_version("1.1.0-rc.3")
+        activation = self.commit_file(".github/fork-release/release.py", "CI3 enabled")
+        correction = self.commit_version("1.1.0-rc.4")
+        original = self.merge("master")
+        later_fork = self.commit_file("later fork work", "fork change")
+        self.git("switch", "-q", "master")
+        self.commit_file("another upstream change", "third checkpoint")
+        self.git("switch", "-q", "legacy-fork")
+        later_sync = self.merge("master")
+        item, = self.select(activation=activation)
+        self.assertEqual((item["commit"], item["upstreamCommit"]), (correction, self.master))
+        item, = self.select(activation=activation, pins={item["tag"]: original})
+        self.assertEqual((item["commit"], item["upstreamCommit"]), (original, self.new_master))
+        for sha in (activation, later_fork, later_sync):
+            with self.subTest(sha=sha), self.assertRaisesRegex(ValueError, "outside"):
+                self.select(activation=activation, pins={item["tag"]: sha})
+
+    def test_tagless_draft_resumes_only_at_an_eligible_explicit_sha(self):
+        tag = "fork-v1.1.0-rc.4"
+        self.git("config", f"url.{Path.cwd().as_uri()}.insteadOf", f"https://github.com/{release.UPSTREAM}.git")
+        for target in (self.control, self.tip, "fork"):
+            releases = {tag: {"draft": True, "target_commitish": target}}
+            with self.subTest(target=target), patch.object(release, "remote_tags", return_value={}), \
+                    patch.object(release, "release_list", side_effect=lambda repo: self.published if repo == release.UPSTREAM else releases):
+                if target == self.control:
+                    planned, pending = release.inventory("HEAD")
+                    self.assertEqual(pending, planned)
+                    self.assertEqual(pending[0]["commit"], self.control)
+                else:
+                    with self.assertRaises(ValueError):
+                        release.inventory("HEAD")
 
     def test_hashes_assets_and_serves_immutable_installer_urls(self):
         directory = Path("assets")
@@ -154,8 +193,8 @@ class ReleaseTests(unittest.TestCase):
                 Path(name).read_bytes()).hexdigest()} for name in files[:-1]]
 
         with patch.object(release, "fetch_default_branch", return_value="HEAD"), \
-                patch.object(release, "inventory", return_value=[item]), \
-                patch.object(release, "remote_tags", return_value={tag: self.control}), \
+                patch.object(release, "inventory", return_value=([item], [item])), \
+                patch.object(release, "remote_tags", return_value={tag: item["commit"]}), \
                 patch.object(release, "release_list", return_value={tag: draft}), \
                 patch.object(release, "gh_release") as gh, patch.object(release, "output") as api:
             with self.assertRaisesRegex(ValueError, "Uploaded draft"):

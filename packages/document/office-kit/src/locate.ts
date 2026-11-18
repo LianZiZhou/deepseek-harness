@@ -48,7 +48,7 @@ export function resolveKitModule(lookupKitEntry: KitEntryLookup): KitModuleResol
  * @returns A callback for Kit's `resolveEnginePackage` option. Native paths map the first ASAR segment to its unpacked copy;
  * WASM and paths outside archives stay unchanged. Kit validates the returned manifest and required engine assets.
  * @throws Node's error if `kitEntry` cannot be used by `createRequire`.
- * On invocation, the callback preserves Node errors for absent packages and other resolution failures.
+ * The callback preserves Node's missing-package error on disk and in ASAR archives, and propagates other resolution failures.
  * An installed package with an unresolvable manifest throws an incomplete-installation Error with the Node error as its cause,
  * preventing engine fallback. Filesystem inspection errors propagate unchanged.
  */
@@ -61,7 +61,7 @@ export function createEnginePackageResolver(kitEntry: string | URL): EnginePacka
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'MODULE_NOT_FOUND') {
         const installed = (fromKit.resolve.paths(name) ?? []).some(directory =>
-          lstatSync(join(directory, name), { throwIfNoEntry: false }) !== undefined,
+          lstatSync(join(directory, name), { throwIfNoEntry: false }) != null,
         )
         if (installed) throw new Error(`Installed LibreOfficeKit package is incomplete: ${name}. Reinstall the package.`, { cause: error })
       }

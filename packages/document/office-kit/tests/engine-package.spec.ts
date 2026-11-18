@@ -112,6 +112,15 @@ it('keeps a Node resolution error other than MODULE_NOT_FOUND unchanged', () => 
   expect(lstatSync).not.toHaveBeenCalled()
 })
 
+it('preserves MODULE_NOT_FOUND for WASM fallback when Electron reports a missing ASAR entry as null', () => {
+  const fixture = engineTree()
+  const electronLstat: (path: string) => ReturnType<typeof lstatSync> | null = lstatSync
+  vi.mocked(electronLstat).mockReturnValueOnce(null)
+  const error = thrownBy(() => fixture.resolveEnginePackage(fixture.name))
+  expect(error).toMatchObject({ code: 'MODULE_NOT_FOUND' })
+  expect(error).toBe(fixture.resolve.mock.results[0]?.value)
+})
+
 it('preserves Node missing errors when the name has no package search paths', () => {
   const fixture = engineTree()
   const error = thrownBy(() => fixture.resolveEnginePackage('node:fs'))
