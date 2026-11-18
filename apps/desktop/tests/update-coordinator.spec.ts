@@ -1,9 +1,12 @@
 import { EventEmitter } from 'node:events'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { AppUpdater } from 'electron-updater'
 import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
 import { parseDesktopRelease } from '../src/release.ts'
 import type { DesktopUpdateState } from '../src/ipc.ts'
+import { forkDmgReleaseCheck } from '../src/fork-dmg-update.ts'
+import { localMacOSPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
+import { createElectronBuilderConfig } from '../scripts/electron-builder-config.mjs'
 import { DesktopUpdatePreparationError } from '../src/update-error.ts'
 import { zh } from '../src/locale.ts'
 
@@ -47,7 +50,8 @@ describe('desktop release metadata', () => {
 const coordinators: InstanceType<typeof DesktopUpdateCoordinator>[] = []
 afterEach(() => { for (const item of coordinators.splice(0)) item.dispose() })
 
-function fixture(channel: 'nightly' | 'stable' = 'nightly', version = '1.1.0-alpha.1', discard?: (updater: AppUpdater) => Promise<void>) {
+function fixture(channel: 'nightly' | 'stable' = 'nightly', version = '1.1.0-alpha.1', discard?: (updater: AppUpdater) => Promise<void>,
+  enabled = true, manualCheck?: ReturnType<typeof forkDmgReleaseCheck>) {
   const events = new EventEmitter()
   const checkForUpdates = vi.fn(async () => ({
     isUpdateAvailable: true,
@@ -66,13 +70,101 @@ function fixture(channel: 'nightly' | 'stable' = 'nightly', version = '1.1.0-alp
   const updater = Object.assign(events, { checkForUpdates, downloadUpdate, quitAndInstall }) as unknown as AppUpdater
   const coordinator = new DesktopUpdateCoordinator(
     (state) => { states.push(state); return state },
-    beforeRestart, updater, () => true, () => version, downloadResult, channel, discard,
+    beforeRestart, updater, () => enabled, () => version, downloadResult, channel, discard, manualCheck,
   )
   coordinators.push(coordinator)
   return { coordinator, updater, events, states, checkForUpdates, downloadUpdate, quitAndInstall, beforeRestart, downloadResult }
 }
 
+function pendingForkCheck() {
+  const started = Promise.withResolvers<AbortSignal>()
+  const request = vi.spyOn(globalThis, 'fetch').mockImplementationOnce((_url, options) => {
+    const signal = options!.signal!
+    started.resolve(signal)
+    return new Promise<Response>((_resolve, reject) => {
+      signal.addEventListener('abort', () => { reject(new DOMException('Request aborted', 'AbortError')) }, { once: true })
+    })
+  }).mockResolvedValue(new Response(null, { status: 503 }))
+  onTestFinished(() => { request.mockRestore() })
+  const check = forkDmgReleaseCheck({ dshDesktopManualUpdates: 'fork-dmg' }, true, 'darwin', 'arm64')!
+  return { ...fixture('nightly', '1.0.0', undefined, false, check), started: started.promise, request }
+}
+
 describe('desktop update coordinator', () => {
+  it('checks the fork DMG manifest without authorizing an Electron download or install', async () => {
+    const commit = 'e4'.repeat(20)
+    const tag = `fork-nightly-${commit}`
+    const base = 'https://github.com/LianZiZhou/deepseek-harness/releases'
+    const version = '0.2.2-rc.4.1609'
+    const name = 'dsh-desktop-mac-arm64.dmg'
+    const request = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({
+      schemaVersion: 1, tag, commit, channel: 'nightly', version,
+      assets: [{ name, url: `${base}/download/${tag}/${name}` }],
+    }))
+    try {
+      const config = createElectronBuilderConfig(localMacOSPackageEnvironment({
+        DSH_DESKTOP_AUTO_UPDATE_ENV: 'fork', DSH_DESKTOP_UPDATE_CHANNEL: 'nightly', DSH_DESKTOP_FORK_MANUAL_DMG: '1',
+      }), 'darwin', 'arm64')
+      const check = forkDmgReleaseCheck(config.extraMetadata, true, 'darwin', 'arm64')
+      const f = fixture('nightly', '0.2.2-rc.4.1608', undefined, config.publish !== null, check)
+      expect(await f.coordinator.check(true)).toEqual({ phase: 'available', version, manualReleasePage: `${base}/tag/${tag}` })
+      expect(request).toHaveBeenCalledWith(`${base}/download/fork-feed/nightly.json`, expect.anything())
+      await expect(f.coordinator.download(version)).rejects.toThrow(/no checked update/u)
+      await expect(f.coordinator.install(version)).rejects.toThrow(/not ready/u)
+      expect(f.checkForUpdates).not.toHaveBeenCalled()
+      expect(f.downloadUpdate).not.toHaveBeenCalled()
+      expect(f.quitAndInstall).not.toHaveBeenCalled()
+      expect(await fixture('nightly', version, undefined, false, check).coordinator.check(true)).toEqual({ phase: 'idle' })
+      expect(await fixture('nightly', version, undefined, false).coordinator.check(true))
+        .toMatchObject({ phase: 'error', message: 'desktop update: this application has no packaged update source' })
+    } finally { request.mockRestore() }
+  })
+
+  it.each(['manual check', 'channel refresh'])('aborts a %s when another channel is applied', async (origin) => {
+    const f = pendingForkCheck()
+    const firstChannel = origin === 'manual check' ? 'nightly' : 'stable'
+    const nextChannel = firstChannel === 'stable' ? 'nightly' : 'stable'
+    const first = origin === 'manual check'
+      ? f.coordinator.check(true) : f.coordinator.switchChannel(firstChannel, async () => {})
+    const signal = await f.started
+    await f.coordinator.switchChannel(nextChannel, async () => {})
+    expect(signal.aborted).toBe(true)
+    await first
+    const feed = 'https://github.com/LianZiZhou/deepseek-harness/releases/download/fork-feed'
+    expect(f.request.mock.calls.map(([url]) => url)).toEqual([
+      `${feed}/${firstChannel}.json`, `${feed}/${nextChannel}.json`,
+    ])
+    await vi.waitFor(() => { expect(f.coordinator.state.phase).toBe('error') })
+    expect(f.states.filter(state => state.phase === 'error')).toEqual([
+      { phase: 'error', failedOperation: 'check', message: 'desktop update: fork feed returned HTTP 503' },
+    ])
+    expect(f.checkForUpdates).not.toHaveBeenCalled()
+    expect(f.downloadUpdate).not.toHaveBeenCalled()
+    expect(f.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it('preserves a pending fork check after a rejected save and aborts it quietly on disposal', async () => {
+    const f = pendingForkCheck()
+    const checking = f.coordinator.check(true)
+    const signal = await f.started
+    await expect(f.coordinator.switchChannel('stable', async () => { throw new Error('read only') })).rejects.toThrow('read only')
+    expect(signal.aborted).toBe(false)
+    f.coordinator.dispose()
+    expect(signal.aborted).toBe(true)
+    await checking
+    expect(f.states).toEqual([])
+  })
+
+  it('keeps the configuration error when suspension interrupts a fork check', async () => {
+    const f = pendingForkCheck()
+    const checking = f.coordinator.check(true)
+    const signal = await f.started
+    f.coordinator.suspendConfiguration('uncertain save')
+    expect(signal.aborted).toBe(true)
+    await checking
+    expect(f.states).toEqual([{ phase: 'error', failedOperation: 'configuration', message: 'uncertain save' }])
+  })
+
   it.each(['stop-failed', 'fullscreen-timeout'] as const)('keeps safe %s diagnostics separate and clears them on an explicit retry', async (kind) => {
     const f = fixture()
     await f.coordinator.check()

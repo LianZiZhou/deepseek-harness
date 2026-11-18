@@ -20,6 +20,7 @@ import {
   resolveWindowsUpdatePublisher,
   scrubWindowsSigningEnvironment,
 } from './windows-sign.mjs'
+import { resolveDesktopUpdateChannel } from '@deepseek-ai/dsh-desktop-publisher/desktop-auto-update-environment.mjs'
 import { resolveDesktopPackageFeed } from './desktop-package-feed.mjs'
 import { resolveDesktopBuildCommit } from './desktop-build-commit.mjs'
 import { resolveDesktopBuildVersion } from './desktop-build-version.mjs'
@@ -101,6 +102,8 @@ export function createElectronBuilderConfig(
     installWindowsNsisBootstrapSigner({ sign: windowsSigner })
   }
   const update = resolveDesktopPackageFeed(env, resolvedPlatform, resolvedArch, unsigned)
+  const manualForkDmg = unsigned && resolvedPlatform === 'darwin' && resolvedArch === 'arm64'
+    && env.DSH_DESKTOP_FORK_MANUAL_DMG === '1' && env.DSH_DESKTOP_AUTO_UPDATE_ENV?.trim() === 'fork'
   if (preparedRuntime !== undefined) buildPaths.dsh = preparedRuntime
   // electron-builder merges extraMetadata into the packaged manifest, so a build version here reaches
   // the artifact names, the update feed, and the installed app.getVersion() the updater compares against.
@@ -112,7 +115,8 @@ export function createElectronBuilderConfig(
     protocols: [{ name: 'DeepSeek Harness', schemes: ['dsh'] }],
     extraMetadata: {
       dshDesktopAppId: appId,
-      dshDesktopUpdateChannel: update?.channel ?? 'nightly',
+      dshDesktopUpdateChannel: update?.channel ?? (manualForkDmg ? resolveDesktopUpdateChannel(env) : 'nightly'),
+      ...(manualForkDmg ? { dshDesktopManualUpdates: 'fork-dmg' } : {}),
       ...(policy === undefined ? {} : { dshMandatoryUpdatePolicy: policy }),
       ...buildVersion === productVersion ? {} : { version: buildVersion },
       ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
