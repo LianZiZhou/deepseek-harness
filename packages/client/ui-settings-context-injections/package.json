@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-settings-context-injections",
   "description": "Settings page of the dsh web client that switches off or rewrites the notices and runtime-context sections injected into model requests",
-  "version": "0.2.2-rc.4",
+  "version": "0.2.2-rc.5",
   "publishConfig": {
     "access": "public"
   },

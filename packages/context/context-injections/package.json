@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-context-injections",
   "description": "Switch off or rewrite the context the harness injects into model requests: notices, reminders, and runtime-context sections",
-  "version": "0.2.2-rc.4",
+  "version": "0.2.2-rc.5",
   "publishConfig": {
     "access": "public"
   },

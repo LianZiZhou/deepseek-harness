@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-command-continue",
   "description": "Human-facing slash command that resumes an interrupted turn without a new message",
-  "version": "0.2.2-rc.4",
+  "version": "0.2.2-rc.5",
   "publishConfig": {
     "access": "public"
   },
