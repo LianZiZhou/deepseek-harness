@@ -18,6 +18,6 @@ The hourly workflow opens one issue per conflicting upstream commit. While a con
    ```
 
 3. Resolve and test the conflicting files, commit the resolution and push it to the fork's default branch.
-4. Run **Fork upstream catchup** from Actions. It fetches the latest upstream tip, including releases published during the repair. At a new conflict the run fails after pushing the clean prefix. Repeat the repair for that issue. A fully successful run closes the resolved issues and dispatches the build for the exact synchronized fork commit.
+4. Run **Fork upstream catchup** from Actions. It fetches the latest upstream tip, including releases published during the repair. At a new conflict the run fails after pushing the clean prefix. Repeat the repair for that issue. A fully successful recovery closes the resolved issues. The next successful hourly sync dispatches a nightly for its exact fork commit.
 
 Run the checkpoint and recovery tests locally with `python3 -m unittest discover -s .github/fork-sync`.

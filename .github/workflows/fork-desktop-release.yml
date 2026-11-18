@@ -1,7 +1,7 @@
 name: Fork desktop release
 
 on:
-  # CI1 and completed CI2 recovery dispatch only after the full sync has finished and all checkpoints are on the default branch.
+  # CI1 dispatches only after all checkpoints have reached the default branch.
   workflow_dispatch:
     inputs:
       sync_sha:
