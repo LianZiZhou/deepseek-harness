@@ -27,6 +27,7 @@ import type {
   ConversationSnapshot, ConversationViewSnapshotStore, GroupKey, GroupSnapshot,
   MessageImagesOwnerProps, NodeKey, TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { ProjectionValueStore } from '@deepseek-ai/dsh-api-session-controller/src/client/sessions/projection-store.ts'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session-status/client'
@@ -3837,6 +3838,32 @@ describe('ChatView', () => {
     expect(view.getAllByRole('button', { name: '复制' }).length).toBeGreaterThan(0)
     expect(view.queryByRole('button', { name: '在新对话中分支' })).toBeNull()
     expect(useAccess).toHaveBeenCalledWith('session/fork')
+  })
+
+  it('updates the preview and drag address of a relative Markdown image when the Session moves', () => {
+    const h = makeHarness({ nodes: [assistant(1, '![Diagram](assets/diagram.png)')] })
+    const sessions = createSnapshotStore<SessionListState>({
+      ids: [SID], byId: { [SID]: { id: SID, displayTitle: 'Chat', cwd: '/project',
+        running: false, retainedBy: {}, blank: false, updatedAt: 0 } },
+      phase: 'ready', projectionsBySession: {},
+    })
+    const view = render(<ChatView {...h.props} useSessions={bindSnapshotSelector(sessions)} />)
+    const image = () => view.getByRole('img', { name: 'Diagram' })
+    const previewUrl = (element: HTMLElement) => new URL(element.getAttribute('src')!, document.baseURI)
+    expect(previewUrl(image()).searchParams.get('path')).toBe('/project/assets/diagram.png')
+
+    const projections = new ProjectionValueStore()
+    projections.apply('workingDirectory', '/worktrees/feature', SessionSeq(2))
+    act(() => sessions.set({ ...sessions.getSnapshot(), projectionsBySession: {
+      [SID]: { state: 'ready', error: null, values: projections.values() },
+    } }))
+    const moved = image()
+    const url = previewUrl(moved)
+    expect(url.searchParams.get('path')).toBe('/worktrees/feature/assets/diagram.png')
+    fireEvent.dragStart(moved)
+    expect(fileDrag.prepare).toHaveBeenLastCalledWith(expect.objectContaining({
+      url: url.href, resourceAddress: 'dsh-resource://file/session/s1//worktrees/feature/assets/diagram.png',
+    }), expect.any(AbortSignal))
   })
 
   it('renders assistant Markdown across history, streaming, final, and interrupted states while user text stays literal', () => {
