@@ -849,6 +849,84 @@ export interface ToolResultPruneConfig {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-compaction-tool-result-pruner -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-context-injections -->
+<a id="deepseek-aidsh-context-injections"></a>
+
+## `@deepseek-ai/dsh-context-injections`
+
+- `refs`: `Volatile` (`@deepseek-ai/cordis`)
+- `source`: [`packages/context/context-injections/src/index.ts:35`](../packages/context/context-injections/src/index.ts)
+
+```ts config-catalog
+/**
+ * Which injections reach the model and in what words. Each `…Enabled` field
+ * switches one injection; each `…Text` field replaces its text, where
+ * `{{text}}` stands for the original and an empty value keeps it. Every field
+ * is volatile.
+ */
+export interface Config {
+  /** Send the notice that the session's model changed. */
+  modelSwitchEnabled: Volatile<boolean>
+  /** Replacement for the model-change notice. */
+  modelSwitchText: Volatile<string>
+  /** Send the current-time reading. */
+  timeContextEnabled: Volatile<boolean>
+  /** Replacement for the current-time reading. */
+  timeContextText: Volatile<string>
+  /** Send the notice that the approval policy changed. */
+  approvalNoticeEnabled: Volatile<boolean>
+  /** Replacement for the approval-policy change notice. */
+  approvalNoticeText: Volatile<string>
+  /** Send the notice that the working directory changed. */
+  workingDirectoryNoticeEnabled: Volatile<boolean>
+  /** Replacement for the working-directory change notice. */
+  workingDirectoryNoticeText: Volatile<string>
+  /** Send the notice that the session entered or left plan mode. */
+  planModeNoticeEnabled: Volatile<boolean>
+  /** Replacement for the plan-mode notice. */
+  planModeNoticeText: Volatile<string>
+  /** Send the reminder about a repeated tool call. */
+  repeatToolReminderEnabled: Volatile<boolean>
+  /** Replacement for the repeated-tool-call reminder. */
+  repeatToolReminderText: Volatile<string>
+  /** Send the project instructions read from instruction files such as `AGENTS.md`. */
+  agentInstructionsEnabled: Volatile<boolean>
+  /** Replacement for the project instructions. */
+  agentInstructionsText: Volatile<string>
+  /** Send the catalog of available skills. */
+  skillCatalogEnabled: Volatile<boolean>
+  /** Replacement for the skill catalog. */
+  skillCatalogText: Volatile<string>
+  /** Send the tmux pane snapshot. */
+  tmuxContextEnabled: Volatile<boolean>
+  /** Replacement for the tmux pane snapshot. */
+  tmuxContextText: Volatile<string>
+  /** Replacement for the current working directory section, which is always stated. */
+  workingDirectoryText: Volatile<string>
+  /** State the file-access policy section, including `danger-full-access`. */
+  sandboxPolicyEnabled: Volatile<boolean>
+  /** Replacement for the file-access policy section. */
+  sandboxPolicyText: Volatile<string>
+  /** State the approval policy section. */
+  approvalPolicyEnabled: Volatile<boolean>
+  /** Replacement for the approval policy section. */
+  approvalPolicyText: Volatile<string>
+  /** State the subagent delegation section. */
+  subagentDelegationEnabled: Volatile<boolean>
+  /** Replacement for the subagent delegation section. */
+  subagentDelegationText: Volatile<string>
+  /** State the harness source-checkout section. */
+  harnessSourceEnabled: Volatile<boolean>
+  /** Replacement for the harness source-checkout section. */
+  harnessSourceText: Volatile<string>
+  /** State the Web surface section. */
+  webSurfaceEnabled: Volatile<boolean>
+  /** Replacement for the Web surface section. */
+  webSurfaceText: Volatile<string>
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-context-injections -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-cordis-host-runner -->
 <a id="deepseek-aidsh-cordis-host-runner"></a>
 
@@ -5543,6 +5621,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-client-ui-session-status` | `remoteAccess` · `sessions` · `sessionPersistence` · `typert` | [`packages/client/ui-session-status/src/index.ts`](../packages/client/ui-session-status/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings` | — | [`packages/client/ui-settings/src/index.ts`](../packages/client/ui-settings/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-agent-loop` | — | [`packages/client/ui-settings-agent-loop/src/index.ts`](../packages/client/ui-settings-agent-loop/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-settings-context-injections` | — | [`packages/client/ui-settings-context-injections/src/index.ts`](../packages/client/ui-settings-context-injections/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-general` | — | [`packages/client/ui-settings-general/src/index.ts`](../packages/client/ui-settings-general/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-session-log` | — | [`packages/client/ui-settings-session-log/src/index.ts`](../packages/client/ui-settings-session-log/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-settings-shell` | — | [`packages/client/ui-settings-shell/src/index.ts`](../packages/client/ui-settings-shell/src/index.ts) |

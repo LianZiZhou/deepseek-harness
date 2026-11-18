@@ -1,0 +1,162 @@
+/** The plugin inside a real agent loop: rows, Config, admission, and the settings opt-out. */
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { Context } from '@deepseek-ai/cordis'
+import { createUserMessage, LlmAdapter } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, LlmResolvedModelInfo, RequestMessage, StreamChunk, UserMessage } from '@deepseek-ai/dsh-llm'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import { mountAgentLoopTestDependencies, mountAgentLoopTestHarness } from '@deepseek-ai/dsh-agent-loop-testkit'
+import * as ContextInjections from '../src/index.ts'
+import { Config } from '../src/index.ts'
+import { CONTEXT_INJECTION_ROWS, enabledField, isSwitchable, textField } from '../src/rows.ts'
+import { readSettings } from '../src/settings.ts'
+
+/** Answers every request with `ok` and records what it was sent. */
+class RecordingAdapter extends LlmAdapter {
+  readonly requests: GenerateOptions[] = []
+
+  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    return Promise.resolve({ provider, id: model, name: model })
+  }
+
+  async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    this.requests.push(options)
+    yield* [
+      { type: 'block-start', index: 0, blockType: 'text' },
+      { type: 'text-delta', index: 0, text: 'ok' },
+      { type: 'block-end', index: 0, block: { type: 'text', text: 'ok' } },
+      { type: 'usage', usage: { inputTokens: 1, outputTokens: 1 } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ] satisfies StreamChunk[]
+  }
+}
+
+async function harness(config: ContextInjections.Config) {
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  await mountAgentLoopTestDependencies(ctx, { systemPrompt: { personaPrefix: '' } })
+  const loop = await mountAgentLoopTestHarness(ctx)
+  const adapter = new RecordingAdapter()
+  ctx.llm.registerAdapter(['mock'], adapter)
+  await ctx.plugin({ name: ContextInjections.name, apply: (child: Context) => { ContextInjections.apply(child, config) } })
+  const create = (id: string) => loop.create(SessionId(id), { provider: 'mock', model: 'mock' })
+  return { ctx, create, requests: adapter.requests }
+}
+
+function textOf(message: RequestMessage): string {
+  return message.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
+}
+
+function modelNotice(): UserMessage {
+  return createUserMessage({
+    content: [{ type: 'text', text: '[model changed: a → b]' }],
+    source: { kind: 'model-selection', form: 'notice', summary: 'a → b' },
+  })
+}
+
+function approvalNotice(): UserMessage {
+  return createUserMessage({ content: [{ type: 'text', text: 'policy changed' }], source: { kind: 'user-approval' } })
+}
+
+/** Append both notices from the outermost pre-step position, as `installModelSelection` does. */
+function injectNotices(agent: Agent): void {
+  agent.ctx.on('agent/pre-step', async (_payload, next) => {
+    const decision = await next()
+    return decision.kind === 'reject' ? decision : { ...decision, messages: [...decision.messages, modelNotice(), approvalNotice()] }
+  }, { prepend: true })
+}
+
+async function send(agent: Agent, text: string): Promise<void> {
+  agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
+  await agent.whenIdle()
+}
+
+function loggedUsers(agent: Agent): UserMessage[] {
+  return agent.session.snapshotEvents().flatMap(event => event.type === 'user/message' ? [event.data] : [])
+}
+
+describe('rows and Config', () => {
+  it('gives every row its fields, and a required section no switch', () => {
+    const shape = Object.keys(Config({}))
+    const expected = CONTEXT_INJECTION_ROWS.flatMap(row => [...isSwitchable(row) ? [enabledField(row.id)] : [], textField(row.id)])
+    expect(shape.toSorted()).toEqual(expected.toSorted())
+    expect(CONTEXT_INJECTION_ROWS.filter(row => !isSwitchable(row)).map(row => row.id)).toEqual(['workingDirectory'])
+  })
+
+  it('reads every row as sent and unchanged by default, keyed by what it matches', () => {
+    const { messages, sections } = readSettings(Config({}))
+    expect([...messages.keys()]).toEqual(CONTEXT_INJECTION_ROWS.flatMap(row => row.target === 'message' ? [row.source] : []))
+    expect([...sections.keys()]).toEqual(CONTEXT_INJECTION_ROWS.flatMap(row => row.target === 'section' ? [row.section] : []))
+    expect(new Set([...messages.values(), ...sections.values()].map(setting => JSON.stringify(setting)))).toEqual(new Set(['{"enabled":true,"text":""}']))
+  })
+
+  it('reads each row from its own fields', () => {
+    const raw = Object.fromEntries(CONTEXT_INJECTION_ROWS.flatMap(row => [
+      ...isSwitchable(row) ? [[enabledField(row.id), false]] : [],
+      [textField(row.id), row.id],
+    ]))
+    const { messages, sections } = readSettings(Config(raw))
+    for (const row of CONTEXT_INJECTION_ROWS) {
+      const setting = row.target === 'message' ? messages.get(row.source) : sections.get(row.section)
+      expect(setting).toEqual({ enabled: !isSwitchable(row), text: row.id })
+    }
+  })
+})
+
+describe('admission', () => {
+  it('drops the model-switch notice and rewrites another, whatever order pre-step listeners run in', async () => {
+    const { create, requests } = await harness(Config({ modelSwitchEnabled: false, approvalNoticeText: 'Note: {{text}}' }))
+    const agent = await create('injections-messages')
+    injectNotices(agent)
+
+    await send(agent, 'hello')
+
+    const users = requests[0]?.messages.filter(message => message.role === 'user') ?? []
+    expect(users.map(textOf)).toEqual(['hello', 'Note: policy changed'])
+    expect(loggedUsers(agent).map(textOf)).toEqual(['hello', 'Note: policy changed'])
+  })
+
+  it('drops and rewrites runtime-context sections, including the always-stated directory', async () => {
+    const { ctx, create } = await harness(Config({ sandboxPolicyEnabled: false, workingDirectoryText: 'cwd: {{text}}' }))
+    ctx.systemPrompt.context({ name: 'working-directory:current', order: 0, required: true, text: '/work' })
+    ctx.systemPrompt.context({ name: 'sandbox:policy', order: 1, text: 'Current DSH file policy: danger-full-access.' })
+    ctx.systemPrompt.context({ name: 'unlisted', order: 2, text: 'kept' })
+    const agent = await create('injections-sections')
+
+    await send(agent, 'hello')
+
+    const snapshot = loggedUsers(agent).find(message => message.source.kind === 'runtime-context')
+    expect(snapshot?.source).toMatchObject({ sections: [{ name: 'working-directory:current', text: 'cwd: /work' }, { name: 'unlisted', text: 'kept' }] })
+    expect(textOf(snapshot!)).not.toContain('danger-full-access')
+  })
+
+  it('applies an edited setting from the next step', async () => {
+    let enabled = false
+    const { create, requests } = await harness({ ...Config({}), modelSwitchEnabled: { get: () => enabled } })
+    const agent = await create('injections-volatile')
+    injectNotices(agent)
+
+    await send(agent, 'first')
+    enabled = true
+    await send(agent, 'second')
+
+    const kinds = (request: GenerateOptions | undefined) => request?.messages.filter(message => message.role === 'user').map(message => message.source?.kind)
+    expect(kinds(requests[0])).toEqual(['user', 'user-approval'])
+    expect(kinds(requests[1])).toEqual(['user', 'user-approval', 'user', 'model-selection', 'user-approval'])
+  })
+})
+
+describe('settings presentation', () => {
+  it('turns off the generated settings form while a settings service is composed', async () => {
+    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
+    const disposeConfiguration = vi.fn()
+    const configure = vi.fn(() => disposeConfiguration)
+    ctx.provide('settings', { configure } as never)
+    const fiber = ctx.plugin({ name: 'context-injections', apply: (child: Context) => { ContextInjections.apply(child, Config({})) } })
+    await fiber.await()
+    expect(configure).toHaveBeenCalledWith({ auto: false }, expect.anything())
+    await fiber.dispose()
+    expect(disposeConfiguration).toHaveBeenCalled()
+  })
+})

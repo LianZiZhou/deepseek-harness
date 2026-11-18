@@ -86,8 +86,9 @@ A **step** is one model request plus the tools it calls. A **turn** is zero or m
 turn/start
   claim next-step input plus one queued message
   snapshot Session model selection; assemble prompt sections + step-admitted tool schemas
-  -> agent/pre-step; project runtime context at fallback
+  -> agent/pre-step; agent/admit-context, project runtime context at fallback
                                      reject | enter(messages, startsRequestSeries?)
+  -> agent/admit-messages
      reject, or a first enter rewritten empty -> close the turn with no step
      step/start
      agent/request -> prepareCall (cancellation commits neither system nor users)

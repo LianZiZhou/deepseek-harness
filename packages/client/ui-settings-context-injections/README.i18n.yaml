@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/client/ui-settings-context-injections/README.md
+/:
+  en: 651ced60a008abbc
+  zh: 91be189639b8d2c3
+/deepseek-ai-dsh-client-ui-settings-context-injections:
+  en: e3ede7b97ee0f754
+  zh: 9ba2b8b35f9ea563
+/deepseek-ai-dsh-client-ui-settings-context-injections/summary:
+  en: a999134d7164f618
+  zh: d3352bb6299ad037
+/deepseek-ai-dsh-client-ui-settings-context-injections/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: f14f34fce35a8d90
+/deepseek-ai-dsh-client-ui-settings-context-injections/use-this-package:
+  en: 152c778e5b2b0288
+  zh: c58f6b673a4506be
+/deepseek-ai-dsh-client-ui-settings-context-injections/understand-the-implementation:
+  en: aa72ca9a3895cadb
+  zh: 3ca7f41273ba2a1b
+/deepseek-ai-dsh-client-ui-settings-context-injections/further-exploration:
+  en: 002cc7ace5122d39
+  zh: f2d54471809211a5
+/deepseek-ai-dsh-client-ui-settings-context-injections/model-experience:
+  en: 99d0c7f21f1e8103
+  zh: c40829e302ac8ace
+/deepseek-ai-dsh-client-ui-settings-context-injections/model-experience/kv-cache-effect:
+  en: 7d7ff61713fda1d5
+  zh: 259baf55c5594a09
+/deepseek-ai-dsh-client-ui-settings-context-injections/known-limitations-and-deferred-work:
+  en: 55b4a17b73ec8dfc
+  zh: 9d8ed8f7aa9a6099
+/deepseek-ai-dsh-client-ui-settings-context-injections/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: e88aeb617ffb74ea

@@ -6,8 +6,9 @@
  * single point where a draft becomes a document mutation.
  */
 
-import { useState, type ReactNode } from 'react'
+import { useState, type ChangeEvent, type ReactNode } from 'react'
 import { IconInfoOutlineRegular } from '../icons/index.tsx'
+import { Switch } from '../Switch.tsx'
 import { Tag } from '../Tag.tsx'
 import css from './fields.module.css'
 
@@ -39,6 +40,45 @@ export interface SettingsFieldProps {
   onReset: () => void
 }
 
+/** The draft text and invalid state one staged text control reports, with its copy. */
+type DraftControl = Pick<SettingsFieldProps, 'id' | 'text' | 'invalid' | 'invalidLabel' | 'disabled' | 'onEdit'> & {
+  hint?: string | undefined
+  placeholder?: string | undefined
+}
+
+/** Id of the hint or invalid-reason line under the control `id` names. */
+function messageIdOf(id: string): string {
+  return `${id}-message`
+}
+
+/** Whether a control shows a line under it: the reason it is invalid, or its hint. */
+function hasMessage(props: DraftControl): boolean {
+  return props.invalid || Boolean(props.hint)
+}
+
+/** The attributes every staged text control shares: identity, draft text, and the edit it reports. */
+function draftControlProps(props: DraftControl, describedBy: string) {
+  return {
+    id: props.id,
+    ...props.invalid ? { 'aria-invalid': true as const } : {},
+    'aria-describedby': describedBy || undefined,
+    value: props.text,
+    placeholder: props.placeholder ?? '',
+    disabled: props.disabled,
+    onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { props.onEdit(event.target.value) },
+  }
+}
+
+/** The line under a staged text control: the reason its draft is invalid, or its hint. */
+function FieldMessage(props: DraftControl) {
+  if (!hasMessage(props)) return null
+  return (
+    <p id={messageIdOf(props.id)} className={props.invalid ? css.invalid : css.hint}>
+      {props.invalid ? props.invalidLabel : props.hint}
+    </p>
+  )
+}
+
 /**
  * A staged value field. `numeric` only hints the keypad: which drafts a field
  * accepts is decided by its spec, so the control never silently rewrites what
@@ -58,9 +98,7 @@ export function SettingsValueField(props: Omit<SettingsFieldProps, 'hint'> & {
 }) {
   const [helpOpen, setHelpOpen] = useState(false)
   const helpId = `${props.id}-help`
-  const messageId = `${props.id}-message`
-  const hasMessage = props.invalid || Boolean(props.hint)
-  const description = [hasMessage ? messageId : '', helpOpen ? helpId : ''].filter(Boolean).join(' ')
+  const description = [hasMessage(props) ? messageIdOf(props.id) : '', helpOpen ? helpId : ''].filter(Boolean).join(' ')
   return (
     <div className={css.field}>
       <div className={css.head}>
@@ -76,37 +114,15 @@ export function SettingsValueField(props: Omit<SettingsFieldProps, 'hint'> & {
             )
             : null}
         </div>
-        {props.overridden
-          ? (
-            <span className={css.badges}>
-              <Tag tone="neutral">{props.overriddenLabel}</Tag>
-              <button
-                type="button"
-                className={css.reset}
-                disabled={props.disabled}
-                onClick={props.onReset}
-              >
-                {props.resetLabel}
-              </button>
-            </span>
-          )
-          : null}
+        <OverrideBadge {...props} />
       </div>
       <input
-        id={props.id}
         className={css.input}
         type="text"
         {...props.numeric === true ? { inputMode: 'numeric' as const } : {}}
-        {...props.invalid ? { 'aria-invalid': true } : {}}
-        aria-describedby={description || undefined}
-        value={props.text}
-        placeholder={props.placeholder ?? ''}
-        disabled={props.disabled}
-        onChange={(event) => { props.onEdit(event.target.value) }}
+        {...draftControlProps(props, description)}
       />
-      {hasMessage
-        ? <p id={messageId} className={props.invalid ? css.invalid : css.hint}>{props.invalid ? props.invalidLabel : props.hint}</p>
-        : null}
+      <FieldMessage {...props} />
       {props.help !== undefined && helpOpen
         ? <div id={helpId} className={css.help} role="region" aria-label={props.help.label}>{props.help.content}</div>
         : null}
@@ -146,6 +162,77 @@ export function SettingsSecretField(props: Pick<SettingsFieldProps, 'id' | 'labe
         onChange={(event) => { props.onEdit(event.target.value) }}
       />
       <p className={css.hint}>{props.hint}</p>
+    </div>
+  )
+}
+
+/** The override badge and its reset, shown while saving would leave an override. */
+function OverrideBadge(props: Pick<SettingsFieldProps, 'overridden' | 'overriddenLabel' | 'resetLabel' | 'disabled' | 'onReset'>) {
+  if (!props.overridden) return null
+  return (
+    <span className={css.badges}>
+      <Tag tone="neutral">{props.overriddenLabel}</Tag>
+      <button type="button" className={css.reset} disabled={props.disabled} onClick={props.onReset}>
+        {props.resetLabel}
+      </button>
+    </span>
+  )
+}
+
+/**
+ * A staged on/off field: the switch sits on the label's row. Its draft text is
+ * `'true'` or `'false'`, as {@link settingsBooleanField} formats it, so the
+ * form stages a toggle like any other edit and only a save writes it.
+ * @param props - the field's copy, its staged text, and the edit actions.
+ * @returns the labelled switch.
+ */
+export function SettingsSwitchField(props: Omit<SettingsFieldProps, 'hint' | 'invalid' | 'invalidLabel'> & {
+  /** Optional explanation shown below the label. */
+  hint?: string
+}) {
+  return (
+    <div className={css.field}>
+      <div className={css.head}>
+        <span id={props.id} className={css.label}>{props.label}</span>
+        <OverrideBadge {...props} />
+        <Switch
+          checked={props.text === 'true'}
+          label={props.label}
+          disabled={props.disabled}
+          onChange={(next) => { props.onEdit(next ? 'true' : 'false') }}
+        />
+      </div>
+      {props.hint !== undefined ? <p className={css.hint}>{props.hint}</p> : null}
+    </div>
+  )
+}
+
+/**
+ * A staged multi-line text field, for values such as prose a person rewrites.
+ * Which drafts it accepts is decided by its spec, as for {@link SettingsValueField}.
+ * @param props - the field's copy, its staged text, and the edit actions.
+ * @returns the labelled text area.
+ */
+export function SettingsTextAreaField(props: Omit<SettingsFieldProps, 'hint'> & {
+  /** Optional explanation shown below the text area. */
+  hint?: string
+  /** Placeholder shown while the draft is empty. */
+  placeholder?: string
+  /** Visible lines before the area scrolls; defaults to 3. */
+  rows?: number
+}) {
+  return (
+    <div className={css.field}>
+      <div className={css.head}>
+        <label className={css.label} htmlFor={props.id}>{props.label}</label>
+        <OverrideBadge {...props} />
+      </div>
+      <textarea
+        className={`${css.input} ${css.textarea}`}
+        rows={props.rows ?? 3}
+        {...draftControlProps(props, hasMessage(props) ? messageIdOf(props.id) : '')}
+      />
+      <FieldMessage {...props} />
     </div>
   )
 }

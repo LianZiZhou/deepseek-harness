@@ -206,6 +206,8 @@ flowchart LR
   cfg --> plugin_dsh_base_tool_executor_ptc
   plugin_dsh_base_system_prompt["system-prompt<br/>@deepseek-ai/dsh-system-prompt"]
   cfg --> plugin_dsh_base_system_prompt
+  plugin_dsh_base_context_injections["context-injections<br/>@deepseek-ai/dsh-context-injections"]
+  cfg --> plugin_dsh_base_context_injections
   plugin_dsh_base_prompt_presets["prompt-presets<br/>@deepseek-ai/dsh-prompt-presets"]
   cfg --> plugin_dsh_base_prompt_presets
   plugin_dsh_base_agent_loop["agent-loop<br/>@deepseek-ai/dsh-agent-loop"]
@@ -319,6 +321,7 @@ flowchart LR
 | `tool-executor-native` | `@deepseek-ai/dsh-tool-executor-native` |
 | `tool-executor-ptc` | `@deepseek-ai/dsh-tool-executor-ptc` |
 | `system-prompt` | `@deepseek-ai/dsh-system-prompt` |
+| `context-injections` | `@deepseek-ai/dsh-context-injections` |
 | `prompt-presets` | `@deepseek-ai/dsh-prompt-presets` |
 | `agent-loop` | `@deepseek-ai/dsh-agent-loop` |
 | `fs-sandbox` | `@deepseek-ai/dsh-fs-sandbox` |

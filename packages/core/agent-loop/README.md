@@ -125,6 +125,8 @@ Prompt admission uses the actual `prepareCall()` result, not the preceding `requ
 
 The runtime-context projection compares the ordered names and text in committed `source.sections`, independently of reminder wording. Uncommitted proposals do not advance its state. Closing `system-reminder` tags, including case and trailing-whitespace variants, are escaped in message text while recorded sections retain their original text; this framing is a formatting convention, not a security boundary.
 
+Admission has two last-word waterfalls. After `agent/pre-step` settles, `agent/admit-messages` receives the entered batch; before each runtime-context projection, at step preparation and on every attempt, `agent/admit-context` receives the rendered sections. Their listeners see the final batch whatever order `agent/pre-step` listeners registered in. A dropped message or section is never committed and a rewritten one is committed as rewritten, so the log remains the model input. A first step emptied by `agent/admit-messages` closes the turn without a model call.
+
 ### Failure and cancellation
 
 `turn/end` declares `TurnEndCancelCause`; cancellation records a fresh `AgentCancelCause` there, retaining the caller's `kind` and the hook's `reason` text. The live `AbortSignal.reason` remains the caller's object, which a transport may extend — Node's fetch assigns a `stack` onto it — so the copy keeps that trace out of the log and keeps the ending appendable.

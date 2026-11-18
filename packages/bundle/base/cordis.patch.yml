@@ -550,6 +550,16 @@
       config:
         personaPrefix: ''
 
+    # Switches and replacement text for the context injected into model
+    # requests: notices such as the model-switch notice, and the named sections
+    # of the runtime-context snapshot. Every field is volatile and edited from
+    # the Context injections settings page. This fork sends no model-switch
+    # notice by default.
+    - id: context-injections
+      name: '@deepseek-ai/dsh-context-injections'
+      config:
+        modelSwitchEnabled: false
+
     # User-owned system-prompt overrides, beside the registry they override.
     # Presets live in the user settings document; a session picks one at any
     # point and the next step renders under it. The shipped `default` is empty,

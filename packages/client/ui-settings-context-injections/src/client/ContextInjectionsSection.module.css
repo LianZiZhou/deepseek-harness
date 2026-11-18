@@ -1,0 +1,101 @@
+/* Context injections page: heading, two groups of injection rows, and the shared save. */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 760px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.heading {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.intro {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+.group + .group {
+  margin-top: 16px;
+}
+
+.groupHeading {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.groupIntro {
+  margin: 2px 0 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding-bottom: 8px;
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.fixed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 0;
+}
+
+.fixedLabel {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.fixedHint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.text {
+  padding-left: 12px;
+  border-left: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.disclosure {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .disclosure:hover {
+    color: var(--dsw-alias-label-primary);
+  }
+}
+
+.disclosure:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}

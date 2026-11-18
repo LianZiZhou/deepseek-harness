@@ -8,7 +8,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type {
-  LlmAttemptId, LlmCallConfig, LlmFailure, MessageId, ReasoningEffortId, ResolvedRetryPolicy, StreamChunk,
+  ContextSnapshotSection, LlmAttemptId, LlmCallConfig, LlmFailure, MessageId, ReasoningEffortId, ResolvedRetryPolicy, StreamChunk,
 } from '@deepseek-ai/dsh-llm'
 import type { AgentCancelCause, Session, SessionSeq, UserMessage } from '@deepseek-ai/dsh-session'
 export type { AgentCancelCause } from '@deepseek-ai/dsh-session'
@@ -361,6 +361,40 @@ declare module '@deepseek-ai/cordis' {
      * @mode waterfall
      */
     'agent/pre-step'(this: Scoped<Agent>, payload: { agent: Agent; messages: UserMessage[]; turn: number; step: number; signal: AbortSignal; modelSelection: Readonly<ModelSelection> }, next: () => Promise<PreStepDecision>): Promise<PreStepDecision>
+    /**
+     * Rewrite or drop the messages an entered step admits, after
+     * `agent/pre-step` has settled and before any of them is committed. Every
+     * listener sees the complete batch whatever order `agent/pre-step`
+     * listeners registered in, so a policy over injected context belongs here.
+     * Calling `next()` keeps the batch. The loop's own `runtime-context`
+     * message only marks where the runtime-context snapshot is admitted; its
+     * text comes from `agent/admit-context`. A first step emptied here closes
+     * its turn without a model call.
+     * @param payload.agent - the agent admitting the step.
+     * @param payload.messages - the batch `agent/pre-step` entered, in admission order.
+     * @param payload.turn - the turn that owns the step.
+     * @param payload.step - the step being admitted.
+     * @param payload.signal - the current turn's cancellation signal.
+     * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.
+     * @mode waterfall
+     */
+    'agent/admit-messages'(this: Scoped<Agent>, payload: { agent: Agent; messages: readonly UserMessage[]; turn: number; step: number; signal: AbortSignal }, next: () => Promise<readonly UserMessage[]>): Promise<readonly UserMessage[]>
+    /**
+     * Rewrite or drop the runtime-context sections a step states, before the
+     * loop compares them with the retained snapshot. It runs when a step is
+     * prepared and again before every request attempt, so a listener answers
+     * the same sections the same way each time. Calling `next()` keeps them. A
+     * section whose provider registered as `required` states a fact its owner
+     * relies on the model knowing; dropping one is the listener's decision.
+     * @param payload.agent - the agent whose request carries the snapshot.
+     * @param payload.sections - rendered non-empty sections in assembly order.
+     * @param payload.turn - the turn that owns the step.
+     * @param payload.step - the step whose request carries the snapshot.
+     * @param payload.signal - the current turn's cancellation signal.
+     * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.
+     * @mode waterfall
+     */
+    'agent/admit-context'(this: Scoped<Agent>, payload: { agent: Agent; sections: readonly ContextSnapshotSection[]; turn: number; step: number; signal: AbortSignal }, next: () => Promise<readonly ContextSnapshotSection[]>): Promise<readonly ContextSnapshotSection[]>
     /**
      * Replace the frozen call configuration. `await next()` yields the config
      * the machine would use (the step's model selection with agent options on

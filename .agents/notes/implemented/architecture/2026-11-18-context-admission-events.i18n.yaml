@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-11-18-context-admission-events.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-18-context-admission-events.md
+/agent-note-the-loop-gives-injected-context-a-last-word-admission-point:
+  en: f3f7aab12677e73c
+  zh: d3718d890af0b0fa
+/agent-note-the-loop-gives-injected-context-a-last-word-admission-point/problem:
+  en: 136be62a0224813f
+  zh: 333e7d7d8bcd0a80
+/agent-note-the-loop-gives-injected-context-a-last-word-admission-point/decision:
+  en: 1f21312193b5d6e8
+  zh: 3f4d309d4f1b1f95
+/agent-note-the-loop-gives-injected-context-a-last-word-admission-point/alternatives-considered:
+  en: 0f9d7a322e5031c9
+  zh: a48869cfa1b18086
+/agent-note-the-loop-gives-injected-context-a-last-word-admission-point/consequences:
+  en: 0e6d5daf0f7ef578
+  zh: e6b7f67086451f9b
+/agent-note-the-loop-gives-injected-context-a-last-word-admission-point/testing:
+  en: 72f2e1484d6f8635
+  zh: 7d7c0c2e9640cf55

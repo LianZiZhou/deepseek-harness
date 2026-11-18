@@ -5423,6 +5423,22 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'sessionId', description: 'the session whose composition changed.' }, { name: 'agentPreset', description: 'the preset recorded by the committed selection.' }],
   },
   {
+    name: 'agent/admit-context',
+    mode: 'waterfall',
+    signature: '\'agent/admit-context\'(this: Scoped<Agent>, payload: { agent: Agent; sections: readonly ContextSnapshotSection[]; turn: number; step: number; signal: AbortSignal }, next: () => Promise<readonly ContextSnapshotSection[]>): Promise<readonly ContextSnapshotSection[]>',
+    summary: 'Rewrite or drop the runtime-context sections a step states, before the loop compares them with the retained snapshot.',
+    description: 'Rewrite or drop the runtime-context sections a step states, before the loop compares them with the retained snapshot. It runs when a step is prepared and again before every request attempt, so a listener answers the same sections the same way each time. Calling `next()` keeps them. A section whose provider registered as `required` states a fact its owner relies on the model knowing; dropping one is the listener\'s decision.',
+    parameters: [{ name: 'payload', description: '.signal - the current turn\'s cancellation signal. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.' }],
+  },
+  {
+    name: 'agent/admit-messages',
+    mode: 'waterfall',
+    signature: '\'agent/admit-messages\'(this: Scoped<Agent>, payload: { agent: Agent; messages: readonly UserMessage[]; turn: number; step: number; signal: AbortSignal }, next: () => Promise<readonly UserMessage[]>): Promise<readonly UserMessage[]>',
+    summary: 'Rewrite or drop the messages an entered step admits, after `agent/pre-step` has settled and before any of them is committed.',
+    description: 'Rewrite or drop the messages an entered step admits, after `agent/pre-step` has settled and before any of them is committed. Every listener sees the complete batch whatever order `agent/pre-step` listeners registered in, so a policy over injected context belongs here. Calling `next()` keeps the batch. The loop\'s own `runtime-context` message only marks where the runtime-context snapshot is admitted; its text comes from `agent/admit-context`. A first step emptied here closes its turn without a model call.',
+    parameters: [{ name: 'payload', description: '.signal - the current turn\'s cancellation signal. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.' }],
+  },
+  {
     name: 'agent/assistant-stream',
     mode: 'emit',
     signature: '\'agent/assistant-stream\'(this: Scoped<Agent>, payload: { agent: Agent; frame: AssistantStreamFrame }): void',
@@ -7061,6 +7077,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ContextPressureProjection',
     declaration: 'export interface ContextPressureProjection {\n    pressureTokens?: number;\n    projectedTokens?: number;\n    contextWindow?: number;\n}',
+  },
+  {
+    name: 'ContextSnapshotSection',
+    declaration: 'export interface ContextSnapshotSection {\n    readonly name: string;\n    readonly text: string;\n}',
   },
   {
     name: 'ContinuableCreateRequest',

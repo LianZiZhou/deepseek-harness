@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Einstellungen für Kontext-Injektionen",
+    "description": "Einstellungsseite, die Hinweise und Laufzeitkontext in Modellanfragen abschaltet oder umformuliert."
+  }
+}

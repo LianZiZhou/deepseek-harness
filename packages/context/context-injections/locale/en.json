@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Context injections",
+    "description": "Switches off or rewrites the notices, reminders, and runtime-context sections the harness adds to model requests."
+  }
+}

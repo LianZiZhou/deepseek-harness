@@ -871,6 +871,66 @@ Source: [`packages/core/agent/src/index.ts`](../../packages/core/agent/src/index
 
 ### `agent/*` events
 
+<a id="agentadmit-context--waterfall"></a>
+
+#### `agent/admit-context` — waterfall
+
+Rewrite or drop the runtime-context sections a step states, before the loop compares them with the retained snapshot. It runs when a step is prepared and again before every request attempt, so a listener answers the same sections the same way each time. Calling `next()` keeps them. A section whose provider registered as `required` states a fact its owner relies on the model knowing; dropping one is the listener's decision.
+
+```ts cordis-catalog
+/**
+ * Rewrite or drop the runtime-context sections a step states, before the
+ * loop compares them with the retained snapshot. It runs when a step is
+ * prepared and again before every request attempt, so a listener answers
+ * the same sections the same way each time. Calling `next()` keeps them. A
+ * section whose provider registered as `required` states a fact its owner
+ * relies on the model knowing; dropping one is the listener's decision.
+ * @param payload.agent - the agent whose request carries the snapshot.
+ * @param payload.sections - rendered non-empty sections in assembly order.
+ * @param payload.turn - the turn that owns the step.
+ * @param payload.step - the step whose request carries the snapshot.
+ * @param payload.signal - the current turn's cancellation signal.
+ * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.
+ * @mode waterfall
+ */
+'agent/admit-context'(this: Scoped<Agent>, payload: { agent: Agent; sections: readonly ContextSnapshotSection[]; turn: number; step: number; signal: AbortSignal }, next: () => Promise<readonly ContextSnapshotSection[]>): Promise<readonly ContextSnapshotSection[]>
+```
+
+Types: [ContextSnapshotSection](llm-streaming.zh.md) · [Scoped](scope.zh.md)
+
+Source: [`packages/core/agent/src/runtime-types.ts`](../../packages/core/agent/src/runtime-types.ts)
+
+<a id="agentadmit-messages--waterfall"></a>
+
+#### `agent/admit-messages` — waterfall
+
+Rewrite or drop the messages an entered step admits, after `agent/pre-step` has settled and before any of them is committed. Every listener sees the complete batch whatever order `agent/pre-step` listeners registered in, so a policy over injected context belongs here. Calling `next()` keeps the batch. The loop's own `runtime-context` message only marks where the runtime-context snapshot is admitted; its text comes from `agent/admit-context`. A first step emptied here closes its turn without a model call.
+
+```ts cordis-catalog
+/**
+ * Rewrite or drop the messages an entered step admits, after
+ * `agent/pre-step` has settled and before any of them is committed. Every
+ * listener sees the complete batch whatever order `agent/pre-step`
+ * listeners registered in, so a policy over injected context belongs here.
+ * Calling `next()` keeps the batch. The loop's own `runtime-context`
+ * message only marks where the runtime-context snapshot is admitted; its
+ * text comes from `agent/admit-context`. A first step emptied here closes
+ * its turn without a model call.
+ * @param payload.agent - the agent admitting the step.
+ * @param payload.messages - the batch `agent/pre-step` entered, in admission order.
+ * @param payload.turn - the turn that owns the step.
+ * @param payload.step - the step being admitted.
+ * @param payload.signal - the current turn's cancellation signal.
+ * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.
+ * @mode waterfall
+ */
+'agent/admit-messages'(this: Scoped<Agent>, payload: { agent: Agent; messages: readonly UserMessage[]; turn: number; step: number; signal: AbortSignal }, next: () => Promise<readonly UserMessage[]>): Promise<readonly UserMessage[]>
+```
+
+Types: [Scoped](scope.zh.md) · [UserMessage](session.zh.md)
+
+Source: [`packages/core/agent/src/runtime-types.ts`](../../packages/core/agent/src/runtime-types.ts)
+
 <a id="agentassistant-stream--emit"></a>
 
 #### `agent/assistant-stream` — emit

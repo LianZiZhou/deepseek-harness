@@ -19,7 +19,7 @@ import type {
   RequestErrorAction,
 } from '@deepseek-ai/dsh-agent'
 import { AgentModel, agentEvents, assembleContextFor } from '@deepseek-ai/dsh-agent'
-import type { GenerateOptions, LlmCallConfig, Message, PreparedLlmCall } from '@deepseek-ai/dsh-llm'
+import type { ContextSnapshotSection, GenerateOptions, LlmCallConfig, Message, PreparedLlmCall } from '@deepseek-ai/dsh-llm'
 import {
   LlmError,
   createAssistantMessage,
@@ -310,13 +310,13 @@ export class ReactLoopAgent implements Agent {
       signal.throwIfAborted()
       const decision = await this.dispatch.waterfall(
         'agent/pre-step', { messages: claimed, ...position, signal, modelSelection: selection },
-        (): Promise<PreStepDecision> => {
-          const sections = renderContextSections(assembly)
+        async (): Promise<PreStepDecision> => {
+          const sections = await this.admitContext(renderContextSections(assembly), position, signal)
           const context = this.runtimeContext.project(sections)
-          return Promise.resolve<PreStepDecision>({
+          return {
             kind: 'enter',
             messages: context === undefined ? claimed : [...claimed, context],
-          })
+          }
         },
       )
       signal.throwIfAborted()
@@ -324,11 +324,29 @@ export class ReactLoopAgent implements Agent {
         toolSet.dispose()
         return decision
       }
-      return { ...decision, assembly, selection, toolSet }
+      const entered = decision.messages
+      const admitted = await this.dispatch.waterfall(
+        'agent/admit-messages', { messages: entered, ...position, signal },
+        () => Promise.resolve(entered),
+      )
+      signal.throwIfAborted()
+      return { ...decision, messages: [...admitted], assembly, selection, toolSet }
     } catch (error: unknown) {
       toolSet.dispose()
       throw error
     }
+  }
+
+  /**
+   * Let `agent/admit-context` listeners rewrite or drop freshly rendered
+   * runtime-context sections; both projection sites admit through here.
+   */
+  private admitContext(
+    sections: readonly ContextSnapshotSection[],
+    position: { turn: number; step: number },
+    signal: AbortSignal,
+  ): Promise<readonly ContextSnapshotSection[]> {
+    return this.dispatch.waterfall('agent/admit-context', { sections, ...position, signal }, () => Promise.resolve(sections))
   }
 
   /** Whether the assembled tool schemas differ from the logged request header's. */
@@ -465,7 +483,7 @@ export class ReactLoopAgent implements Agent {
       const currentContext = this.loopCtx.systemPrompt.refreshContext(assembly, {
         ...assembleContextFor(this, signal), modelSelection: decision.selection,
       })
-      const sections = renderContextSections(currentContext)
+      const sections = await this.admitContext(renderContextSections(currentContext), { turn, step }, signal)
       const context = this.runtimeContext.project(sections)
       signal.throwIfAborted()
       const startsRequestSeries = firstAttempt && decision.startsRequestSeries === true

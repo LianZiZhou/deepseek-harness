@@ -28,3 +28,8 @@
 
     - id: model-switch-driver
       name: './model-switch-driver.mjs'
+
+# The base turns the notice off; this scenario records the notice itself.
+- id: context-injections
+  config:
+    modelSwitchEnabled: true

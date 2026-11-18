@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Context injections settings",
+    "description": "Settings page that switches off or rewrites the notices and runtime context added to model requests."
+  }
+}

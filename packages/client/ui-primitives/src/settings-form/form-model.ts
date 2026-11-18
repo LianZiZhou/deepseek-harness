@@ -186,6 +186,24 @@ export function settingsTextField(field: string): SettingsFieldSpec {
 }
 
 /**
+ * An on/off field. Its draft text is `'true'` or `'false'`; an empty draft
+ * clears the field, and any other text blocks the save.
+ * @param field - field name inside the namespace section.
+ * @returns the field's conversion spec.
+ */
+export function settingsBooleanField(field: string): SettingsFieldSpec {
+  return {
+    field,
+    format: value => typeof value === 'boolean' ? String(value) : '',
+    parse: (text) => {
+      if (text === '') return { kind: 'clear' }
+      if (text === 'true' || text === 'false') return { kind: 'set', value: text === 'true' }
+      return undefined
+    },
+  }
+}
+
+/**
  * Stages one card's edits over one settings namespace and writes them on save.
  *
  * The form publishes through a snapshot store because slot components read

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Inyecciones de contexto",
+    "description": "Desactiva o reescribe los avisos, recordatorios y secciones de contexto de ejecución que el harness añade a las solicitudes al modelo."
+  }
+}

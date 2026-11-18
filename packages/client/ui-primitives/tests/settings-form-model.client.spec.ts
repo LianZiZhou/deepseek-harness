@@ -5,7 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import {
-  SettingsFormModel, settingsNumberField, settingsTextField,
+  SettingsFormModel, settingsBooleanField, settingsNumberField, settingsTextField,
   type SettingsFormPathOp, type SettingsFormScope, type SettingsFormScopeSnapshot,
 } from '../src/index.ts'
 
@@ -315,5 +315,23 @@ describe('SettingsFormModel', () => {
     host.publish({ status: 'unavailable' })
 
     expect(subject.shell()).toMatchObject({ available: false, writable: false })
+  })
+})
+
+describe('settingsBooleanField', () => {
+  const spec = settingsBooleanField('enabled')
+
+  it('formats a stored boolean and nothing else', () => {
+    expect(spec.format(true)).toBe('true')
+    expect(spec.format(false)).toBe('false')
+    expect(spec.format(undefined)).toBe('')
+    expect(spec.format('true')).toBe('')
+  })
+
+  it('parses its two drafts, clears on empty, and refuses anything else', () => {
+    expect(spec.parse('true')).toEqual({ kind: 'set', value: true })
+    expect(spec.parse('false')).toEqual({ kind: 'set', value: false })
+    expect(spec.parse('')).toEqual({ kind: 'clear' })
+    expect(spec.parse('yes')).toBeUndefined()
   })
 })

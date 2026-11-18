@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Kontext-Injektionen",
+    "description": "Schaltet die Hinweise, Erinnerungen und Laufzeitkontext-Abschnitte ab, die der Harness Modellanfragen hinzufügt, oder formuliert sie um."
+  }
+}

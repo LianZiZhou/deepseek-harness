@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Réglages des injections de contexte",
+    "description": "Page de réglages qui désactive ou réécrit les avis et le contexte d’exécution ajoutés aux requêtes au modèle."
+  }
+}

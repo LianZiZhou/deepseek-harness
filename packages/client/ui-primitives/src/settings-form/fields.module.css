@@ -124,6 +124,14 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.textarea {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 12px;
+  resize: vertical;
+  white-space: pre-wrap;
+}
+
 .input:focus-visible {
   outline: none;
   border-color: var(--dsw-alias-state-business-primary);

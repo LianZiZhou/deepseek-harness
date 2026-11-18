@@ -125,6 +125,8 @@ loop 在发布工厂前等待必需的注册完成。它对模型选择和 inbox
 
 运行时上下文投影比较已提交 `source.sections` 中有序的名称与文本，不依赖提醒文案。未提交的候选消息不推进其状态。消息文本会转义 `system-reminder` 结束标签，包括大小写及尾随空白变体；日志中的 sections 则保留原始文本。这种包装是格式约定，不是安全边界。
 
+准入有两个拥有最终决定权的 waterfall。`agent/pre-step` 完成后，`agent/admit-messages` 接收进入的消息批次；在每次运行时上下文投影之前（准备步骤时以及每次尝试时），`agent/admit-context` 接收渲染出的段落。无论 `agent/pre-step` 监听器以什么顺序注册，它们的监听器看到的都是最终批次。被丢弃的消息或段落从不提交，被改写的按改写后的内容提交，因此日志仍然就是模型输入。被 `agent/admit-messages` 清空的首个步骤会关闭轮次而不发起模型调用。
+
 ### 失败与取消
 
 `turn/end` 声明的类型是 `TurnEndCancelCause`；取消时，循环在其中记录一份新的 `AgentCancelCause`，保留调用方的 `kind` 和 hook 的 `reason` 文本。实时 `AbortSignal.reason` 仍是调用方的那个对象，传输层可能向其添加属性——Node 的 fetch 会给它赋一个 `stack`——因此这份拷贝既让该调用栈不进入日志，也让结束事件保持可追加。

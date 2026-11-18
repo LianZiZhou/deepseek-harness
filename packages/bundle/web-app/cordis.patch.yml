@@ -479,6 +479,12 @@
     - id: ui-prompt-preset
       name: '@deepseek-ai/dsh-client-ui-prompt-preset'
 
+    # Context injections: the settings page that switches off or rewrites the
+    # notices and runtime-context sections injected into model requests. It
+    # renders only while the Host serves the `context-injections` namespace.
+    - id: ui-settings-context-injections
+      name: '@deepseek-ai/dsh-client-ui-settings-context-injections'
+
     # Region-local More menus: pin or unpin plugin launchers and start a
     # plugin draft.
     - id: entry-customization

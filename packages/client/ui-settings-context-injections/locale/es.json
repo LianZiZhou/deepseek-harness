@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Ajustes de inyecciones de contexto",
+    "description": "Página de ajustes que desactiva o reescribe los avisos y el contexto de ejecución añadidos a las solicitudes al modelo."
+  }
+}

@@ -30,3 +30,8 @@
 - id: tool-fs
   config:
     applyPatch: false
+
+# The base turns the notice off; this scenario records the notice itself.
+- id: context-injections
+  config:
+    modelSwitchEnabled: true

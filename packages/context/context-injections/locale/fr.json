@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Injections de contexte",
+    "description": "Désactive ou réécrit les avis, rappels et sections de contexte d’exécution que le harnais ajoute aux requêtes au modèle."
+  }
+}

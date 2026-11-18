@@ -540,6 +540,7 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   MessageFeedbackVersion: 'feedback.md',
   MessageFeedbackVersionConflict: 'feedback.md',
   UserMessage: 'session.md',
+  ContextSnapshotSection: 'llm-streaming.md',
   ApiSessionAgentResult: 'session.md',
   PreStepDecision: 'core.md',
   PreStepContext: 'core.md',
