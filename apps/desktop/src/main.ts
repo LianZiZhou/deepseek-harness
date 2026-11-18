@@ -40,6 +40,7 @@ import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLoc
 import type { DesktopMessages } from './locale.ts'
 import { claimDesktopSingleInstance } from './single-instance.ts'
 import { desktopUpdateChannel } from './update-channel.ts'
+import { forkDmgReleaseCheck } from './fork-dmg-update.ts'
 import { DesktopUpdateCoordinator } from './update-coordinator.ts'
 import { prepareDesktopUpdateWindow } from './update-window.ts'
 import { DesktopCommandManager } from './command-management.ts'
@@ -759,7 +760,7 @@ async function main(): Promise<void> {
     },
     undefined, undefined, undefined,
     (success, reason) => { void track('desktop_upgrade_download_result', { is_success: success, ...reason === undefined ? {} : { error_reason: reason } }) },
-    updateChannel,
+    updateChannel, undefined, forkDmgReleaseCheck(manifest, app.isPackaged, process.platform, process.arch),
   )
 
   if (initialChannel.kind === 'error') updates.suspendConfiguration(initialChannel.error.path)
@@ -1070,6 +1071,19 @@ async function main(): Promise<void> {
           return
         }
         if (state.phase !== 'available' && !(state.phase === 'error' && state.failedOperation === 'download')) return
+        if (state.manualReleasePage !== undefined) {
+          const result = await ordinaryMessageBox({ title: locale.messages.updateCheckTitle,
+            message: formatDesktopMessage(locale.messages.updateAvailable, { version: state.version ?? '' }),
+            detail: locale.messages.updateManualDmg,
+            buttons: [locale.messages.updateViewRelease, locale.messages.updateClose], cancelId: 1 })
+          if (result.response !== 0 || channelRequests !== 0 || isMandatory() || isQuitting()) return
+          if (updates.configurationFailure !== undefined || revision !== updates.revision) return
+          const current = updates.state
+          if (current.phase === 'available' && current.version === state.version && current.manualReleasePage === state.manualReleasePage) {
+            await shell.openExternal(state.manualReleasePage)
+          }
+          return
+        }
         if (manual) {
           const result = await ordinaryMessageBox({ title: locale.messages.updateCheckTitle,
             message: formatDesktopMessage(locale.messages.updateAvailable, { version: state.version ?? '' }),

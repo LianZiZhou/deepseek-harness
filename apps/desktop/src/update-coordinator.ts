@@ -23,6 +23,7 @@ export class DesktopUpdateCoordinator {
   private switching = 0
   private downloadGeneration = 0
   private switchTail: Promise<void> = Promise.resolve()
+  private metadataRequest: AbortController | undefined
   private cancellation: UpdateCheckResult['cancellationToken']
   private configurationError: 'startup' | 'cleanup' | undefined
   private checkOperation: Promise<DesktopUpdateState> | undefined
@@ -56,6 +57,7 @@ export class DesktopUpdateCoordinator {
    * @param channel - Installed package channel; omitted test/local callers retain nightly.
    * @param discard - Clears settled library targets and platform resources before another channel is used.
    * @param downloadResult - Once per completed download attempt, including platform preparation failures.
+   * @param manualCheck - Read release metadata without creating an installable updater target.
    */
   constructor(
     private readonly publish: (state: DesktopUpdateState) => DesktopUpdateState,
@@ -66,6 +68,7 @@ export class DesktopUpdateCoordinator {
     private readonly downloadResult?: (success: boolean, reason?: string) => void,
     private channel: DesktopUpdateChannel = 'nightly',
     private readonly discard: (updater: AppUpdater) => Promise<void> = discardDesktopUpdate,
+    private readonly manualCheck?: (channel: DesktopUpdateChannel, signal: AbortSignal) => Promise<{ version: string; page: string }>,
   ) {
     if (updater === autoUpdater) {
       // electron-updater omits this internal transport property from its public declarations.
@@ -103,6 +106,7 @@ export class DesktopUpdateCoordinator {
    */
   suspendConfiguration(detail: string, reason: 'startup' | 'cleanup' = 'startup'): void {
     this.configurationError = reason
+    this.metadataRequest?.abort()
     this.setState({ phase: 'error', failedOperation: 'configuration', message: detail })
   }
 
@@ -113,7 +117,8 @@ export class DesktopUpdateCoordinator {
    * suspends updates until another explicit switch successfully retires the target.
    * @param channel - Validated UI choice.
    * @param persist - Atomic settings save; rejects before a choice is applied on failure.
-   * @returns Whether the selection changed; healthy repeated choices preserve the current operation.
+   * @returns Whether the selection changed. A metadata-only refresh continues after the choice is applied;
+   * healthy repeated choices preserve the current operation.
    */
   switchChannel(channel: DesktopUpdateChannel, persist: () => Promise<void>): Promise<'applied' | 'unchanged'> {
     this.assertLive()
@@ -126,6 +131,7 @@ export class DesktopUpdateCoordinator {
       if (channel === this.channel && this.configurationError === undefined) return 'unchanged' as const
       await persist()
       this.generation++
+      this.metadataRequest?.abort()
       this.cancellation?.cancel()
       await Promise.allSettled([this.checkOperation, this.downloadOperation])
       this.assertLive()
@@ -139,8 +145,10 @@ export class DesktopUpdateCoordinator {
       selectUpdateChannel(this.updater, channel)
       this.configurationError = undefined
       this.setState({ phase: 'checking' })
-      const result = await this.doCheck()
-      if (result.phase === 'error') this.setState(result)
+      // Do not hold the selection queue on a metadata-only fetch that the next choice can abort.
+      const refresh = this.checkFeed(true)
+      if (this.manualCheck === undefined) await refresh
+      else void refresh.catch((error: unknown) => { console.error(error) })
       return 'applied' as const
     }).finally(() => { this.switching-- })
     this.switchTail = operation.then(() => {}).catch(() => { /* The caller reports this selection's failure; later choices may retry. */ })
@@ -157,10 +165,16 @@ export class DesktopUpdateCoordinator {
     if (this.configurationError !== undefined || this.switching > 0
       || this.downloadOperation !== undefined || this.installOperation !== undefined || this.downloaded) return this.current
     if (!manual && this.current.phase === 'error' && this.current.failedOperation === 'download') return this.current
+    return this.checkFeed(manual)
+  }
+
+  private async checkFeed(manual: boolean): Promise<DesktopUpdateState> {
+    const generation = this.generation
     this.checkOperation ??= Promise.resolve().then(() => this.doCheck())
       .finally(() => { this.checkOperation = undefined })
     const result = await this.checkOperation
-    if (manual && result.phase === 'error') this.setState(result)
+    if (generation !== this.generation || this.disposed || this.configurationError !== undefined) return this.current
+    if (manual && result.phase === 'error' && result !== this.current) this.setState(result)
     return result
   }
 
@@ -228,6 +242,7 @@ export class DesktopUpdateCoordinator {
   /** Remove owned listeners and prevent pending library operations from publishing into closed UI. */
   dispose(): void {
     this.disposed = true
+    this.metadataRequest?.abort()
     this.updater.off('download-progress', this.onProgress)
     this.updater.off('update-downloaded', this.onDownloaded)
     // Pending updater promises can still emit EventEmitter errors during shutdown.
@@ -269,6 +284,14 @@ export class DesktopUpdateCoordinator {
     const generation = this.generation
     try {
       this.assertLive()
+      if (this.manualCheck !== undefined) {
+        if (this.configurationError !== undefined) return this.current
+        this.metadataRequest = new AbortController()
+        const { version, page } = await this.manualCheck(this.channel, this.metadataRequest.signal)
+        if (generation !== this.generation || this.disposed || this.metadataRequest.signal.aborted) return this.current
+        return this.setState(gt(version, this.currentVersion())
+          ? { phase: 'available', version, manualReleasePage: page } : { phase: 'idle' })
+      }
       if (!this.enabled()) throw new Error('desktop update: this application has no packaged update source')
       const result = await this.updater.checkForUpdates()
       if (generation !== this.generation || this.disposed) return this.current
@@ -280,8 +303,10 @@ export class DesktopUpdateCoordinator {
         ? { kind: 'checked', version } : { kind: 'none' }
       return this.setState(this.candidate === undefined ? { phase: 'idle' } : { phase: 'available', version })
     } catch (error) {
-      if (generation !== this.generation || this.disposed) return this.current
+      if (generation !== this.generation || this.disposed || this.metadataRequest?.signal.aborted) return this.current
       return this.failure(error, 'check')
+    } finally {
+      this.metadataRequest = undefined
     }
   }
 }

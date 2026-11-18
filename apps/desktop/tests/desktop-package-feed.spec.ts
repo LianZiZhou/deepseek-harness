@@ -30,9 +30,16 @@ it.each(['win32', 'linux'] as const)('packages an explicitly selected unsigned f
   expect(createElectronBuilderConfig({ ...appId, DSH_DESKTOP_UNSIGNED: '1' }, platform, 'x64').publish).toBeNull()
 })
 
-it('keeps ad-hoc macOS packages manual even when the release selects the fork', () => {
-  const env = localMacOSPackageEnvironment({ DSH_DESKTOP_AUTO_UPDATE_ENV: 'fork' })
-  expect(createElectronBuilderConfig(env, 'darwin', 'arm64').publish).toBeNull()
+it.each(['stable', 'nightly'])('marks only the fork Apple Silicon DMG for manual %s updates', (channel) => {
+  const local = localMacOSPackageEnvironment({ DSH_DESKTOP_AUTO_UPDATE_ENV: 'fork', DSH_DESKTOP_UPDATE_CHANNEL: channel })
+  expect(createElectronBuilderConfig(local, 'darwin', 'arm64').extraMetadata).not.toHaveProperty('dshDesktopManualUpdates')
+  const env = localMacOSPackageEnvironment({ ...local, DSH_DESKTOP_FORK_MANUAL_DMG: '1' })
+  const config = createElectronBuilderConfig(env, 'darwin', 'arm64')
+  expect(config.publish).toBeNull()
+  expect(config.extraMetadata).toMatchObject({ dshDesktopManualUpdates: 'fork-dmg', dshDesktopUpdateChannel: channel })
+  expect(createElectronBuilderConfig(env, 'darwin', 'x64').extraMetadata).not.toHaveProperty('dshDesktopManualUpdates')
+  expect(createElectronBuilderConfig(localMacOSPackageEnvironment({}), 'darwin', 'arm64').extraMetadata)
+    .not.toHaveProperty('dshDesktopManualUpdates')
 })
 
 it('embeds an explicitly configured anonymous policy alongside the fork feed', () => {

@@ -22,7 +22,8 @@ def desktop(target, release, output, pnpm):
             "DSH_DESKTOP_APP_ID=io.github.lianzizhou.dsh-desktop\nDSH_DESKTOP_AUTO_UPDATE_ENV=fork\n",
             encoding="utf-8")
     run(pnpm, "run", "package:desktop:" + target.replace("-", ":") + ":unsigned",
-        "--build-version", release["version"], "--official-branding")
+        "--build-version", release["version"], "--official-branding",
+        env={**os.environ, "DSH_DESKTOP_FORK_MANUAL_DMG": "1"} if target == "mac-arm64" else None)
     folder = Path("apps/desktop/.desktop-build/targets") / target / "unsigned-artifacts"
     installer, = folder.glob("*." + DESKTOP[target])
     name = f"dsh-desktop-{target}.{DESKTOP[target]}"
