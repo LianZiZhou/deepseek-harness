@@ -132,7 +132,7 @@ Session consumers know only the current logical format. Header-only `stat` and `
 
 **Projection seam.** `dsh-session-projection` owns `ctx.sessionProjections`: registered units fold committed events; carriers read selected client views through `snapshot()`. Domain services await registration, retain private handles, and expose business methods ([registration lifecycle](../packages/session/session-projection/README.md)). `AgentRegistry` exposes turn and step state through `turnBoundaryOf(session)`. `AgentLoop` owns `modelSelection` and inbox state ([loop lifecycle](../packages/core/agent-loop/README.md)).
 
-[Working directories](subsystems/working-directory.md) supply user context and execution paths without changing original project identity, sandbox write roots, or existing process directories.
+Changing the Session [working directory](subsystems/working-directory.md) moves the relative-path base and `workspace-write` root, not project identity or running processes’ working directories.
 
 ## Capability seams
 
