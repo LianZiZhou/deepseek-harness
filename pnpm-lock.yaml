@@ -3675,6 +3675,9 @@ importers:
       '@deepseek-ai/dsh-attachment':
         specifier: workspace:*
         version: link:../../attachment/attachment
+      '@deepseek-ai/dsh-client-config':
+        specifier: workspace:*
+        version: link:../config
       '@deepseek-ai/dsh-credentials':
         specifier: workspace:*
         version: link:../../credentials/credentials
@@ -3953,6 +3956,9 @@ importers:
       '@deepseek-ai/dsh-brand':
         specifier: workspace:*
         version: link:../../util/brand
+      '@deepseek-ai/dsh-client-config':
+        specifier: workspace:*
+        version: link:../config
       '@deepseek-ai/dsh-client-locale':
         specifier: workspace:*
         version: link:../locale
@@ -3965,9 +3971,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-primitives':
         specifier: workspace:*
         version: link:../ui-primitives
-      '@deepseek-ai/dsh-host-webserver':
-        specifier: workspace:*
-        version: link:../../host/webserver
 
   packages/client/store:
     devDependencies:
@@ -3993,6 +3996,9 @@ importers:
       '@deepseek-ai/dsh-api-remotes':
         specifier: workspace:*
         version: link:../../api/remotes
+      '@deepseek-ai/dsh-client-config':
+        specifier: workspace:*
+        version: link:../config
       '@deepseek-ai/dsh-client-locale':
         specifier: workspace:*
         version: link:../locale
@@ -4014,9 +4020,6 @@ importers:
       '@deepseek-ai/dsh-deepseek-account':
         specifier: workspace:*
         version: link:../../account/deepseek-account
-      '@deepseek-ai/dsh-host-webserver':
-        specifier: workspace:*
-        version: link:../../host/webserver
       '@testing-library/react':
         specifier: ^16.3.3
         version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -6569,6 +6572,9 @@ importers:
       '@deepseek-ai/dsh-api-settings-controller':
         specifier: workspace:*
         version: link:../../api/settings-controller
+      '@deepseek-ai/dsh-client-config':
+        specifier: workspace:*
+        version: link:../config
       '@deepseek-ai/dsh-client-locale':
         specifier: workspace:*
         version: link:../locale
@@ -6593,9 +6599,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-slots':
         specifier: workspace:*
         version: link:../ui-slots
-      '@deepseek-ai/dsh-host-webserver':
-        specifier: workspace:*
-        version: link:../../host/webserver
       '@deepseek-ai/dsh-remote-mock':
         specifier: workspace:*
         version: link:../../test-support/remote-mock
@@ -6921,6 +6924,9 @@ importers:
       '@deepseek-ai/dsh-brand':
         specifier: workspace:*
         version: link:../../util/brand
+      '@deepseek-ai/dsh-client-config':
+        specifier: workspace:*
+        version: link:../config
       '@deepseek-ai/dsh-client-connection':
         specifier: workspace:*
         version: link:../connection
