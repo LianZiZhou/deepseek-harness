@@ -328,6 +328,27 @@ it('owns macOS tuning in the local file and validates it before signing credenti
   })
 })
 
+it('requires the WISDOM WORLD WORKSHOP LIMITED certificate identity from the private macOS fork preset', async () => {
+  await withDirectory(async (directory) => {
+    const env = { DSH_PACKAGING_CONFIG_DIR: directory, DSH_PACKAGING_PRESET: 'fork' }
+    expect(() => loadDesktopPackageEnvironment('win32', env)).toThrow('macOS only')
+    await mkdir(join(directory, 'presets'))
+    await mkdir(join(directory, 'secrets'))
+    await writeFile(join(directory, 'presets/fork.env'), 'DSH_DESKTOP_APP_ID=com.deepseek.dsh\nDSH_DESKTOP_AUTO_UPDATE_ENV=fork\n')
+    const settings = join(directory, 'secrets/macos-signing.env')
+    const fixture = 'DSH_DESKTOP_MACOS_TEAM_ID=TEAMID1234\nCSC_LINK=fixture.p12\nCSC_KEY_PASSWORD=\nAPPLE_API_KEY=fixture.p8\nAPPLE_API_KEY_ID=TEST123456\nAPPLE_API_ISSUER=fixture-issuer\n'
+    await writeFile(join(directory, 'secrets/fixture.p12'), '')
+    await writeFile(join(directory, 'secrets/fixture.p8'), '')
+    await writeFile(settings, `${fixture}DSH_DESKTOP_MACOS_SIGNING_IDENTITY=Example Company (TEAMID1234)\n`)
+    expect(() => { validateDesktopPackageEnvironment(loadDesktopPackageEnvironment('darwin', env), MACOS) })
+      .toThrow('WISDOM WORLD WORKSHOP LIMITED Developer ID Application identity')
+    await writeFile(settings, `${fixture}DSH_DESKTOP_MACOS_SIGNING_IDENTITY=WISDOM WORLD WORKSHOP LIMITED (TEAMID1234)\n`)
+    const selected = loadDesktopPackageEnvironment('darwin', env)
+    expect(selected.DSH_DESKTOP_APP_ID).toBe('com.deepseek.dsh')
+    expect(() => { validateDesktopPackageEnvironment(selected, MACOS) }).not.toThrow()
+  })
+})
+
 it('rejects an explicit invalid macOS cache before signing while leaving unsigned builds independent', () => {
   const environment = { ...RELEASE, DSH_DESKTOP_MACOS_SIGNATURE_CACHE_DIR: '' }
   for (const options of [{}, { prepareOnly: true }]) {

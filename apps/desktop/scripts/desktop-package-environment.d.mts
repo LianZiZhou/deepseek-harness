@@ -1,14 +1,14 @@
 /** Select local test defaults or platform release settings without changing the caller's environment. */
 
 /**
- * Select unsigned macOS or Linux defaults without loading release credentials. Linux accepts an explicit fork feed.
+ * Select unsigned macOS or Linux defaults without loading release credentials. Fork releases use the distribution ID and feed.
  * @param environment Parent environment, retained for build tools and networking.
  * @returns Unsigned build environment with the standard application identifier and no update policy.
  */
 export function localMacOSPackageEnvironment(environment?: NodeJS.ProcessEnv): NodeJS.ProcessEnv
 
 /**
- * Read a machine preset when selected, otherwise the target's required dotenv; no ambient release fallback.
+ * Read a machine preset when selected, including the macOS-only fork preset, otherwise the target's required dotenv.
  * PACKAGE_TEST_RELEASE_ID overrides the test preset only; blank retains its configured ID.
  * PACKAGE_MACOS_ZIP_COMPRESSION_LEVEL overrides the Mac file setting with 3 or 7; an empty value is invalid.
  * Any defined Mac ZIP override rejects Windows, including an empty value; nonempty Windows overrides reject macOS.

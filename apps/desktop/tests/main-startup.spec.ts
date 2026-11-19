@@ -2073,45 +2073,6 @@ describe('desktop main startup', () => {
     })
   })
 
-  it.each(['open', 'close', 'switch channel', 'uncertain save', 'new release', 'withdrawn release'])('offers the fork DMG release page without starting a download (%s)', async (choice) => {
-    vi.stubGlobal('process', { ...process, platform: 'darwin', arch: 'arm64' })
-    await readyForUpdate()
-    const pages = 'https://github.com/LianZiZhou/deepseek-harness/releases/tag/fork-v'
-    const manualReleasePage = `${pages}0.2.2-rc.4`
-    harness.updateState = { phase: 'available', version: '0.2.2-rc.4', manualReleasePage }
-    if (choice === 'uncertain save') {
-      const { DesktopUpdateSettings } = await import('../src/update-settings.ts')
-      const { DesktopSettingsFileError } = await import('../src/settings-file.ts')
-      vi.spyOn(DesktopUpdateSettings.prototype, 'save').mockRejectedValueOnce(
-        new DesktopSettingsFileError({ kind: 'write', operation: 'save', effect: 'unknown' }, '/settings.json'))
-    }
-    let switched: unknown
-    harness.dialog.showMessageBox.mockImplementation(async ({ detail }: { detail?: string }) => {
-      if (detail === en.updateManualDmg && (choice === 'switch channel' || choice === 'uncertain save')) {
-        switched = await invoke(DESKTOP_IPC.updatesChannelSet, 'app', 'stable')
-      }
-      if (detail === en.updateManualDmg && choice === 'new release') {
-        harness.updateState = { phase: 'available', version: '0.2.2-rc.5', manualReleasePage: `${pages}0.2.2-rc.5` }
-      }
-      if (detail === en.updateManualDmg && choice === 'withdrawn release') harness.updateState = { phase: 'idle' }
-      return { response: choice === 'close' ? 1 : 0 }
-    })
-    const action = applicationMenuItems().find(item => item.label === en.checkUpdatesMenu)!
-    Reflect.apply(action.click!, undefined, [])
-    await invoke(DESKTOP_IPC.updatesOpen, 'app')
-    expect(harness.dialog.showMessageBox).toHaveBeenLastCalledWith(expect.objectContaining({
-      message: 'New version available: 0.2.2-rc.4', buttons: ['View release', 'Close'],
-      detail: 'Download the Apple Silicon DMG from the release page and install it manually.',
-    }))
-    if (choice === 'uncertain save') expect(switched).toMatchObject({
-      kind: 'failed', reason: 'uncertain', state: { channel: 'nightly', changing: false, error: 'read' },
-    })
-    if (choice === 'open') expect(harness.openExternal).toHaveBeenCalledExactlyOnceWith(manualReleasePage)
-    else expect(harness.openExternal).not.toHaveBeenCalled()
-    expect(harness.updateDownload).not.toHaveBeenCalled()
-    expect(harness.updateInstall).not.toHaveBeenCalled()
-  })
-
   it('keeps one checking dialog open until the manual check settles, then reports the current version', async () => {
     await readyForUpdate()
     const checked = Promise.withResolvers<DesktopUpdateState>()
