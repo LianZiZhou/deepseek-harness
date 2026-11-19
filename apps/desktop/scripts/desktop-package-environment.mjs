@@ -21,21 +21,22 @@ const MACOS_SETTING = /^(?:DSH_DESKTOP_MACOS_(?:SIGNING_IDENTITY|TEAM_ID|SIGNATU
 const AMBIENT_RELEASE_SETTING = /^(?:DSH_DESKTOP_(?:APP_ID|AUTO_UPDATE_ENV|MANDATORY_UPDATE_.*|WINDOWS_.*|MACOS_.*)|APPLE_.*|(?:WIN_)?CSC_.*|DOWNLOAD_(?:TEST|PROD)_.*)$/iu
 
 /**
- * Select unsigned macOS or Linux defaults without loading release credentials. Linux accepts an explicit fork feed.
+ * Select unsigned macOS or Linux defaults without loading release credentials. Fork releases use the distribution ID and feed.
  * @param {NodeJS.ProcessEnv} environment Parent environment, retained for build tools and networking.
  * @returns {NodeJS.ProcessEnv} Unsigned build environment with the standard application identifier and no update policy.
  */
 export function localMacOSPackageEnvironment(environment = process.env) {
+  const fork = environment.DSH_DESKTOP_AUTO_UPDATE_ENV?.trim() === 'fork'
   return {
     ...Object.fromEntries(Object.entries(environment).filter(([name]) => !AMBIENT_RELEASE_SETTING.test(name))),
-    DSH_DESKTOP_APP_ID: 'com.deepseek.harness',
+    DSH_DESKTOP_APP_ID: fork ? 'com.deepseek.dsh' : 'com.deepseek.harness',
     DSH_DESKTOP_UNSIGNED: '1',
-    ...(environment.DSH_DESKTOP_AUTO_UPDATE_ENV?.trim() === 'fork' ? { DSH_DESKTOP_AUTO_UPDATE_ENV: 'fork' } : {}),
+    ...(fork ? { DSH_DESKTOP_AUTO_UPDATE_ENV: 'fork' } : {}),
   }
 }
 
 /**
- * Read a machine preset when selected, otherwise the target's required dotenv; no ambient release fallback.
+ * Read a machine preset when selected, including the macOS-only fork preset, otherwise the target's required dotenv.
  * PACKAGE_MACOS_ZIP_COMPRESSION_LEVEL overrides the Mac file setting with 3 or 7; an empty value is invalid.
  * Any defined Mac ZIP override rejects Windows, including an empty value; nonempty Windows overrides reject macOS.
  * PACKAGE_TEST_RELEASE_ID overrides the test preset only; blank retains its configured ID.
@@ -61,7 +62,9 @@ export function loadDesktopPackageEnvironment(platform, environment = process.en
   const preset = environment.DSH_PACKAGING_PRESET
   let path = join(appRoot, platform === 'win32' ? '.env.windows' : '.env.macos')
   if (preset !== undefined) {
-    if (preset !== 'test' && preset !== 'production') throw new Error('desktop package: preset must be test or production')
+    if (preset !== 'test' && preset !== 'production' && !(preset === 'fork' && platform === 'darwin')) {
+      throw new Error('desktop package: preset must be test, production, or fork (macOS only)')
+    }
     const root = environment.DSH_PACKAGING_CONFIG_DIR
     if (!root || !isAbsolute(root)) throw new Error('desktop package: DSH_PACKAGING_CONFIG_DIR must be an absolute directory')
     path = join(root, 'presets', `${preset}.env`)
@@ -142,7 +145,10 @@ export function validateDesktopPackageEnvironment(environment, target, options =
     if (!options.prepareOnly) resolveWindowsSignatureCacheDirectory(environment)
   } else {
     if (environment.DSH_DESKTOP_MACOS_SIGNATURE_CACHE_DIR !== undefined) validateMacOSSignatureCacheDirectory(environment.DSH_DESKTOP_MACOS_SIGNATURE_CACHE_DIR)
-    resolveMacOSSigningEnvironment(environment)
+    const { signingIdentity, teamId } = resolveMacOSSigningEnvironment(environment)
+    if (environment.DSH_PACKAGING_PRESET === 'fork' && signingIdentity !== `WISDOM WORLD WORKSHOP LIMITED (${teamId})`) {
+      throw new Error('desktop package: the macOS fork preset requires the WISDOM WORLD WORKSHOP LIMITED Developer ID Application identity')
+    }
     if (!options.skipNotarization) {
       const strategies = [
         ['APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID'],

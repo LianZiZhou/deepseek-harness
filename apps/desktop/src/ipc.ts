@@ -52,8 +52,6 @@ export type DesktopUpdatePreparationFailureKind = 'stop-failed' | 'tasks-changed
 export interface DesktopUpdateState {
   readonly phase: 'idle' | 'checking' | 'available' | 'downloading' | 'verifying' | 'installing' | 'ready' | 'error'
   readonly version?: string
-  /** Browser release page; a manual DMG is never an electron-updater download target. */
-  readonly manualReleasePage?: string
   readonly message?: string
   /** Main-owned diagnostics without subprocess output or credentials; hidden until expanded. */
   readonly technicalDetails?: string

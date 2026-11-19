@@ -21,7 +21,11 @@ BASE_URL = f"https://github.com/{FORK}/releases/download"
 SHA = re.compile(r"[0-9a-f]{40}")
 VERSION = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([\da-zA-Z-]+(?:\.[\da-zA-Z-]+)*))?", re.ASCII)
 DESKTOP = {"linux-x64": "AppImage", "win-x64": "exe", "mac-arm64": "dmg"}
+MAC_ZIP = "dsh-desktop-mac-arm64.zip"
+SIGNED_MAC = {"dsh-desktop-mac-arm64.dmg", MAC_ZIP, MAC_ZIP + ".blockmap"}
 CLI = {"linux-x64": "tar.gz", "win-x64": "zip", "mac-arm64": "tar.gz"}
+SIGNING_NOTE = "The macOS DMG is signed by WWW LTD and notarized by Apple. Windows and Linux installers are unsigned."
+OLD_SIGNING_NOTE = "Packages are unsigned. macOS uses an ad-hoc signature and requires manual installation."
 
 
 def output(*args):
@@ -202,25 +206,49 @@ def unpublished(planned, tags, releases):
 
 def asset_names():
     return {f"dsh-{product}-{target}.{ext}" for product, formats in (("desktop", DESKTOP), ("cli", CLI))
-            for target, ext in formats.items()}
+            for target, ext in formats.items()} | SIGNED_MAC
 
 
-def manifest(item, directory):
-    files = {p.name for p in directory.iterdir() if p.is_file()}
+def signing_digests(directory):
+    """Record the SHA-256 of each file produced by the signing job."""
+    digests = {}
+    for name in sorted(SIGNED_MAC):
+        with (directory / name).open("rb") as stream:
+            digests[name] = hashlib.file_digest(stream, "sha256").hexdigest()
+    return digests
+
+
+def assemble_distribution(item, directory, signed_dir, signed_digests):
+    """Hash the release files in place and verify every signed input before upload."""
+    if not signed_dir.is_absolute() or signed_dir.resolve().is_relative_to(directory.resolve()):
+        raise ValueError("FORK_SIGNED_DIR must be an absolute path outside fork-dist")
+    if signed_dir.is_symlink() or {p.name for p in signed_dir.iterdir()} != SIGNED_MAC:
+        raise ValueError("Unexpected signed macOS artifact contents")
+    if not isinstance(signed_digests, dict) or signed_digests.keys() != SIGNED_MAC:
+        raise ValueError("Expected the signing job's SHA-256 for each signed macOS file")
+    paths = {p.name: p for p in directory.iterdir()}
+    if paths.keys() & SIGNED_MAC:
+        raise ValueError("General package download already contains signed macOS filenames")
+    paths.update({name: signed_dir / name for name in SIGNED_MAC})
     required = asset_names()
-    if not required <= files or files - required - {"dsh-desktop-win-x64.exe.blockmap"}:
-        raise ValueError(f"Incomplete or unexpected distribution files: {sorted(files ^ required)}")
+    if not required <= paths.keys() or paths.keys() - required - {"dsh-desktop-win-x64.exe.blockmap"}:
+        raise ValueError(f"Incomplete or unexpected distribution files: {sorted(paths.keys() ^ required)}")
     assets = []
-    for name in sorted(files):
+    for name, path in sorted(paths.items()):
         sha256, sha512 = hashlib.sha256(), hashlib.sha512()
-        path = directory / name
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(f"Expected a regular file: {name}")
+        size = path.stat().st_size
+        if not 0 < size < 2**31:
+            raise ValueError(f"Invalid release asset size: {name}")
         with path.open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                 sha256.update(chunk)
                 sha512.update(chunk)
-        if not 0 < path.stat().st_size < 2**31:
-            raise ValueError(f"Invalid release asset size: {name}")
-        assets.append(dict(name=name, size=path.stat().st_size, sha256=sha256.hexdigest(),
+        digest = sha256.hexdigest()
+        if name in SIGNED_MAC and digest != signed_digests[name]:
+            raise ValueError(f"{name} differs from the signing job's SHA-256")
+        assets.append(dict(name=name, size=size, sha256=digest,
                            sha512=base64.b64encode(sha512.digest()).decode(),
                            url=f"{BASE_URL}/{item['tag']}/{name}"))
     return {"schemaVersion": 1, **item, "assets": assets}
@@ -230,7 +258,7 @@ def gh_release(*args):
     return output("gh", "release", *args, "--repo", FORK)
 
 
-def publish(item):
+def publish(item, signed_dir, signed_digests):
     default = fetch_default_branch()
     nightly = item["channel"] == "nightly"
     planned, pending = inventory(default, item["commit"] if nightly else "", item["upstreamCommit"] if nightly else "")
@@ -239,7 +267,7 @@ def publish(item):
     if item not in pending:
         return
     directory = Path("fork-dist")
-    release = manifest(item, directory)
+    release = assemble_distribution(item, directory, signed_dir, signed_digests)
     (directory / "fork-release.json").write_text(json.dumps(release, indent=2) + "\n")
     (directory / "SHA256SUMS").write_text("".join(f"{a['sha256']}  {a['name']}\n" for a in release["assets"]))
     tag, commit = item["tag"], item["commit"]
@@ -247,12 +275,16 @@ def publish(item):
         output("gh", "api", "-X", "POST", f"repos/{FORK}/git/refs", "-f", f"ref=refs/tags/{tag}", "-f", f"sha={commit}")
     if remote_tags(FORK, tag).get(tag) != commit:
         raise ValueError(f"Fork tag {tag} no longer points to {commit}")
-    if tag not in release_list(FORK):
+    existing = release_list(FORK).get(tag)
+    if existing is None:
         notes = (f"Fork {commit}, upstream {item['upstreamCommit']}.\n\n"
                  "Download the Desktop installer or extract the CLI archive and run dsh (dsh.cmd on Windows). "
-                 "Packages are unsigned. macOS uses an ad-hoc signature and requires manual installation.")
+                 f"{SIGNING_NOTE}")
         gh_release("create", tag, "--verify-tag", "--draft", "--title", tag, "--notes", notes)
-    gh_release("upload", tag, *map(str, sorted(directory.iterdir())), "--clobber")
+    elif not existing["draft"]:
+        raise ValueError(f"Fork release {tag} is already public")
+    uploads = [*directory.iterdir(), *(signed_dir / name for name in SIGNED_MAC)]
+    gh_release("upload", tag, *map(str, sorted(uploads)), "--clobber")
     draft = release_list(FORK)[tag]
     expected = {a["name"]: "sha256:" + a["sha256"] for a in release["assets"]}
     for filename in ("fork-release.json", "SHA256SUMS"):
@@ -260,8 +292,12 @@ def publish(item):
     observed = {a["name"]: a.get("digest") for a in draft["assets"]}
     if not draft["draft"] or observed != expected:
         raise ValueError(f"Uploaded draft {tag} differs from its verified distribution set")
+    endpoint = f"repos/{FORK}/releases/{draft['id']}"
+    body = draft.get("body") or ""
+    if OLD_SIGNING_NOTE in body:
+        output("gh", "api", "-X", "PATCH", endpoint, "-f", "body=" + body.replace(OLD_SIGNING_NOTE, SIGNING_NOTE, 1))
     # Publication makes the complete build visible in one operation.
-    output("gh", "api", "-X", "PATCH", f"repos/{FORK}/releases/{draft['id']}",
+    output("gh", "api", "-X", "PATCH", endpoint,
            "-F", "draft=false", "-F", f"prerelease={str(item['prerelease']).lower()}",
            "-f", "make_latest=false" if item["prerelease"] else "make_latest=legacy")
 
@@ -269,13 +305,15 @@ def publish(item):
 def update_files(release):
     channel = release["channel"]
     files = {channel + ".json": release}
-    for target, suffix in (("win-x64", ""), ("linux-x64", "-linux")):
-        name = f"dsh-desktop-{target}.{DESKTOP[target]}"
+    payloads = [("dsh-desktop-win-x64.exe", ""), ("dsh-desktop-linux-x64.AppImage", "-linux")]
+    if SIGNED_MAC <= {a["name"] for a in release["assets"]}:
+        payloads.append((MAC_ZIP, "-mac"))
+    for name, suffix in payloads:
         asset, = (a for a in release["assets"] if a["name"] == name)
         url = f"{BASE_URL}/{release['tag']}/{name}"
+        entry = {"url": url, "size": asset["size"], "sha512": asset["sha512"]}
         files[channel + suffix + ".yml"] = {
-            "version": release["version"], "path": url, "sha512": asset["sha512"],
-            "files": [{"url": url, "size": asset["size"], "sha512": asset["sha512"]}],
+            "version": release["version"], "path": url, "sha512": asset["sha512"], "files": [entry],
         }
     return files
 
@@ -337,8 +375,11 @@ if __name__ == "__main__":
         _, pending = inventory("HEAD", os.getenv("SYNC_SHA", ""), os.getenv("UPSTREAM_SHA", ""))
         with open(os.environ["GITHUB_OUTPUT"], "a") as stream:
             print("releases=" + json.dumps(pending, separators=(",", ":")), file=stream)
+    elif mode == "signing-digests":
+        print("sha256=" + json.dumps(signing_digests(Path("fork-dist")), separators=(",", ":")))
     elif mode == "publish":
-        publish(json.loads(os.environ["FORK_RELEASE"]))
+        publish(json.loads(os.environ["FORK_RELEASE"]), Path(os.environ["FORK_SIGNED_DIR"]),
+                json.loads(os.environ["FORK_SIGNED_SHA256"]))
     elif mode == "feeds":
         feeds()
     else:

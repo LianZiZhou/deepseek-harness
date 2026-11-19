@@ -4,6 +4,7 @@ import base64
 from contextlib import chdir
 from fnmatch import fnmatchcase
 import hashlib
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -160,66 +161,173 @@ class ReleaseTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         release.inventory("HEAD")
 
-    def test_hashes_assets_and_serves_immutable_installer_urls(self):
-        directory = Path("assets")
+    def package_downloads(self):
+        directory = Path("fork-dist")
         directory.mkdir()
-        item, = self.select()
-        for name in release.asset_names():
+        signed_dir = Path.cwd() / "signed-dist"
+        signed_dir.mkdir()
+        for ext in ("dmg", "zip", "zip.blockmap"):
+            name = "dsh-desktop-mac-arm64." + ext
+            (signed_dir / name).write_bytes(b"signed " + name.encode())
+        for name in release.asset_names() - {p.name for p in signed_dir.iterdir()}:
             (directory / name).write_text(name)
-        metadata = release.manifest(item, directory)
-        for channel in ["stable", "nightly"]:
-            feeds = release.update_files({**metadata, "channel": channel})
-            self.assertEqual(set(feeds), {channel + ext for ext in (".json", ".yml", "-linux.yml")})
-            installer, = feeds[channel + "-linux.yml"]["files"]
-            name = "dsh-desktop-linux-x64.AppImage"
-            self.assertEqual(installer["url"], f"{release.BASE_URL}/{item['tag']}/{name}")
-            self.assertEqual(installer["sha512"], base64.b64encode(hashlib.sha512(name.encode()).digest()).decode())
-        (directory / "dsh-cli-win-x64.zip").unlink()
-        with self.assertRaisesRegex(ValueError, "Incomplete"):
-            release.manifest(item, directory)
+        return directory, signed_dir, release.signing_digests(signed_dir)
 
-    def test_publish_requires_draft_digests_before_exposing_release(self):
+    def test_channel_feeds_use_immutable_updater_payloads(self):
+        directory, signed_dir, digests = self.package_downloads()
+        for item in self.select(sync=self.tip, upstream=self.new_master):
+            metadata = release.assemble_distribution(item, directory, signed_dir, digests)
+            channel = item["channel"]
+            feeds = release.update_files(metadata)
+            self.assertEqual(set(feeds), {channel + ext for ext in (".json", ".yml", "-linux.yml", "-mac.yml")})
+            self.assertEqual(feeds[channel + ".json"], metadata)
+            for suffix, path in ((".yml", directory / "dsh-desktop-win-x64.exe"),
+                                 ("-linux.yml", directory / "dsh-desktop-linux-x64.AppImage"),
+                                 ("-mac.yml", signed_dir / "dsh-desktop-mac-arm64.zip")):
+                with self.subTest(channel=channel, payload=path):
+                    payload = path.read_bytes()
+                    url = f"{release.BASE_URL}/{item['tag']}/{path.name}"
+                    digest = base64.b64encode(hashlib.sha512(payload).digest()).decode()
+                    entry = {"url": url, "sha512": digest, "size": len(payload)}
+                    self.assertEqual(feeds[channel + suffix], {
+                        "version": item["version"], "path": url, "sha512": digest, "files": [entry],
+                    })
+
+    def test_dmg_only_manifests_keep_cli_windows_and_linux_feeds(self):
+        directory, signed_dir, digests = self.package_downloads()
+        for item in self.select(sync=self.tip, upstream=self.new_master):
+            channel = item["channel"]
+            metadata = release.assemble_distribution(item, directory, signed_dir, digests)
+            metadata["assets"] = [a for a in metadata["assets"] if not a["name"].startswith("dsh-desktop-mac-arm64.zip")]
+            appimage, = (a for a in metadata["assets"] if a["name"].endswith(".AppImage"))
+            feeds = release.update_files(metadata)
+            self.assertEqual(set(feeds), {channel + ext for ext in (".json", ".yml", "-linux.yml")})
+            self.assertEqual(feeds[channel + ".json"], metadata)
+            self.assertEqual(feeds[channel + "-linux.yml"]["files"], [
+                {key: appimage[key] for key in ("url", "size", "sha512")}
+            ])
+            self.assertTrue(feeds[channel + ".yml"]["path"].endswith("/dsh-desktop-win-x64.exe"))
+
+    def test_rejects_incomplete_packages(self):
+        directory, signed_dir, digests = self.package_downloads()
         item, = self.select()
-        assets = Path("fork-dist")
-        assets.mkdir()
-        for name in release.asset_names():
-            (assets / name).write_text(name)
+        cli = directory / "dsh-cli-win-x64.zip"
+        cli.unlink()
+        with self.assertRaisesRegex(ValueError, "Incomplete"):
+            release.assemble_distribution(item, directory, signed_dir, digests)
+
+    def mock_draft(self, item, body):
         tag = item["tag"]
-        draft = {"id": 123, "draft": True, "assets": []}
+        draft = {"id": 123, "draft": True, "assets": [], "body": body}
 
         def upload(command, release_tag, *files):
             self.assertEqual((command, release_tag, files[-1]), ("upload", tag, "--clobber"))
             draft["assets"] = [{"name": Path(name).name, "digest": "sha256:" + hashlib.sha256(
                 Path(name).read_bytes()).hexdigest()} for name in files[:-1]]
 
-        with patch.object(release, "fetch_default_branch", return_value="HEAD"), \
-                patch.object(release, "inventory", return_value=([item], [item])), \
-                patch.object(release, "remote_tags", return_value={tag: item["commit"]}), \
-                patch.object(release, "release_list", return_value={tag: draft}), \
-                patch.object(release, "gh_release") as gh, patch.object(release, "output") as api:
-            with self.assertRaisesRegex(ValueError, "Uploaded draft"):
-                release.publish(item)
-            api.assert_not_called()
-            # The next runner downloads the original six package artifacts again.
-            (assets / "SHA256SUMS").unlink()
-            (assets / "fork-release.json").unlink()
-            gh.side_effect = upload
-            release.publish(item)
-            command, = api.call_args_list
-            self.assertIn(f"repos/{release.FORK}/releases/123", command.args)
-            self.assertIn("prerelease=true", command.args)
-            self.assertIn("draft=false", command.args)
+        self.enterContext(patch.object(release, "fetch_default_branch", return_value="HEAD"))
+        self.enterContext(patch.object(release, "inventory", return_value=([item], [item])))
+        self.enterContext(patch.object(release, "remote_tags", return_value={tag: item["commit"]}))
+        self.enterContext(patch.object(release, "release_list", return_value={tag: draft}))
+        gh = self.enterContext(patch.object(release, "gh_release", side_effect=upload))
+        api = self.enterContext(patch.object(release, "output"))
+        return draft, gh, api
+
+    def test_publish_requires_draft_digests_before_exposing_release(self):
+        item, = self.select()
+        assets, signed_dir, digests = self.package_downloads()
+        _, gh, api = self.mock_draft(item, "Release notes from the maintainer.")
+        upload = gh.side_effect
+        gh.side_effect = None
+        with self.assertRaisesRegex(ValueError, "Uploaded draft"):
+            release.publish(item, signed_dir, digests)
+        api.assert_not_called()
+        (assets / "SHA256SUMS").unlink()
+        (assets / "fork-release.json").unlink()
+        gh.side_effect = upload
+        release.publish(item, signed_dir, digests)
+        manifest = json.loads((assets / "fork-release.json").read_text())
+        checksums = (assets / "SHA256SUMS").read_text().splitlines()
+        for path in signed_dir.iterdir():
+            asset, = (a for a in manifest["assets"] if a["name"] == path.name)
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            self.assertEqual(asset["sha256"], digest)
+            self.assertIn(f"{digest}  {path.name}", checksums)
+        command, = api.call_args_list
+        self.assertIn(f"repos/{release.FORK}/releases/123", command.args)
+        self.assertIn("prerelease=true", command.args)
+        self.assertIn("draft=false", command.args)
+        self.assertFalse(any(arg.startswith("body=") for arg in command.args))
+
+    def test_signed_files_must_come_from_the_separate_verified_download(self):
+        item, = self.select()
+        assets, signed_dir, digests = self.package_downloads()
+        _, gh, api = self.mock_draft(item, "")
+        for source in (signed_dir.relative_to(Path.cwd()), assets.resolve() / "nested"):
+            with self.subTest(source=source), self.assertRaisesRegex(ValueError, "absolute path outside fork-dist"):
+                release.publish(item, source, digests)
+        for path in sorted(signed_dir.iterdir()):
+            with self.subTest(name=path.name):
+                destination = assets / path.name
+                content = path.read_bytes()
+                destination.write_bytes(content)
+                with self.assertRaisesRegex(ValueError, "already contains"):
+                    release.publish(item, signed_dir, digests)
+                destination.unlink()
+                path.unlink()
+                with self.assertRaisesRegex(ValueError, "artifact contents"):
+                    release.publish(item, signed_dir, digests)
+                path.symlink_to((assets / "dsh-cli-win-x64.zip").resolve())
+                with self.assertRaisesRegex(ValueError, "regular file"):
+                    release.publish(item, signed_dir, digests)
+                path.unlink()
+                path.write_bytes(content)
+                with self.assertRaisesRegex(ValueError, "SHA-256"):
+                    release.publish(item, signed_dir, {k: v for k, v in digests.items() if k != path.name})
+                path.write_bytes(b"altered in transit")
+                with self.assertRaisesRegex(ValueError, "SHA-256"):
+                    release.publish(item, signed_dir, digests)
+                path.write_bytes(content)
+        self.assertFalse((assets / "fork-release.json").exists())
+        gh.assert_not_called()
+        api.assert_not_called()
+
+    def test_publish_repairs_generated_signing_note_on_private_draft(self):
+        item, = self.select()
+        _, signed_dir, digests = self.package_downloads()
+        legacy = "Packages are unsigned. macOS uses an ad-hoc signature and requires manual installation."
+        current = "The macOS DMG is signed by WWW LTD and notarized by Apple. Windows and Linux installers are unsigned."
+        body = f"Maintainer introduction.\n\n{legacy}\n\n## Known issues\nCustom details.\n"
+        _, _, api = self.mock_draft(item, body)
+        release.publish(item, signed_dir, digests)
+        repair, publish = api.call_args_list
+        self.assertEqual(repair.args, ("gh", "api", "-X", "PATCH", f"repos/{release.FORK}/releases/123",
+                                       "-f", "body=" + body.replace(legacy, current)))
+        self.assertIn("draft=false", publish.args)
+
+    def test_publish_leaves_a_release_that_became_public_untouched(self):
+        item, = self.select()
+        _, signed_dir, digests = self.package_downloads()
+        draft, gh, api = self.mock_draft(item, "")
+        draft["draft"] = False
+        with self.assertRaisesRegex(ValueError, "already public"):
+            release.publish(item, signed_dir, digests)
+        gh.assert_not_called()
+        api.assert_not_called()
 
     def test_stable_artifact_download_excludes_release_candidate(self):
         workflow = (Path(__file__).resolve().parents[1] / "workflows/fork-build-release.yml").read_text()
         tag = "${{ fromJSON(inputs.release).tag }}"
         pattern, = [line.split("pattern:", 1)[1].strip() for line in workflow.splitlines()
                     if "pattern:" in line and tag in line]
-        name, = [line.split("name:", 1)[1].strip() for line in workflow.splitlines()
-                 if "name:" in line and tag in line]
+        names = {line.split("name:", 1)[1].strip() for line in workflow.splitlines()
+                 if line.lstrip().startswith("name:") and tag in line}
+        general, = (name for name in names if "${{ matrix.product }}" in name)
         glob = pattern.replace(tag, "fork-v1.2.0")
-        self.assertTrue(fnmatchcase(name.replace(tag, "fork-v1.2.0"), glob))
-        self.assertFalse(fnmatchcase(name.replace(tag, "fork-v1.2.0-rc.4"), glob))
+        for name in names:
+            with self.subTest(name=name):
+                self.assertEqual(fnmatchcase(name.replace(tag, "fork-v1.2.0"), glob), name == general)
+                self.assertFalse(fnmatchcase(name.replace(tag, "fork-v1.2.0-rc.4"), glob))
 
     def test_release_order(self):
         versions = ["1.0.0", "1.1.0-rc.2", "1.1.0-rc.10", "1.1.0", "1.10.0"]

@@ -46,6 +46,10 @@ jobs:
     uses: ./.github/workflows/fork-build-release.yml
     with:
       release: ${{ toJSON(matrix.release) }}
+    secrets:
+      FORK_MACOS_SIGNING_ENV: ${{ secrets.FORK_MACOS_SIGNING_ENV }}
+      FORK_MACOS_CERTIFICATE_BASE64: ${{ secrets.FORK_MACOS_CERTIFICATE_BASE64 }}
+      FORK_MACOS_NOTARY_KEY_BASE64: ${{ secrets.FORK_MACOS_NOTARY_KEY_BASE64 }}
     permissions:
       contents: write
 

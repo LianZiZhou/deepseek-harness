@@ -6,6 +6,13 @@ on:
       release:
         required: true
         type: string
+    secrets:
+      FORK_MACOS_SIGNING_ENV:
+        required: true
+      FORK_MACOS_CERTIFICATE_BASE64:
+        required: true
+      FORK_MACOS_NOTARY_KEY_BASE64:
+        required: true
 
 permissions:
   contents: read
@@ -27,6 +34,9 @@ jobs:
           - { target: linux-x64, runner: ubuntu-24.04 }
           - { target: win-x64, runner: windows-latest }
           - { target: mac-arm64, runner: macos-15 }
+        exclude:
+          - product: desktop
+            host: { target: mac-arm64, runner: macos-15 }
     defaults:
       run:
         working-directory: source
@@ -68,8 +78,122 @@ jobs:
           compression-level: 0
           retention-days: 3
 
+  prepare-macos:
+    if: github.repository == 'LianZiZhou/deepseek-harness' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: macos-15
+    timeout-minutes: 180
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    defaults:
+      run:
+        working-directory: source
+    env:
+      FORK_RELEASE: ${{ inputs.release }}
+      DSH_DESKTOP_AUTO_UPDATE_ENV: fork
+      DSH_DESKTOP_UPDATE_CHANNEL: ${{ fromJSON(inputs.release).channel }}
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ fromJSON(inputs.release).commit }}
+          path: source
+          persist-credentials: false
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          fetch-depth: 0
+          sparse-checkout: .github/fork-release
+          persist-credentials: false
+      - name: Validate signing source
+        env:
+          RELEASE_COMMIT: ${{ fromJSON(inputs.release).commit }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+          git -C ../control rev-list --first-parent HEAD \
+            | awk -v commit="$RELEASE_COMMIT" '$0 == commit { found = 1 } END { exit !found }'
+      - uses: pnpm/action-setup@v5.0.0
+        with:
+          package_json_file: source/package.json
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Build and check the unsigned Apple Silicon application
+        run: python3 -B ../control/.github/fork-release/package.py desktop mac-arm64
+      - uses: actions/upload-artifact@v7
+        id: upload
+        with:
+          name: unsigned-${{ fromJSON(inputs.release).tag }}-desktop-mac-arm64
+          path: source/fork-dist/unsigned-macos.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
+  package-macos:
+    if: github.repository == 'LianZiZhou/deepseek-harness' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: prepare-macos
+    runs-on: macos-15
+    timeout-minutes: 180
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      sha256: ${{ steps.digest.outputs.sha256 }}
+    defaults:
+      run:
+        working-directory: control
+    env:
+      FORK_RELEASE: ${{ inputs.release }}
+      DSH_DESKTOP_UPDATE_CHANNEL: ${{ fromJSON(inputs.release).channel }}
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5.0.0
+        with:
+          package_json_file: control/package.json
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Require the selected build artifact ID
+        env:
+          ARTIFACT_ID: ${{ needs.prepare-macos.outputs.artifact-id }}
+        run: '[[ "$ARTIFACT_ID" =~ ^[0-9]+$ ]]'
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.prepare-macos.outputs.artifact-id }}
+          digest-mismatch: error
+          path: macos-input
+      - run: python3 -B .github/fork-release/package.py unpack-macos ../macos-input/unsigned-macos.tar.gz
+      - name: Sign and notarize the Apple Silicon release
+        env:
+          FORK_MACOS_SIGNING_ENV: ${{ secrets.FORK_MACOS_SIGNING_ENV }}
+          FORK_MACOS_CERTIFICATE_BASE64: ${{ secrets.FORK_MACOS_CERTIFICATE_BASE64 }}
+          FORK_MACOS_NOTARY_KEY_BASE64: ${{ secrets.FORK_MACOS_NOTARY_KEY_BASE64 }}
+        run: python3 -B .github/fork-release/package.py sign mac-arm64
+      - id: digest
+        run: python3 -B .github/fork-release/release.py signing-digests >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        id: upload
+        with:
+          name: signed-${{ fromJSON(inputs.release).tag }}-desktop-mac-arm64
+          path: |
+            control/fork-dist/dsh-desktop-mac-arm64.dmg
+            control/fork-dist/dsh-desktop-mac-arm64.zip
+            control/fork-dist/dsh-desktop-mac-arm64.zip.blockmap
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
   publish:
-    needs: package
+    needs: [package, package-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -83,8 +207,19 @@ jobs:
           pattern: ${{ fromJSON(inputs.release).tag }}__*
           path: fork-dist
           merge-multiple: true
+      - name: Require the selected signed artifact ID
+        env:
+          ARTIFACT_ID: ${{ needs.package-macos.outputs.artifact-id }}
+        run: '[[ "$ARTIFACT_ID" =~ ^[0-9]+$ ]]'
+      - uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.package-macos.outputs.artifact-id }}
+          digest-mismatch: error
+          path: signed-dist
       - env:
           GH_TOKEN: ${{ github.token }}
           FORK_RELEASE: ${{ inputs.release }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          FORK_SIGNED_DIR: ${{ github.workspace }}/signed-dist
+          FORK_SIGNED_SHA256: ${{ needs.package-macos.outputs.sha256 }}
         run: python3 .github/fork-release/release.py publish
