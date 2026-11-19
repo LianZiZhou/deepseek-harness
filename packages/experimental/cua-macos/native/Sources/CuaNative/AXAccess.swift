@@ -555,6 +555,10 @@ final class AXAccess {
         guard let position = try attribute(element, "AXPosition") else { return nil }
         return try bounds(position: position, size: attribute(element, "AXSize"))
     }
+    /// Sample the known AX window on the worker between the two WindowServer frame reads.
+    func windowGeometry(_ window: (element: AXUIElement, id: UInt32), owner: ProcessIdentity) throws -> WindowInfo {
+        try WindowGeometry.resolve(owner: owner, windowID: window.id) { try self.bounds(window.element) }
+    }
     func coordinateWindow(_ identity: ProcessIdentity, _ windowID: UInt32, budget: inout AXChildRecoveryBudget, forClick: Bool = false,
                                   trace: ScreenshotTrace? = nil) throws -> (window: WindowInfo, element: AXUIElement?) {
         var element: AXUIElement?

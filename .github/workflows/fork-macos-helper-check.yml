@@ -1,0 +1,27 @@
+name: Fork macOS helper build
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/fork-macos-helper-check.yml
+      - .github/workflows/fork-build-release.yml
+      - .github/fork-release/package.py
+      - apps/cli/package.json
+      - packages/experimental/cua-macos/native/**
+
+permissions:
+  contents: read
+
+jobs:
+  helper:
+    if: github.repository == 'LianZiZhou/deepseek-harness'
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the arm64 and x64 release helpers
+        env:
+          PYTHONPATH: .github/fork-release
+        run: python3 -B -c 'from package import prepare_macos_helpers; prepare_macos_helpers()'
