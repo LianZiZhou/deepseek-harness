@@ -19,7 +19,7 @@ The loop dispatches two waterfalls at fixed points, after every contribution and
 
 Both are ordinary waterfalls, so several listeners compose. What a listener drops is never committed and what it rewrites is committed as rewritten, which keeps **Model-visible ⟺ logged**. Sections are admitted before the snapshot comparison, so a changed rule produces a new snapshot at the next step and a dropped section's changes produce none.
 
-Injected context keeps the lifecycle [separate context injection](2026-07-24-separate-context-injection-from-turn-execution.md) gives it; admission only decides what an entered batch commits. `dsh-context-injections` is the first listener: a fixed table of rows, each a volatile switch and replacement text.
+Injected context keeps the lifecycle [separate context injection](2026-07-24-separate-context-injection-from-turn-execution.md) gives it; admission only decides what an entered batch commits. `dsh-context-injections` is the first listener: a fixed table of rows, each a volatile switch and a template per text shape, prefilled with the producer's wording and its runtime values as variables.
 
 ## Alternatives considered
 

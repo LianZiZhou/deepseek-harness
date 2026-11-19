@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-context-injections` 决定哪些注入的上下文会到达模型、以什么措辞到达。它覆盖两类注入：生产方以用户消息形式加入某一步的提示与提醒，例如模型切换提示、时间读数或审批策略变更；以及运行时上下文快照中的具名段落，例如说明 `danger-full-access` 的文件访问策略。每一项都可以关闭或设置替换文本，可在“上下文注入”设置页或 `cordis.patch.yml` 中修改。修改从下一步开始生效，无需重新挂载。
+`dsh-context-injections` 决定哪些注入的上下文会到达模型、以什么措辞到达。它覆盖两类注入：生产方以用户消息形式加入某一步的提示与提醒，例如模型切换提示、时间读数或审批策略变更；以及运行时上下文快照中的具名段落，例如说明 `danger-full-access` 的文件访问策略。每一项都可以关闭，或用模板改写：模板就是生产方自己的措辞，运行时值以 `{{变量}}` 出现，可在“上下文注入”设置页或 `cordis.patch.yml` 中修改。修改从下一步开始生效，无需重新挂载。
 
 ## 目录
 
@@ -29,40 +29,40 @@ kind: "package-reference"
 
 ### 条目
 
-| 条目 | 匹配 | 可否关闭 |
-|---|---|---|
-| `modelSwitch` | 来自 `model-selection` 的消息 | 可以 |
-| `timeContext` | 来自 `time-context` 的消息 | 可以 |
-| `approvalNotice` | 来自 `user-approval` 的消息 | 可以 |
-| `workingDirectoryNotice` | 来自 `working-directory` 的消息 | 可以 |
-| `planModeNotice` | 来自 `plan-mode` 的消息 | 可以 |
-| `repeatToolReminder` | 来自 `repeat-tool-reminder` 的消息 | 可以 |
-| `agentInstructions` | 来自 `agent-instructions` 的消息 | 可以 |
-| `skillCatalog` | 来自 `skill-catalog` 的消息 | 可以 |
-| `tmuxContext` | 来自 `tmux-context` 的消息 | 可以 |
-| `workingDirectory` | 段落 `working-directory:current` | 不可以；该段落是必需的 |
-| `sandboxPolicy` | 段落 `sandbox:policy` | 可以 |
-| `approvalPolicy` | 段落 `approval:policy` | 可以 |
-| `subagentDelegation` | 段落 `subagent:delegation` | 可以 |
-| `harnessSource` | 段落 `harness:source` | 可以 |
-| `webSurface` | 段落 `app:web-surface` | 可以 |
+| 条目 | 匹配 | 可否关闭 | 形态 |
+|---|---|---|---|
+| `modelSwitch` | 来自 `model-selection` 的消息 | 可以 | 一种 |
+| `timeContext` | 来自 `time-context` 的消息 | 可以 | `known`、`unclear` |
+| `approvalNotice` | 来自 `user-approval` 的消息 | 可以 | 一种 |
+| `workingDirectoryNotice` | 来自 `working-directory` 的消息 | 可以 | `changed`、`unavailable` |
+| `planModeNotice` | 来自 `plan-mode` 的消息 | 可以 | `entered`、`left` |
+| `repeatToolReminder` | 来自 `repeat-tool-reminder` 的消息 | 可以 | `first`、`repeated` |
+| `agentInstructions` | 来自 `agent-instructions` 的消息 | 可以 | `loaded`、`trimmed`、`replaced`、`cleared`、`updated` |
+| `skillCatalog` | 来自 `skill-catalog` 的消息 | 可以 | `catalog`、`catalogPartial`、`changed`、`changedPartial` |
+| `tmuxContext` | 来自 `tmux-context` 的消息 | 可以 | 一种 |
+| `workingDirectory` | 段落 `working-directory:current` | 不可以；该段落是必需的 | 一种 |
+| `sandboxPolicy` | 段落 `sandbox:policy` | 可以 | `readOnly`、`workspaceWrite`、`workspaceWriteRoots`、`fullAccess` |
+| `approvalPolicy` | 段落 `approval:policy` | 可以 | `ask`、`never` |
+| `subagentDelegation` | 段落 `subagent:delegation` | 可以 | 一种 |
+| `harnessSource` | 段落 `harness:source` | 可以 | 一种 |
+| `webSurface` | 段落 `app:web-surface` | 可以 | 一种 |
 
 没有条目命名的消息或段落（包括用户自己的提问）原样通过。生产方未被组合时，对应条目不起作用。
 
 ### 配置
 
-每个条目拥有 `<row>Enabled`（默认 `true`；`workingDirectory` 没有此字段）与 `<row>Text`（默认 `''`）。所有字段都是 volatile 的。
+每个条目拥有 `<row>Enabled`（默认 `true`；`workingDirectory` 没有此字段），每种形态各有一个模板字段：只有一种形态的条目是 `<row>Text`，具名形态是 `<row><Shape>Text`，例如 `sandboxPolicyFullAccessText`。所有字段都是 volatile 的。
 
 ```yaml
 - id: context-injections
   name: '@deepseek-ai/dsh-context-injections'
   config:
     modelSwitchEnabled: false
-    timeContextText: 'Clock: {{text}}'
+    modelSwitchText: 'Now answering as {{to}} (was {{from}}).'
     sandboxPolicyEnabled: false
 ```
 
-`<row>Text` 为空时发送原文。否则用它替换原文，其中每个 `{{text}}` 代表原文；其余内容都不做解释，因此其他花括号会原样到达模型。生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-context-injections)列出了全部字段。
+模板默认是生产方自己的措辞，其中每个运行时值都是一个 `{{变量}}`：模型切换提示中的 `{{from}}` 与 `{{to}}`，工作目录段落中的 `{{cwd}}`。注入的文本会与所在条目随附的各个模板匹配，常量文本最多的形态优先，从而取回其中的变量；然后用这些变量渲染用户为该形态填写的模板。`{{text}}` 始终代表完整原文。模板为空或等于随附模板时发送原文。不对应任何变量的占位符以及其他花括号会原样到达模型。生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-context-injections)列出了全部字段。
 
 -----
 
@@ -84,8 +84,9 @@ kind: "package-reference"
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：`Config` 与准入监听器 |
 | [`src/settings.ts`](src/settings.ts) | 逐条读取 volatile 配置 |
-| [`src/rows.ts`](src/rows.ts) | 条目表与字段命名规则 |
+| [`src/rows.ts`](src/rows.ts) | 条目表、每种形态的随附模板与字段命名规则 |
 | [`src/transform.ts`](src/transform.ts) | 对消息与段落的纯丢弃和改写 |
+| [`src/template.ts`](src/template.ts) | 编译随附模板、从文本取回其变量并渲染模板 |
 | — | 不发布运行时不变量伴随件；插件不持有状态，准入与提交由 agent 循环负责。 |
 
 </details>
@@ -109,11 +110,11 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-在随附默认值下，除模型切换提示外的所有注入原样到达。关闭的提示不会出现在请求和日志中。关闭的段落不会出现在 `<system-reminder>` 运行时上下文快照中。设置了替换文本的条目显示该文本，其中 `{{text}}` 展开为生产方写出的原文。
+在随附默认值下，除模型切换提示外的所有注入原样到达。关闭的提示不会出现在请求和日志中。关闭的段落不会出现在 `<system-reminder>` 运行时上下文快照中。模板被修改的条目显示该模板，其中的变量用生产方写出的值填入。
 
 #### Token 影响
 
-是移除或替换而非增加：关闭的注入省下它的 token，替换文本按自身长度计费而不是按原文长度。
+是移除或替换而非增加：关闭的注入省下它的 token，修改后的模板按渲染后的长度计费而不是按原文长度。
 
 #### KV Cache 影响
 
@@ -124,7 +125,8 @@ kind: "package-reference"
 <a id="known-limitations-and-deferred-work"></a>
 
 - **固定的条目表**——条目只命名那些描述会话情况的注入；会话依赖的内容，例如子代理结果、团队消息、作业输出、计划任务、技能调用、会话引用、压缩摘要、目标收尾说明、hook 输出、PTC 环境重置、工具可用性变更和 Cordis 插件故障，都没有条目。第三方插件的注入和实验性 timeline 插件的必需 `timeline:*` 段落同样没有条目。新的生产方需要在这里和设置页中各加一条。
-- **没有生产方变量**——替换文本只能通过 `{{text}}` 看到生产方写好的文本，看不到构成它的值，例如切换提示中的模型名。
+- **模板跟随随附措辞**——变量是通过把生产方文本与随附模板匹配取回的。没有形态能匹配的文本会原样发送，例如更新后的生产方改了措辞，或空技能目录、装不进框架的项目指令这类少见形态。`tests/templates.spec.ts` 会匹配录制会话快照中的每一条注入，因此上游改动措辞会在那里失败。
+- **改写 tmux 读数会导致重复注入**——tmux 插件会把已提交的读数与当前窗格状态比较，因此改动读数第一行之后内容的模板会让每个首步都像发生了变化。
 - **系统提示词不在范围内**——系统提示词的段落通过提示词预设编辑。
 - **生产方会继续尝试**——自行记录注入的生产方（例如时间读数或项目指令）会在后续步骤再次提供被丢弃的注入，每次都会再被丢弃。
 

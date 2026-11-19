@@ -5,7 +5,17 @@ import {
   SettingsFormModel, settingsBooleanField, settingsTextField,
   type SettingsFieldState, type SettingsFormActions, type SettingsFormScope, type SettingsFormShell,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import { PAGE_ROWS, type ContextInjectionsRowId } from './rows.ts'
+import { PAGE_ROWS, type ContextInjectionsPageVariant, type ContextInjectionsRowId } from './rows.ts'
+
+/** One editable shape of a row's text. */
+export interface ContextInjectionsVariantState {
+  /** The shape as the page lists it: its id, label key, and variables. */
+  shape: ContextInjectionsPageVariant
+  /** Field the template is stored under. */
+  field: string
+  /** The template, prefilled with the shipped one. */
+  text: SettingsFieldState
+}
 
 /** The namespace section as the page reads it: `<id>Enabled` booleans and `<id>Text` strings. */
 export type ContextInjectionsSettings = Readonly<Record<string, boolean | string>>
@@ -16,8 +26,8 @@ export interface ContextInjectionsRowState {
   id: ContextInjectionsRowId
   /** The switch, absent for a section that is always stated. */
   enabled?: SettingsFieldState
-  /** The replacement text. */
-  text: SettingsFieldState
+  /** Each shape's template. */
+  variants: ContextInjectionsVariantState[]
 }
 
 /** What the page renders. */
@@ -44,12 +54,13 @@ export function enabledField(id: ContextInjectionsRowId): string {
 }
 
 /**
- * Config field holding a row's replacement text.
+ * Config field holding one shape's template.
  * @param id - the row id.
- * @returns `<id>Text`.
+ * @param variant - the variant id; empty for a row's only shape.
+ * @returns `<id>Text`, or `<id><Variant>Text` for a named shape.
  */
-export function textField(id: ContextInjectionsRowId): string {
-  return `${id}Text`
+export function textField(id: ContextInjectionsRowId, variant = ''): string {
+  return variant === '' ? `${id}Text` : `${id}${variant.charAt(0).toUpperCase()}${variant.slice(1)}Text`
 }
 
 /** Bridges the `context-injections` scope onto the page's staged form. */
@@ -61,7 +72,7 @@ export class ContextInjectionsController {
   constructor(scope: SettingsFormScope<ContextInjectionsSettings>) {
     this.form = new SettingsFormModel(scope, PAGE_ROWS.flatMap(row => [
       ...row.switchable ? [settingsBooleanField(enabledField(row.id))] : [],
-      settingsTextField(textField(row.id)),
+      ...row.variants.map(variant => settingsTextField(textField(row.id, variant.id))),
     ]))
     this.store = this.form.bind(() => this.projection())
   }
@@ -72,7 +83,10 @@ export class ContextInjectionsController {
       rows: PAGE_ROWS.map(row => ({
         id: row.id,
         ...row.switchable ? { enabled: this.form.field(enabledField(row.id)) } : {},
-        text: this.form.field(textField(row.id)),
+        variants: row.variants.map((shape) => {
+          const field = textField(row.id, shape.id)
+          return { shape, field, text: this.form.field(field) }
+        }),
       })),
     }
   }

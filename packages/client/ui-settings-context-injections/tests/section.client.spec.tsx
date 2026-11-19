@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/** The page as the Settings shell renders it: groups, switches, folded text, and the shared save. */
+/** The page as the Settings shell renders it: groups, switches, folded templates, and the shared save. */
 
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +7,7 @@ import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { SettingsFieldState, SettingsFormShell } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ContextInjectionsSection, type ContextInjectionsSectionProps } from '../src/client/ContextInjectionsSection.tsx'
-import type { ContextInjectionsRowState, ContextInjectionsState } from '../src/client/controller.ts'
+import { textField, type ContextInjectionsRowState, type ContextInjectionsState } from '../src/client/controller.ts'
 import { en, type ContextInjectionsLocaleKey } from '../src/client/locales.ts'
 import { PAGE_ROWS } from '../src/client/rows.ts'
 
@@ -25,7 +25,11 @@ function rows(overrides: Partial<Record<string, Partial<ContextInjectionsRowStat
   return PAGE_ROWS.map(row => ({
     id: row.id,
     ...row.switchable ? { enabled: field('true') } : {},
-    text: field(''),
+    variants: row.variants.map(shape => ({
+      shape,
+      field: textField(row.id, shape.id),
+      text: field(`template of ${row.id}/${shape.id}`),
+    })),
     ...overrides[row.id],
   }))
 }
@@ -65,28 +69,60 @@ describe('ContextInjectionsSection', () => {
     expect(actions.resetField).toHaveBeenCalledWith('modelSwitchEnabled')
   })
 
-  it('folds an empty replacement text until asked for it', () => {
+  it('folds the templates until asked, prefilled, labelled per shape, with their variables', () => {
     const actions = renderPage()
     const row = rowOf('timeContext')
-    expect(within(row).queryByLabelText(en.textLabel)).toBeNull()
+    expect(within(row).queryByLabelText(en['variant.timeContext.known'])).toBeNull()
 
     fireEvent.click(within(row).getByRole('button', { name: en.editText }))
-    fireEvent.change(within(row).getByLabelText(en.textLabel), { target: { value: 'Now: {{text}}' } })
-    expect(actions.edit).toHaveBeenCalledWith('timeContextText', 'Now: {{text}}')
+    const known = within(row).getByLabelText(en['variant.timeContext.known'])
+    expect(known).toHaveProperty('value', 'template of timeContext/known')
+    expect(within(row).getByLabelText(en['variant.timeContext.unclear'])).toBeTruthy()
+    expect(within(row).getAllByText(
+      `${en.variablesLabel} {{turn}} {{step}} {{time}} {{zone}} {{baseline}} {{elapsed}} {{text}}. ${en.textHint}`,
+    )).toHaveLength(2)
+    fireEvent.change(known, { target: { value: 'Now: {{time}}' } })
+    expect(actions.edit).toHaveBeenCalledWith('timeContextKnownText', 'Now: {{time}}')
 
     fireEvent.click(within(row).getByRole('button', { name: en.hideText }))
-    expect(within(row).queryByLabelText(en.textLabel)).toBeNull()
+    expect(within(row).queryByLabelText(en['variant.timeContext.known'])).toBeNull()
   })
 
-  it('opens a row that carries a replacement text and offers its reset', () => {
-    const actions = renderPage({ rows: rows({ approvalPolicy: { text: field('Policy: {{text}}', { overridden: true }) } }) })
+  it('labels the only shape of a row as its template and sizes the box to it', () => {
+    renderPage({
+      rows: rows({
+        modelSwitch: {
+          variants: [{ shape: { id: '', variables: ['from', 'to'] }, field: 'modelSwitchText', text: field('a\nb\nc\nd\ne') }],
+        },
+      }),
+    })
+    const row = rowOf('modelSwitch')
+    fireEvent.click(within(row).getByRole('button', { name: en.editText }))
+
+    expect(within(row).getByLabelText(en.textLabel)).toHaveProperty('rows', 6)
+    expect(within(row).getByText(`${en.variablesLabel} {{from}} {{to}} {{text}}. ${en.textHint}`)).toBeTruthy()
+  })
+
+  it('opens a row with an edited template and offers the reset of that template', () => {
+    const page = PAGE_ROWS.find(entry => entry.id === 'approvalPolicy')
+    const actions = renderPage({
+      rows: rows({
+        approvalPolicy: {
+          variants: (page?.variants ?? []).map(shape => ({
+            shape,
+            field: textField('approvalPolicy', shape.id),
+            text: shape.id === 'never' ? field('Never: {{text}}', { overridden: true }) : field('ask template'),
+          })),
+        },
+      }),
+    })
     const row = rowOf('approvalPolicy')
 
-    expect(within(row).getByLabelText(en.textLabel)).toHaveProperty('value', 'Policy: {{text}}')
+    expect(within(row).getByLabelText(en['variant.approvalPolicy.never'])).toHaveProperty('value', 'Never: {{text}}')
     expect(within(row).queryByRole('button', { name: en.editText })).toBeNull()
     fireEvent.click(within(row).getByRole('button', { name: en.reset }))
 
-    expect(actions.resetField).toHaveBeenCalledWith('approvalPolicyText')
+    expect(actions.resetField).toHaveBeenCalledWith('approvalPolicyNeverText')
   })
 
   it('saves through the shared form and disables every control while read-only', () => {

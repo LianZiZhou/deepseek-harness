@@ -1,26 +1,43 @@
 /** Pure rewrites the admission listeners apply to injected messages and runtime-context sections. */
 
 import type { ContextSnapshotSection, UserMessage } from '@deepseek-ai/dsh-llm'
-import { ORIGINAL_TEXT_PLACEHOLDER } from './rows.ts'
+import { renderTemplate, type CompiledTemplate } from './template.ts'
+
+/** One shape of a row's text and the person's template for it. */
+export interface InjectionVariantSetting {
+  /** The shipped template the producer builds this shape from. */
+  readonly template: CompiledTemplate
+  /** The person's template; empty or equal to the shipped template keeps the original. */
+  readonly text: string
+}
 
 /** What one row decides about the injections it matches. */
 export interface InjectionSetting {
   /** False drops every matched injection. */
   readonly enabled: boolean
-  /** Replacement text; empty keeps the original. */
-  readonly text: string
+  /** The row's shapes, tried in order. */
+  readonly variants: readonly InjectionVariantSetting[]
+}
+
+function keepsOriginal(variant: InjectionVariantSetting): boolean {
+  return variant.text === '' || variant.text === variant.template.source
 }
 
 /**
- * Render a replacement over the original injected text. Every
- * {@link ORIGINAL_TEXT_PLACEHOLDER} becomes the original; nothing else in the
- * replacement is interpreted, so braces a person types reach the model as typed.
- * @param replacement - the row's replacement text; empty keeps the original.
+ * Rewrite one injected text. The first shape whose shipped template matches
+ * supplies the variables and the person's template; a text no shape matches,
+ * such as one a newer producer worded differently, is sent unchanged.
  * @param original - the text the producer injected.
+ * @param variants - the row's shapes.
  * @returns the text the model receives.
  */
-export function rewriteText(replacement: string, original: string): string {
-  return replacement === '' ? original : replacement.split(ORIGINAL_TEXT_PLACEHOLDER).join(original)
+export function rewriteText(original: string, variants: readonly InjectionVariantSetting[]): string {
+  for (const variant of variants) {
+    const values = variant.template.match(original)
+    if (values === undefined) continue
+    return keepsOriginal(variant) ? original : renderTemplate(variant.text, values)
+  }
+  return original
 }
 
 /**
@@ -28,12 +45,13 @@ export function rewriteText(replacement: string, original: string): string {
  * one of the rewritten blocks is rewritten with it, so the presented sections
  * keep describing what the model received.
  */
-function rewriteMessage(message: UserMessage, replacement: string): UserMessage {
-  const originals = new Set<string>()
+function rewriteMessage(message: UserMessage, variants: readonly InjectionVariantSetting[]): UserMessage {
+  const rewritten = new Map<string, string>()
   const content = message.content.map((block) => {
     if (block.type !== 'text') return block
-    originals.add(block.text)
-    return { ...block, text: rewriteText(replacement, block.text) }
+    const text = rewriteText(block.text, variants)
+    rewritten.set(block.text, text)
+    return text === block.text ? block : { ...block, text }
   })
   const source = message.source
   if (!('form' in source) || source.form !== 'snapshot') return { ...message, content }
@@ -42,9 +60,10 @@ function rewriteMessage(message: UserMessage, replacement: string): UserMessage 
     content,
     source: {
       ...source,
-      sections: source.sections.map(section => originals.has(section.text)
-        ? { ...section, text: rewriteText(replacement, section.text) }
-        : section),
+      sections: source.sections.map((section) => {
+        const text = rewritten.get(section.text)
+        return text === undefined || text === section.text ? section : { ...section, text }
+      }),
     },
   }
 }
@@ -64,7 +83,7 @@ export function admitMessages(
     const setting = settings.get(message.source.kind)
     if (setting === undefined) return [message]
     if (!setting.enabled) return []
-    return [setting.text === '' ? message : rewriteMessage(message, setting.text)]
+    return [setting.variants.every(keepsOriginal) ? message : rewriteMessage(message, setting.variants)]
   })
 }
 
@@ -83,6 +102,7 @@ export function admitSections(
     const setting = settings.get(section.name)
     if (setting === undefined) return [section]
     if (!setting.enabled) return []
-    return [{ ...section, text: rewriteText(setting.text, section.text) }]
+    const text = rewriteText(section.text, setting.variants)
+    return [text === section.text ? section : { ...section, text }]
   })
 }

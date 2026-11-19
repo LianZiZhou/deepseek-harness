@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/client/ui-settings-context-injections/README.md
 /:
-  en: 651ced60a008abbc
-  zh: 91be189639b8d2c3
+  en: ff9ac0866440c536
+  zh: 26dd1fa1933b487c
 /deepseek-ai-dsh-client-ui-settings-context-injections:
   en: e3ede7b97ee0f754
   zh: 9ba2b8b35f9ea563
@@ -15,8 +15,8 @@
   en: d152484eb41ac6b4
   zh: f14f34fce35a8d90
 /deepseek-ai-dsh-client-ui-settings-context-injections/use-this-package:
-  en: 152c778e5b2b0288
-  zh: c58f6b673a4506be
+  en: 76d3f0e44b53fb10
+  zh: 652ee8fad842a2c8
 /deepseek-ai-dsh-client-ui-settings-context-injections/understand-the-implementation:
   en: aa72ca9a3895cadb
   zh: 3ca7f41273ba2a1b

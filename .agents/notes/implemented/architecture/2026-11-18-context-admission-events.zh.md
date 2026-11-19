@@ -19,7 +19,7 @@ Status: implemented
 
 两者都是普通的 waterfall，多个监听器可以组合。监听器丢弃的内容从不提交，改写的内容按改写后的样子提交，这保持了 **Model-visible ⟺ logged**。段落在快照比较之前准入，因此规则变化会在下一步产生新快照，而被丢弃段落的变化不会产生快照。
 
-注入的上下文仍遵循[将上下文注入与轮次执行分离](2026-07-24-separate-context-injection-from-turn-execution.zh.md)规定的生命周期；准入只决定进入的批次提交什么。`dsh-context-injections` 是第一个监听器：一张固定的条目表，每个条目是一个 volatile 开关和替换文本。
+注入的上下文仍遵循[将上下文注入与轮次执行分离](2026-07-24-separate-context-injection-from-turn-execution.zh.md)规定的生命周期；准入只决定进入的批次提交什么。`dsh-context-injections` 是第一个监听器：一张固定的条目表，每个条目是一个 volatile 开关，以及每种文本形态各一个模板，模板预填生产方的措辞，运行时值作为变量出现。
 
 ## 考虑过的替代方案
 

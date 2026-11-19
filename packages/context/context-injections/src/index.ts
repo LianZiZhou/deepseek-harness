@@ -17,113 +17,160 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-agent'
 // Type-only: the optional settings service's Context merge.
 import type {} from '@deepseek-ai/dsh-settings'
+import { shippedTemplate } from './rows.ts'
 import { readSettings } from './settings.ts'
 import { admitMessages, admitSections } from './transform.ts'
 
-export type { ContextInjectionRow, ContextInjectionRowId } from './rows.ts'
-export type { InjectionSetting } from './transform.ts'
+export type { ContextInjectionRow, ContextInjectionRowId, ContextInjectionVariant } from './rows.ts'
+export type { InjectionSetting, InjectionVariantSetting } from './transform.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'context-injections'
 
 /**
  * Which injections reach the model and in what words. Each `…Enabled` field
- * switches one injection; each `…Text` field replaces its text, where
- * `{{text}}` stands for the original and an empty value keeps it. Every field
- * is volatile.
+ * switches one injection. Each `…Text` field is the template for one shape of
+ * an injection's text: it defaults to the producer's own wording, with every
+ * runtime value as a `{{variable}}`, and `{{text}}` stands for the whole
+ * original. An empty template sends the original. Every field is volatile.
  */
 export interface Config {
   /** Send the notice that the session's model changed. */
   modelSwitchEnabled: Volatile<boolean>
-  /** Replacement for the model-change notice. */
+  /** Template for the model-switch notice; `{{from}}` and `{{to}}` are the two models. */
   modelSwitchText: Volatile<string>
   /** Send the current-time reading. */
   timeContextEnabled: Volatile<boolean>
-  /** Replacement for the current-time reading. */
-  timeContextText: Volatile<string>
+  /** Template for the time reading when the browser time zone is known; `{{zone}}` is that zone. */
+  timeContextKnownText: Volatile<string>
+  /** Template for the time reading when the browser time zone is mixed or unavailable; `{{zone}}` says which. */
+  timeContextUnclearText: Volatile<string>
   /** Send the notice that the approval policy changed. */
   approvalNoticeEnabled: Volatile<boolean>
-  /** Replacement for the approval-policy change notice. */
+  /** Template for the approval-policy change notice; `{{from}}` and `{{to}}` are the two policies. */
   approvalNoticeText: Volatile<string>
   /** Send the notice that the working directory changed. */
   workingDirectoryNoticeEnabled: Volatile<boolean>
-  /** Replacement for the working-directory change notice. */
-  workingDirectoryNoticeText: Volatile<string>
+  /** Template for a working-directory change; `{{from}}` and `{{to}}` are JSON-quoted paths. */
+  workingDirectoryNoticeChangedText: Volatile<string>
+  /** Template for a working directory that became unavailable; `{{from}}` and `{{to}}` are JSON-quoted paths. */
+  workingDirectoryNoticeUnavailableText: Volatile<string>
   /** Send the notice that the session entered or left plan mode. */
   planModeNoticeEnabled: Volatile<boolean>
-  /** Replacement for the plan-mode notice. */
-  planModeNoticeText: Volatile<string>
+  /** Template for the notice that the session entered plan mode. */
+  planModeNoticeEnteredText: Volatile<string>
+  /** Template for the notice that the session left plan mode. */
+  planModeNoticeLeftText: Volatile<string>
   /** Send the reminder about a repeated tool call. */
   repeatToolReminderEnabled: Volatile<boolean>
-  /** Replacement for the repeated-tool-call reminder. */
-  repeatToolReminderText: Volatile<string>
+  /** Template for the first repeated-call reminder. */
+  repeatToolReminderFirstText: Volatile<string>
+  /** Template for later repeated-call reminders; `{{tool}}`, `{{count}}`, and `{{arguments}}` describe the call. */
+  repeatToolReminderRepeatedText: Volatile<string>
   /** Send the project instructions read from instruction files such as `AGENTS.md`. */
   agentInstructionsEnabled: Volatile<boolean>
-  /** Replacement for the project instructions. */
-  agentInstructionsText: Volatile<string>
+  /** Template for loaded instructions; `{{instructions}}` is every file's heading and content. */
+  agentInstructionsLoadedText: Volatile<string>
+  /** Template for instructions trimmed to the byte budget; `{{budget}}` states what was omitted or cut. */
+  agentInstructionsTrimmedText: Volatile<string>
+  /** Template for instructions that replace an earlier set; `{{instructions}}` is every file's heading and content. */
+  agentInstructionsReplacedText: Volatile<string>
+  /** Template for the notice that no instructions remain active. */
+  agentInstructionsClearedText: Volatile<string>
+  /** Template for instruction files added, changed, or removed; `{{changes}}` lists them with their content. */
+  agentInstructionsUpdatedText: Volatile<string>
   /** Send the catalog of available skills. */
   skillCatalogEnabled: Volatile<boolean>
-  /** Replacement for the skill catalog. */
-  skillCatalogText: Volatile<string>
+  /** Template for the first skill catalog; `{{skills}}` is one line per skill. */
+  skillCatalogCatalogText: Volatile<string>
+  /** Template for the first skill catalog after incomplete discovery; `{{skills}}` is one line per confirmed skill. */
+  skillCatalogCatalogPartialText: Volatile<string>
+  /** Template for a changed skill catalog; `{{skills}}` is one line per skill. */
+  skillCatalogChangedText: Volatile<string>
+  /** Template for a changed skill catalog after incomplete discovery; `{{skills}}` is one line per confirmed skill. */
+  skillCatalogChangedPartialText: Volatile<string>
   /** Send the tmux pane snapshot. */
   tmuxContextEnabled: Volatile<boolean>
-  /** Replacement for the tmux pane snapshot. */
+  /** Template for the tmux location reading; its variables are the tmux session, window, and pane fields. */
   tmuxContextText: Volatile<string>
-  /** Replacement for the current working directory section, which is always stated. */
+  /** Template for the working-directory section, which is always stated; `{{cwd}}` is the JSON-quoted path. */
   workingDirectoryText: Volatile<string>
   /** State the file-access policy section, including `danger-full-access`. */
   sandboxPolicyEnabled: Volatile<boolean>
-  /** Replacement for the file-access policy section. */
-  sandboxPolicyText: Volatile<string>
+  /** Template for the read-only file policy. */
+  sandboxPolicyReadOnlyText: Volatile<string>
+  /** Template for the workspace-write file policy; `{{workspace}}` is the JSON-quoted workspace. */
+  sandboxPolicyWorkspaceWriteText: Volatile<string>
+  /** Template for the workspace-write file policy with extra writable directories; `{{directories}}` is their JSON list. */
+  sandboxPolicyWorkspaceWriteRootsText: Volatile<string>
+  /** Template for the danger-full-access file policy. */
+  sandboxPolicyFullAccessText: Volatile<string>
   /** State the approval policy section. */
   approvalPolicyEnabled: Volatile<boolean>
-  /** Replacement for the approval policy section. */
-  approvalPolicyText: Volatile<string>
+  /** Template for the policy that approval prompts may ask. */
+  approvalPolicyAskText: Volatile<string>
+  /** Template for the policy that approval prompts are disabled. */
+  approvalPolicyNeverText: Volatile<string>
   /** State the subagent delegation section. */
   subagentDelegationEnabled: Volatile<boolean>
-  /** Replacement for the subagent delegation section. */
+  /** Template for the subagent delegation section. */
   subagentDelegationText: Volatile<string>
   /** State the harness source-checkout section. */
   harnessSourceEnabled: Volatile<boolean>
-  /** Replacement for the harness source-checkout section. */
+  /** Template for the harness source-checkout section; `{{checkout}}` is the JSON-quoted path. */
   harnessSourceText: Volatile<string>
   /** State the Web surface section. */
   webSurfaceEnabled: Volatile<boolean>
-  /** Replacement for the Web surface section. */
+  /** Template for the Web surface section; `{{url}}` is the JSON-quoted address. */
   webSurfaceText: Volatile<string>
 }
 
-/** Runtime schema for {@link Config}; every injection is sent unchanged by default. */
+/** Runtime schema for {@link Config}; every injection is sent in its producer's wording by default. */
 export const Config = z.object({
   modelSwitchEnabled: z.boolean().default(true).volatile(),
-  modelSwitchText: z.string().default('').volatile(),
+  modelSwitchText: z.string().default(shippedTemplate('modelSwitch')).volatile(),
   timeContextEnabled: z.boolean().default(true).volatile(),
-  timeContextText: z.string().default('').volatile(),
+  timeContextKnownText: z.string().default(shippedTemplate('timeContext', 'known')).volatile(),
+  timeContextUnclearText: z.string().default(shippedTemplate('timeContext', 'unclear')).volatile(),
   approvalNoticeEnabled: z.boolean().default(true).volatile(),
-  approvalNoticeText: z.string().default('').volatile(),
+  approvalNoticeText: z.string().default(shippedTemplate('approvalNotice')).volatile(),
   workingDirectoryNoticeEnabled: z.boolean().default(true).volatile(),
-  workingDirectoryNoticeText: z.string().default('').volatile(),
+  workingDirectoryNoticeChangedText: z.string().default(shippedTemplate('workingDirectoryNotice', 'changed')).volatile(),
+  workingDirectoryNoticeUnavailableText: z.string().default(shippedTemplate('workingDirectoryNotice', 'unavailable')).volatile(),
   planModeNoticeEnabled: z.boolean().default(true).volatile(),
-  planModeNoticeText: z.string().default('').volatile(),
+  planModeNoticeEnteredText: z.string().default(shippedTemplate('planModeNotice', 'entered')).volatile(),
+  planModeNoticeLeftText: z.string().default(shippedTemplate('planModeNotice', 'left')).volatile(),
   repeatToolReminderEnabled: z.boolean().default(true).volatile(),
-  repeatToolReminderText: z.string().default('').volatile(),
+  repeatToolReminderFirstText: z.string().default(shippedTemplate('repeatToolReminder', 'first')).volatile(),
+  repeatToolReminderRepeatedText: z.string().default(shippedTemplate('repeatToolReminder', 'repeated')).volatile(),
   agentInstructionsEnabled: z.boolean().default(true).volatile(),
-  agentInstructionsText: z.string().default('').volatile(),
+  agentInstructionsLoadedText: z.string().default(shippedTemplate('agentInstructions', 'loaded')).volatile(),
+  agentInstructionsTrimmedText: z.string().default(shippedTemplate('agentInstructions', 'trimmed')).volatile(),
+  agentInstructionsReplacedText: z.string().default(shippedTemplate('agentInstructions', 'replaced')).volatile(),
+  agentInstructionsClearedText: z.string().default(shippedTemplate('agentInstructions', 'cleared')).volatile(),
+  agentInstructionsUpdatedText: z.string().default(shippedTemplate('agentInstructions', 'updated')).volatile(),
   skillCatalogEnabled: z.boolean().default(true).volatile(),
-  skillCatalogText: z.string().default('').volatile(),
+  skillCatalogCatalogText: z.string().default(shippedTemplate('skillCatalog', 'catalog')).volatile(),
+  skillCatalogCatalogPartialText: z.string().default(shippedTemplate('skillCatalog', 'catalogPartial')).volatile(),
+  skillCatalogChangedText: z.string().default(shippedTemplate('skillCatalog', 'changed')).volatile(),
+  skillCatalogChangedPartialText: z.string().default(shippedTemplate('skillCatalog', 'changedPartial')).volatile(),
   tmuxContextEnabled: z.boolean().default(true).volatile(),
-  tmuxContextText: z.string().default('').volatile(),
-  workingDirectoryText: z.string().default('').volatile(),
+  tmuxContextText: z.string().default(shippedTemplate('tmuxContext')).volatile(),
+  workingDirectoryText: z.string().default(shippedTemplate('workingDirectory')).volatile(),
   sandboxPolicyEnabled: z.boolean().default(true).volatile(),
-  sandboxPolicyText: z.string().default('').volatile(),
+  sandboxPolicyReadOnlyText: z.string().default(shippedTemplate('sandboxPolicy', 'readOnly')).volatile(),
+  sandboxPolicyWorkspaceWriteText: z.string().default(shippedTemplate('sandboxPolicy', 'workspaceWrite')).volatile(),
+  sandboxPolicyWorkspaceWriteRootsText: z.string().default(shippedTemplate('sandboxPolicy', 'workspaceWriteRoots')).volatile(),
+  sandboxPolicyFullAccessText: z.string().default(shippedTemplate('sandboxPolicy', 'fullAccess')).volatile(),
   approvalPolicyEnabled: z.boolean().default(true).volatile(),
-  approvalPolicyText: z.string().default('').volatile(),
+  approvalPolicyAskText: z.string().default(shippedTemplate('approvalPolicy', 'ask')).volatile(),
+  approvalPolicyNeverText: z.string().default(shippedTemplate('approvalPolicy', 'never')).volatile(),
   subagentDelegationEnabled: z.boolean().default(true).volatile(),
-  subagentDelegationText: z.string().default('').volatile(),
+  subagentDelegationText: z.string().default(shippedTemplate('subagentDelegation')).volatile(),
   harnessSourceEnabled: z.boolean().default(true).volatile(),
-  harnessSourceText: z.string().default('').volatile(),
+  harnessSourceText: z.string().default(shippedTemplate('harnessSource')).volatile(),
   webSurfaceEnabled: z.boolean().default(true).volatile(),
-  webSurfaceText: z.string().default('').volatile(),
+  webSurfaceText: z.string().default(shippedTemplate('webSurface')).volatile(),
 })
 
 /**

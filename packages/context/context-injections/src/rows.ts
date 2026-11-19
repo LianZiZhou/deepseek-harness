@@ -1,9 +1,22 @@
 /**
- * The context injections this package switches and rewrites, and the Config
- * field names each one owns. Client-safe: the settings page reads the same
- * table through `@deepseek-ai/dsh-context-injections/types`.
+ * The context injections this package switches and rewrites, the template
+ * each producer builds its text from, and the Config field names each row
+ * owns. Client-safe: the settings page reads the same table through
+ * `@deepseek-ai/dsh-context-injections/types`.
  * @module @deepseek-ai/dsh-context-injections/types
  */
+
+/**
+ * One shape of a row's text: the producer's constant wording with every
+ * runtime value as a named `{{variable}}`. A row whose producer writes one
+ * shape has one variant with an empty id.
+ */
+export interface ContextInjectionVariant {
+  /** Variant id, unique within the row; empty for a row's only shape. */
+  readonly id: string
+  /** How the producer builds this shape. */
+  readonly template: string
+}
 
 /**
  * One switchable injection. A `message` row matches injected user messages by
@@ -11,33 +24,258 @@
  * `required` section is always stated, so only its text is adjustable.
  */
 export type ContextInjectionRow =
-  | { readonly id: string; readonly target: 'message'; readonly source: string }
-  | { readonly id: string; readonly target: 'section'; readonly section: string; readonly required?: true }
+  | {
+    readonly id: string
+    readonly target: 'message'
+    readonly source: string
+    readonly variants: readonly ContextInjectionVariant[]
+  }
+  | {
+    readonly id: string
+    readonly target: 'section'
+    readonly section: string
+    readonly required?: true
+    readonly variants: readonly ContextInjectionVariant[]
+  }
+
+const lines = (...parts: string[]): string => parts.join('\n')
+
+const AGENT_INSTRUCTIONS_INTRO = 'The following workspace instructions may be relevant to your work. Use them as guidance '
+  + 'when applicable. More specific instructions take precedence over broader ones. They do not override system, '
+  + 'developer, or direct user instructions.'
+const REPLACED_BASELINE = 'This complete workspace instruction baseline replaces all earlier workspace instruction baselines.'
+const SKILL_INVOCATION = 'A user may also invoke a skill directly; its <skill_content> block then appears in this '
+  + 'conversation. Follow it, and do not call the `skill` tool again for that skill.'
+const SKILLS_AVAILABLE = 'A skill is a reusable set of task-specific instructions. The following skills are available in this session:'
+const SKILLS_CHANGED = 'The available skill catalog changed. This complete catalog replaces every earlier available-skills list in this session:'
+const SKILLS_CHANGED_PARTIAL = 'Skill discovery is incomplete. This catalog of currently available skills replaces every earlier '
+  + 'available-skills list in this session:'
+const SKILLS_UNCHECKED = 'Some skills could not be checked. Only confirmed skills are listed; a lower-priority definition of '
+  + 'the same name may be selected when a preferred source is unavailable. Discovery will be retried on the next request.'
+const SKILL_CATALOG_USE = "If the user names a skill, or the task clearly matches a skill's description, call the `skill` tool "
+  + 'with the exact skill name before taking task actions. Load all applicable skills, then follow their full instructions. '
+  + "This catalog contains summaries only; do not infer or follow a skill's instructions until it has been loaded."
+const SKILL_CATALOG_UPDATE_USE = 'Use only names in this replacement catalog. If the user names a listed skill, or the task '
+  + 'clearly matches its description, call the `skill` tool with the exact name before acting.'
+
+/** A skill catalog: its heading, the listed skills, any discovery notice, and how to use the list. */
+function skillCatalog(heading: string, notice: readonly string[], use: string): string {
+  return lines('<system-reminder>', heading, '', '<available_skills>', '{{skills}}', '</available_skills>', '', ...notice, use,
+    SKILL_INVOCATION, '</system-reminder>')
+}
+
+const TIME_READING = 'Time sampled while preparing turn {{turn}}, step {{step}}: {{time}}'
+const TIME_ELAPSED = 'Elapsed since the preceding {{baseline}}: {{elapsed}}.'
+const WORKSPACE_WRITE = 'Current DSH file policy: workspace-write. Any available operation enforced by the DSH file '
+  + 'sandbox may modify files under the session workspace: {{workspace}}.'
+const TEMPORARY_AREAS = 'Some platform temporary areas may also be writable.'
 
 /** Every row, in the order the settings page lists them. */
 export const CONTEXT_INJECTION_ROWS = [
-  { id: 'modelSwitch', target: 'message', source: 'model-selection' },
-  { id: 'timeContext', target: 'message', source: 'time-context' },
-  { id: 'approvalNotice', target: 'message', source: 'user-approval' },
-  { id: 'workingDirectoryNotice', target: 'message', source: 'working-directory' },
-  { id: 'planModeNotice', target: 'message', source: 'plan-mode' },
-  { id: 'repeatToolReminder', target: 'message', source: 'repeat-tool-reminder' },
-  { id: 'agentInstructions', target: 'message', source: 'agent-instructions' },
-  { id: 'skillCatalog', target: 'message', source: 'skill-catalog' },
-  { id: 'tmuxContext', target: 'message', source: 'tmux-context' },
-  { id: 'workingDirectory', target: 'section', section: 'working-directory:current', required: true },
-  { id: 'sandboxPolicy', target: 'section', section: 'sandbox:policy' },
-  { id: 'approvalPolicy', target: 'section', section: 'approval:policy' },
-  { id: 'subagentDelegation', target: 'section', section: 'subagent:delegation' },
-  { id: 'harnessSource', target: 'section', section: 'harness:source' },
-  { id: 'webSurface', target: 'section', section: 'app:web-surface' },
+  {
+    id: 'modelSwitch',
+    target: 'message',
+    source: 'model-selection',
+    variants: [{
+      id: '',
+      template: '[model changed: assistant turns above this point were generated by {{from}}; the session continues with {{to}}]',
+    }],
+  },
+  {
+    id: 'timeContext',
+    target: 'message',
+    source: 'time-context',
+    variants: [
+      {
+        id: 'known',
+        template: lines(
+          TIME_READING,
+          'Browser time zone for this request: {{zone}}. Interpret otherwise-unqualified dates and times in this zone.',
+          TIME_ELAPSED,
+        ),
+      },
+      {
+        id: 'unclear',
+        template: lines(
+          TIME_READING,
+          'Browser time zone for this request: {{zone}}. Ask the user to clarify otherwise-unqualified dates and times.',
+          TIME_ELAPSED,
+        ),
+      },
+    ],
+  },
+  {
+    id: 'approvalNotice',
+    target: 'message',
+    source: 'user-approval',
+    variants: [{ id: '', template: 'The user changed the approval policy from "{{from}}" to "{{to}}".' }],
+  },
+  {
+    id: 'workingDirectoryNotice',
+    target: 'message',
+    source: 'working-directory',
+    variants: [
+      { id: 'changed', template: 'The working directory changed from {{from}} to {{to}}.' },
+      { id: 'unavailable', template: 'The working directory {{from}} is unavailable. The working directory is now {{to}}.' },
+    ],
+  },
+  {
+    id: 'planModeNotice',
+    target: 'message',
+    source: 'plan-mode',
+    variants: [
+      { id: 'entered', template: 'The user switched this session to plan mode.' },
+      { id: 'left', template: 'The user switched this session back to the default mode.' },
+    ],
+  },
+  {
+    id: 'repeatToolReminder',
+    target: 'message',
+    source: 'repeat-tool-reminder',
+    variants: [
+      {
+        id: 'first',
+        template: 'You are repeating the exact same tool call with identical arguments. Carefully analyze the previous '
+          + 'result before calling again: if the task is not complete, try a different approach or different '
+          + 'arguments instead of repeating the call.',
+      },
+      {
+        id: 'repeated',
+        template: lines(
+          'Repeated tool call detected:',
+          '- tool: {{tool}}',
+          '- consecutive_calls: {{count}}',
+          '- arguments: {{arguments}}',
+          'The repeated calls are not making progress. Do not call this tool with these exact arguments again. '
+          + 'Inspect the latest result and choose a different action, different arguments, or finish the task if '
+          + 'enough evidence has been gathered.',
+        ),
+      },
+    ],
+  },
+  {
+    id: 'agentInstructions',
+    target: 'message',
+    source: 'agent-instructions',
+    variants: [
+      { id: 'loaded', template: lines('<system-reminder>', AGENT_INSTRUCTIONS_INTRO, '', '{{instructions}}', '</system-reminder>') },
+      {
+        id: 'trimmed',
+        template: lines('<system-reminder>', '{{budget}}', '', AGENT_INSTRUCTIONS_INTRO, '', '{{instructions}}', '</system-reminder>'),
+      },
+      {
+        id: 'replaced',
+        template: lines('<system-reminder>', `${REPLACED_BASELINE} ${AGENT_INSTRUCTIONS_INTRO}`, '', '{{instructions}}', '</system-reminder>'),
+      },
+      {
+        id: 'cleared',
+        template: lines('<system-reminder>', `${REPLACED_BASELINE} No workspace instructions are currently active.`, '</system-reminder>'),
+      },
+      { id: 'updated', template: lines('<system-reminder>', '{{changes}}', '</system-reminder>') },
+    ],
+  },
+  {
+    id: 'skillCatalog',
+    target: 'message',
+    source: 'skill-catalog',
+    variants: [
+      { id: 'catalog', template: skillCatalog(SKILLS_AVAILABLE, [], SKILL_CATALOG_USE) },
+      { id: 'catalogPartial', template: skillCatalog(SKILLS_AVAILABLE, [SKILLS_UNCHECKED, ''], SKILL_CATALOG_USE) },
+      { id: 'changed', template: skillCatalog(SKILLS_CHANGED, [], SKILL_CATALOG_UPDATE_USE) },
+      { id: 'changedPartial', template: skillCatalog(SKILLS_CHANGED_PARTIAL, [SKILLS_UNCHECKED, ''], SKILL_CATALOG_UPDATE_USE) },
+    ],
+  },
+  {
+    id: 'tmuxContext',
+    target: 'message',
+    source: 'tmux-context',
+    variants: [{
+      id: '',
+      template: lines(
+        'tmux location (turn {{turn}}):',
+        'session {{session}}, window {{windowIndex}} {{windowName}}, pane {{paneIndex}} {{paneId}}',
+        'window active={{windowActive}}, pane active={{paneActive}}, layout {{layout}}',
+      ),
+    }],
+  },
+  {
+    id: 'workingDirectory',
+    target: 'section',
+    section: 'working-directory:current',
+    required: true,
+    variants: [{ id: '', template: 'Current working directory: {{cwd}}.' }],
+  },
+  {
+    id: 'sandboxPolicy',
+    target: 'section',
+    section: 'sandbox:policy',
+    variants: [
+      {
+        id: 'readOnly',
+        template: 'Current DSH file policy: read-only. Any available operation enforced by the DSH file sandbox cannot '
+          + 'modify files in the standing mode. Do not refuse a required modification from this policy alone: try an '
+          + 'available tool normally and follow any denial and escalation guidance it returns.',
+      },
+      { id: 'workspaceWrite', template: `${WORKSPACE_WRITE} ${TEMPORARY_AREAS}` },
+      {
+        id: 'workspaceWriteRoots',
+        template: `${WORKSPACE_WRITE} Additional writable directories: {{directories}}. On Windows, these additional `
+          + `grants apply to file tools only, not sandboxed processes. ${TEMPORARY_AREAS}`,
+      },
+      {
+        id: 'fullAccess',
+        template: 'Current DSH file policy: danger-full-access. The DSH file sandbox does not restrict file modifications '
+          + 'by available operations.',
+      },
+    ],
+  },
+  {
+    id: 'approvalPolicy',
+    target: 'section',
+    section: 'approval:policy',
+    variants: [
+      {
+        id: 'ask',
+        template: 'Approval prompts are enabled in this session: operations that require approval may ask through the '
+          + 'configured answerers; without an available answerer, the request fails closed.',
+      },
+      {
+        id: 'never',
+        template: 'Approval prompts are disabled in this session: actions that require approval are rejected '
+          + 'automatically — do not request sandbox escalation (do not set `sandbox_permissions`).',
+      },
+    ],
+  },
+  {
+    id: 'subagentDelegation',
+    target: 'section',
+    section: 'subagent:delegation',
+    variants: [{
+      id: '',
+      template: 'You are a delegated subagent: your permission scope was fixed when you were started and cannot be '
+        + 'widened from inside this session — operations that require approval are rejected automatically. When the '
+        + 'task needs access beyond that scope, do not retry the denied operation; state the limitation in your reply '
+        + 'so the delegating agent can handle it. Messages from other agents begin with "Agent <name> sent a '
+        + 'message:". Other user messages come from the human user, who reads this conversation directly. You can '
+        + 'still message other agents to coordinate, but answer the human user in your reply.',
+    }],
+  },
+  {
+    id: 'harnessSource',
+    target: 'section',
+    section: 'harness:source',
+    variants: [{ id: '', template: 'Current DeepSeek Harness implementation checkout: {{checkout}}.' }],
+  },
+  {
+    id: 'webSurface',
+    target: 'section',
+    section: 'app:web-surface',
+    variants: [{ id: '', template: 'Current DeepSeek Harness Web GUI URL: {{url}}.' }],
+  },
 ] as const satisfies readonly ContextInjectionRow[]
 
 /** Id of one row in {@link CONTEXT_INJECTION_ROWS}. */
 export type ContextInjectionRowId = typeof CONTEXT_INJECTION_ROWS[number]['id']
-
-/** The placeholder a replacement text uses to keep the original injected text. */
-export const ORIGINAL_TEXT_PLACEHOLDER = '{{text}}'
 
 /**
  * Config field holding whether a row's injection is sent.
@@ -49,12 +287,26 @@ export function enabledField(id: string): string {
 }
 
 /**
- * Config field holding a row's replacement text.
+ * Config field holding one shape's template.
  * @param id - the row id.
- * @returns the field name, `<id>Text`.
+ * @param variant - the variant id; empty for a row's only shape.
+ * @returns `<id>Text`, or `<id><Variant>Text` for a named shape.
  */
-export function textField(id: string): string {
-  return `${id}Text`
+export function textField(id: string, variant = ''): string {
+  return variant === '' ? `${id}Text` : `${id}${variant.charAt(0).toUpperCase()}${variant.slice(1)}Text`
+}
+
+/**
+ * The shipped template of one shape.
+ * @param id - the row id.
+ * @param variant - the variant id; empty for a row's only shape.
+ * @returns the template.
+ */
+export function shippedTemplate(id: ContextInjectionRowId, variant = ''): string {
+  const rows: readonly ContextInjectionRow[] = CONTEXT_INJECTION_ROWS
+  const template = rows.find(entry => entry.id === id)?.variants.find(entry => entry.id === variant)?.template
+  if (template === undefined) throw new Error(`context-injections: no shipped template for ${textField(id, variant)}`)
+  return template
 }
 
 /**

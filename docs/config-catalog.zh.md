@@ -900,73 +900,104 @@ export interface ToolResultPruneConfig {
 ## `@deepseek-ai/dsh-context-injections`
 
 - `refs`: `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/context/context-injections/src/index.ts:35`](../packages/context/context-injections/src/index.ts)
+- `source`: [`packages/context/context-injections/src/index.ts:37`](../packages/context/context-injections/src/index.ts)
 
 ```ts config-catalog
 /**
  * Which injections reach the model and in what words. Each `…Enabled` field
- * switches one injection; each `…Text` field replaces its text, where
- * `{{text}}` stands for the original and an empty value keeps it. Every field
- * is volatile.
+ * switches one injection. Each `…Text` field is the template for one shape of
+ * an injection's text: it defaults to the producer's own wording, with every
+ * runtime value as a `{{variable}}`, and `{{text}}` stands for the whole
+ * original. An empty template sends the original. Every field is volatile.
  */
 export interface Config {
   /** Send the notice that the session's model changed. */
   modelSwitchEnabled: Volatile<boolean>
-  /** Replacement for the model-change notice. */
+  /** Template for the model-switch notice; `{{from}}` and `{{to}}` are the two models. */
   modelSwitchText: Volatile<string>
   /** Send the current-time reading. */
   timeContextEnabled: Volatile<boolean>
-  /** Replacement for the current-time reading. */
-  timeContextText: Volatile<string>
+  /** Template for the time reading when the browser time zone is known; `{{zone}}` is that zone. */
+  timeContextKnownText: Volatile<string>
+  /** Template for the time reading when the browser time zone is mixed or unavailable; `{{zone}}` says which. */
+  timeContextUnclearText: Volatile<string>
   /** Send the notice that the approval policy changed. */
   approvalNoticeEnabled: Volatile<boolean>
-  /** Replacement for the approval-policy change notice. */
+  /** Template for the approval-policy change notice; `{{from}}` and `{{to}}` are the two policies. */
   approvalNoticeText: Volatile<string>
   /** Send the notice that the working directory changed. */
   workingDirectoryNoticeEnabled: Volatile<boolean>
-  /** Replacement for the working-directory change notice. */
-  workingDirectoryNoticeText: Volatile<string>
+  /** Template for a working-directory change; `{{from}}` and `{{to}}` are JSON-quoted paths. */
+  workingDirectoryNoticeChangedText: Volatile<string>
+  /** Template for a working directory that became unavailable; `{{from}}` and `{{to}}` are JSON-quoted paths. */
+  workingDirectoryNoticeUnavailableText: Volatile<string>
   /** Send the notice that the session entered or left plan mode. */
   planModeNoticeEnabled: Volatile<boolean>
-  /** Replacement for the plan-mode notice. */
-  planModeNoticeText: Volatile<string>
+  /** Template for the notice that the session entered plan mode. */
+  planModeNoticeEnteredText: Volatile<string>
+  /** Template for the notice that the session left plan mode. */
+  planModeNoticeLeftText: Volatile<string>
   /** Send the reminder about a repeated tool call. */
   repeatToolReminderEnabled: Volatile<boolean>
-  /** Replacement for the repeated-tool-call reminder. */
-  repeatToolReminderText: Volatile<string>
+  /** Template for the first repeated-call reminder. */
+  repeatToolReminderFirstText: Volatile<string>
+  /** Template for later repeated-call reminders; `{{tool}}`, `{{count}}`, and `{{arguments}}` describe the call. */
+  repeatToolReminderRepeatedText: Volatile<string>
   /** Send the project instructions read from instruction files such as `AGENTS.md`. */
   agentInstructionsEnabled: Volatile<boolean>
-  /** Replacement for the project instructions. */
-  agentInstructionsText: Volatile<string>
+  /** Template for loaded instructions; `{{instructions}}` is every file's heading and content. */
+  agentInstructionsLoadedText: Volatile<string>
+  /** Template for instructions trimmed to the byte budget; `{{budget}}` states what was omitted or cut. */
+  agentInstructionsTrimmedText: Volatile<string>
+  /** Template for instructions that replace an earlier set; `{{instructions}}` is every file's heading and content. */
+  agentInstructionsReplacedText: Volatile<string>
+  /** Template for the notice that no instructions remain active. */
+  agentInstructionsClearedText: Volatile<string>
+  /** Template for instruction files added, changed, or removed; `{{changes}}` lists them with their content. */
+  agentInstructionsUpdatedText: Volatile<string>
   /** Send the catalog of available skills. */
   skillCatalogEnabled: Volatile<boolean>
-  /** Replacement for the skill catalog. */
-  skillCatalogText: Volatile<string>
+  /** Template for the first skill catalog; `{{skills}}` is one line per skill. */
+  skillCatalogCatalogText: Volatile<string>
+  /** Template for the first skill catalog after incomplete discovery; `{{skills}}` is one line per confirmed skill. */
+  skillCatalogCatalogPartialText: Volatile<string>
+  /** Template for a changed skill catalog; `{{skills}}` is one line per skill. */
+  skillCatalogChangedText: Volatile<string>
+  /** Template for a changed skill catalog after incomplete discovery; `{{skills}}` is one line per confirmed skill. */
+  skillCatalogChangedPartialText: Volatile<string>
   /** Send the tmux pane snapshot. */
   tmuxContextEnabled: Volatile<boolean>
-  /** Replacement for the tmux pane snapshot. */
+  /** Template for the tmux location reading; its variables are the tmux session, window, and pane fields. */
   tmuxContextText: Volatile<string>
-  /** Replacement for the current working directory section, which is always stated. */
+  /** Template for the working-directory section, which is always stated; `{{cwd}}` is the JSON-quoted path. */
   workingDirectoryText: Volatile<string>
   /** State the file-access policy section, including `danger-full-access`. */
   sandboxPolicyEnabled: Volatile<boolean>
-  /** Replacement for the file-access policy section. */
-  sandboxPolicyText: Volatile<string>
+  /** Template for the read-only file policy. */
+  sandboxPolicyReadOnlyText: Volatile<string>
+  /** Template for the workspace-write file policy; `{{workspace}}` is the JSON-quoted workspace. */
+  sandboxPolicyWorkspaceWriteText: Volatile<string>
+  /** Template for the workspace-write file policy with extra writable directories; `{{directories}}` is their JSON list. */
+  sandboxPolicyWorkspaceWriteRootsText: Volatile<string>
+  /** Template for the danger-full-access file policy. */
+  sandboxPolicyFullAccessText: Volatile<string>
   /** State the approval policy section. */
   approvalPolicyEnabled: Volatile<boolean>
-  /** Replacement for the approval policy section. */
-  approvalPolicyText: Volatile<string>
+  /** Template for the policy that approval prompts may ask. */
+  approvalPolicyAskText: Volatile<string>
+  /** Template for the policy that approval prompts are disabled. */
+  approvalPolicyNeverText: Volatile<string>
   /** State the subagent delegation section. */
   subagentDelegationEnabled: Volatile<boolean>
-  /** Replacement for the subagent delegation section. */
+  /** Template for the subagent delegation section. */
   subagentDelegationText: Volatile<string>
   /** State the harness source-checkout section. */
   harnessSourceEnabled: Volatile<boolean>
-  /** Replacement for the harness source-checkout section. */
+  /** Template for the harness source-checkout section; `{{checkout}}` is the JSON-quoted path. */
   harnessSourceText: Volatile<string>
   /** State the Web surface section. */
   webSurfaceEnabled: Volatile<boolean>
-  /** Replacement for the Web surface section. */
+  /** Template for the Web surface section; `{{url}}` is the JSON-quoted address. */
   webSurfaceText: Volatile<string>
 }
 ```

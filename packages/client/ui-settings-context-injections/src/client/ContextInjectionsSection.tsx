@@ -8,7 +8,7 @@
 import { useState } from 'react'
 import { SettingsForm, SettingsSwitchField, SettingsTextAreaField } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { enabledField, textField, type ContextInjectionsFace, type ContextInjectionsRowState } from './controller.ts'
+import { enabledField, type ContextInjectionsFace, type ContextInjectionsRowState } from './controller.ts'
 import { formLabels, type ContextInjectionsLocaleKey } from './locales.ts'
 import { PAGE_ROWS, type ContextInjectionsPageRow } from './rows.ts'
 import css from './ContextInjectionsSection.module.css'
@@ -28,12 +28,13 @@ interface RowProps {
   resetField: ContextInjectionsFace['resetField']
 }
 
-/** Render one injection's switch and its folded replacement text. */
+/** Render one injection's switch and its folded templates. */
 function InjectionRow({ row, disabled, t, edit, resetField }: RowProps) {
   const [opened, setOpened] = useState(false)
-  const expanded = opened || row.text.text !== '' || row.text.overridden
+  const overridden = row.variants.some(variant => variant.text.overridden)
+  const expanded = opened || overridden
   const enabledId = `context-injections-${row.id}-enabled`
-  const textId = `context-injections-${row.id}-text`
+  const textsId = `context-injections-${row.id}-text`
   const label = t(`row.${row.id}`)
   const hint = t(`row.${row.id}.hint`)
   const fieldCopy = { overriddenLabel: t('overridden'), resetLabel: t('reset'), disabled }
@@ -60,38 +61,65 @@ function InjectionRow({ row, disabled, t, edit, resetField }: RowProps) {
         )}
       {expanded
         ? (
-          <div className={css.text}>
-            <SettingsTextAreaField
-              {...fieldCopy}
-              id={textId}
-              label={t('textLabel')}
-              hint={t('textHint')}
-              placeholder={t('textPlaceholder')}
-              invalidLabel={t('invalid')}
-              text={row.text.text}
-              overridden={row.text.overridden}
-              invalid={row.text.invalid}
-              onEdit={(text) => { edit(textField(row.id), text) }}
-              onReset={() => { resetField(textField(row.id)) }}
-            />
+          <div className={css.text} id={textsId}>
+            {row.variants.map((variant) => {
+              const { label, variables } = variant.shape
+              return (
+                <SettingsTextAreaField
+                  {...fieldCopy}
+                  key={variant.field}
+                  id={`context-injections-${variant.field}`}
+                  label={label === undefined ? t('textLabel') : t(`variant.${label}`)}
+                  hint={variablesHint(t, variables)}
+                  placeholder={t('textPlaceholder')}
+                  invalidLabel={t('invalid')}
+                  rows={templateRows(variant.text.text)}
+                  text={variant.text.text}
+                  overridden={variant.text.overridden}
+                  invalid={variant.text.invalid}
+                  onEdit={(text) => { edit(variant.field, text) }}
+                  onReset={() => { resetField(variant.field) }}
+                />
+              )
+            })}
           </div>
         )
         : null}
-      {row.text.text === '' && !row.text.overridden
-        ? (
+      {overridden
+        ? null
+        : (
           <button
             type="button"
             className={css.disclosure}
             aria-expanded={expanded}
-            aria-controls={expanded ? textId : undefined}
+            aria-controls={expanded ? textsId : undefined}
             onClick={() => { setOpened(!opened) }}
           >
             {expanded ? t('hideText') : t('editText')}
           </button>
-        )
-        : null}
+        )}
     </div>
   )
+}
+
+/**
+ * The hint under one template: the variables it can use, then how the box behaves.
+ * @param t - the page's translator.
+ * @param variables - the shape's variable names, without `text`.
+ * @returns the hint text.
+ */
+function variablesHint(t: (key: ContextInjectionsLocaleKey) => string, variables: readonly string[]): string {
+  const names = [...variables, 'text'].map(name => `{{${name}}}`).join(' ')
+  return `${t('variablesLabel')} ${names}. ${t('textHint')}`
+}
+
+/**
+ * Rows a template box opens with: enough for the template, at most twelve.
+ * @param text - the template.
+ * @returns the textarea row count.
+ */
+function templateRows(text: string): number {
+  return Math.min(12, Math.max(3, text.split('\n').length + 1))
 }
 
 /** Render one group's heading and rows. */

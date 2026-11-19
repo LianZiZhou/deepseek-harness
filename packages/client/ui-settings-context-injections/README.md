@@ -1,5 +1,5 @@
 ---
-description: "The Context injections page in the dsh web client's Settings: switches and replacement text for the notices and runtime context injected into model requests."
+description: "The Context injections page in the dsh web client's Settings: switches and editable templates for the notices and runtime context injected into model requests."
 kind: "package-reference"
 ---
 
@@ -25,9 +25,9 @@ Open **Settings → Context injections** to choose which notices and runtime-con
 <a id="use-this-package"></a>
 ## Use this package
 
-The page lists two groups. **Notices and reminders** holds the messages added when something changes, such as **Model switch notice** and **Current time**; **Runtime context** holds the facts restated at the end of the conversation, such as **File access policy**, which states `danger-full-access`. Each row has a switch and a folded **Replacement text**: **Edit text** opens it, and a row that already carries text shows it open. An empty replacement sends the original, and `{{text}}` in it stands for the original. **Working directory** is always sent, so it shows no switch and only its text can change.
+The page lists two groups. **Notices and reminders** holds the messages added when something changes, such as **Model switch notice** and **Current time**; **Runtime context** holds the facts restated at the end of the conversation, such as **File access policy**, which states `danger-full-access`. Each row has a switch and folded templates: **Edit text** opens them, and a row with an edited template shows them open. A row whose producer writes several shapes, such as the four file policies, has one labelled template per shape. Each template starts as the producer's own wording and lists the variables it can use below it, such as `{{from}}` and `{{to}}`; `{{text}}` stands for the whole original, and an empty template sends the original. **Working directory** is always sent, so it shows no switch and only its template can change.
 
-A changed switch or text shows **Overridden** with **Reset to default**. Nothing is written until **Save**; leaving the page drops the draft. A saved change applies from the next step of every task.
+A changed switch or template shows **Overridden** with **Reset to default**, which restores the original wording. Nothing is written until **Save**; leaving the page drops the draft. A saved change applies from the next step of every task.
 
 -----
 
