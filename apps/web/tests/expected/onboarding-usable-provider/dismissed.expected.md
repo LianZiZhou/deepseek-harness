@@ -7,6 +7,7 @@
     - button "Agent 预设"
     - button "提示词预设"
     - button "上下文注入"
+    - button "远程连接"
   - button "打开配置文件"
   - button "关闭"
   - heading "模型" [level=2]
