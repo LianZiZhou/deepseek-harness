@@ -47,6 +47,7 @@ jobs:
     with:
       release: ${{ toJSON(matrix.release) }}
     secrets:
+      FORK_SYNC_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}
       FORK_MACOS_SIGNING_ENV: ${{ secrets.FORK_MACOS_SIGNING_ENV }}
       FORK_MACOS_CERTIFICATE_BASE64: ${{ secrets.FORK_MACOS_CERTIFICATE_BASE64 }}
       FORK_MACOS_NOTARY_KEY_BASE64: ${{ secrets.FORK_MACOS_NOTARY_KEY_BASE64 }}

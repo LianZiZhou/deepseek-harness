@@ -292,6 +292,19 @@ class ReleaseTests(unittest.TestCase):
         gh.assert_not_called()
         api.assert_not_called()
 
+    def test_publish_uses_sync_token_only_to_create_historical_tag(self):
+        item, = self.select()
+        _, signed_dir, digests = self.package_downloads()
+        _, _, api = self.mock_draft(item, "")
+        tag, commit = item["tag"], item["commit"]
+        release.remote_tags.side_effect = ({}, {tag: commit})
+        release.publish(item, signed_dir, digests, tag_token="fixture-sync-token")
+        create, publish = api.call_args_list
+        self.assertEqual(create.args, ("gh", "api", "-X", "POST", f"repos/{release.FORK}/git/refs",
+                                       "-f", f"ref=refs/tags/{tag}", "-f", f"sha={commit}"))
+        self.assertEqual(create.kwargs["env"]["GH_TOKEN"], "fixture-sync-token")
+        self.assertEqual(publish.kwargs, {})
+
     def test_publish_repairs_generated_signing_note_on_private_draft(self):
         item, = self.select()
         _, signed_dir, digests = self.package_downloads()

@@ -28,8 +28,8 @@ SIGNING_NOTE = "The macOS DMG is signed by WWW LTD and notarized by Apple. Windo
 OLD_SIGNING_NOTE = "Packages are unsigned. macOS uses an ad-hoc signature and requires manual installation."
 
 
-def output(*args):
-    return subprocess.check_output(args, text=True).strip()
+def output(*args, env=None):
+    return subprocess.check_output(args, text=True, env=env).strip()
 
 
 def release_list(repository):
@@ -258,7 +258,7 @@ def gh_release(*args):
     return output("gh", "release", *args, "--repo", FORK)
 
 
-def publish(item, signed_dir, signed_digests):
+def publish(item, signed_dir, signed_digests, tag_token=""):
     default = fetch_default_branch()
     nightly = item["channel"] == "nightly"
     planned, pending = inventory(default, item["commit"] if nightly else "", item["upstreamCommit"] if nightly else "")
@@ -272,7 +272,9 @@ def publish(item, signed_dir, signed_digests):
     (directory / "SHA256SUMS").write_text("".join(f"{a['sha256']}  {a['name']}\n" for a in release["assets"]))
     tag, commit = item["tag"], item["commit"]
     if tag not in remote_tags(FORK, tag):
-        output("gh", "api", "-X", "POST", f"repos/{FORK}/git/refs", "-f", f"ref=refs/tags/{tag}", "-f", f"sha={commit}")
+        tag_env = {**os.environ, "GH_TOKEN": tag_token} if tag_token else None
+        output("gh", "api", "-X", "POST", f"repos/{FORK}/git/refs",
+               "-f", f"ref=refs/tags/{tag}", "-f", f"sha={commit}", env=tag_env)
     if remote_tags(FORK, tag).get(tag) != commit:
         raise ValueError(f"Fork tag {tag} no longer points to {commit}")
     existing = release_list(FORK).get(tag)
@@ -379,7 +381,7 @@ if __name__ == "__main__":
         print("sha256=" + json.dumps(signing_digests(Path("fork-dist")), separators=(",", ":")))
     elif mode == "publish":
         publish(json.loads(os.environ["FORK_RELEASE"]), Path(os.environ["FORK_SIGNED_DIR"]),
-                json.loads(os.environ["FORK_SIGNED_SHA256"]))
+                json.loads(os.environ["FORK_SIGNED_SHA256"]), os.environ.pop("FORK_SYNC_TOKEN", ""))
     elif mode == "feeds":
         feeds()
     else:

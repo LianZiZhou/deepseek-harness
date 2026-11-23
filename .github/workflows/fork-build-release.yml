@@ -7,6 +7,8 @@ on:
         required: true
         type: string
     secrets:
+      FORK_SYNC_TOKEN:
+        required: false
       FORK_MACOS_SIGNING_ENV:
         required: true
       FORK_MACOS_CERTIFICATE_BASE64:
@@ -222,6 +224,7 @@ jobs:
           path: signed-dist
       - env:
           GH_TOKEN: ${{ github.token }}
+          FORK_SYNC_TOKEN: ${{ secrets.FORK_SYNC_TOKEN }}
           FORK_RELEASE: ${{ inputs.release }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           FORK_SIGNED_DIR: ${{ github.workspace }}/signed-dist
