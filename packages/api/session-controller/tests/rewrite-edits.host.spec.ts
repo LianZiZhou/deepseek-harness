@@ -22,7 +22,6 @@ function log(): readonly SessionEvent[] {
     turn: 1, step: 1, stream: [],
     message: createMessage({ role: 'assistant', content: [{ type: 'reasoning', text: 'r' }], source: { kind: 'model', provider: 'm', model: 'm' } }),
   }, { surfaceOp: 'append' })
-  // oxlint-disable-next-line typescript/no-deprecated -- test reads its detached Session's log.
   return session.snapshotEvents()
 }
 

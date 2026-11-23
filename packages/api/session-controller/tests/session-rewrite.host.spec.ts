@@ -40,7 +40,7 @@ async function composed(options: { status?: 'idle' | 'running'; persistence?: fa
   await ctx.plugin(SessionStore)
   await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(AgentRegistry)
-  installSessionReadTestServices(ctx)
+  await installSessionReadTestServices(ctx)
   const stored = new Map<SessionId, Stored>()
   let revision = 0
   const write = (id: SessionId, entry: Stored): void => {

@@ -45,7 +45,6 @@ function toolTurn(): Session {
 }
 
 function events(session: Session): readonly SessionEvent[] {
-  // oxlint-disable-next-line typescript/no-deprecated -- test reads a detached Session's full log.
   return session.snapshotEvents()
 }
 

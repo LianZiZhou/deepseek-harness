@@ -266,13 +266,14 @@ describe('historical tool availability on the wire', () => {
       input: [
         { type: 'additional_tools', role: 'developer', tools: [{ type: 'function', name: 'read' }] },
         { role: 'user', content: [{ type: 'input_text', text: 'first' }] },
-        { role: 'developer', content: expect.stringContaining('incremental tools update') },
+        { role: 'developer' },
         { type: 'additional_tools', role: 'developer', tools: [
           { type: 'function', name: 'search', description: added.description, parameters: added.parameters },
         ] },
         { role: 'developer', content: 'Instruction one.\n\nInstruction two.' },
       ],
     })
+    expect(requests[0]).toHaveProperty('input.2.content', expect.stringContaining('incremental tools update'))
   })
 
   it('retains removed declarations and reactivates them through Anthropic history', async () => {
