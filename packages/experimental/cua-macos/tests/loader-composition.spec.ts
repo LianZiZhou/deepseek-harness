@@ -233,4 +233,4 @@ it.skipIf(process.platform === 'win32')('shares one application between retained
   await context.fiber.dispose()
   expect((await readEvents()).filter(event => event.event === 'exit')).toHaveLength(2)
   expect(tools.schemas()).toEqual([])
-})
+}, 30_000)

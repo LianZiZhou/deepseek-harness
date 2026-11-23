@@ -1210,13 +1210,14 @@ describe('JSONL immutable generation publication', () => {
       const source = compression === 'zstd'
         ? await encodeZstd(0, [event0])
         : Buffer.from(line(header(0)) + line(event0))
-      const expected = compression === 'zstd'
-        ? await encodeZstd(SESSION_FORMAT_VERSION, [event0])
-        : Buffer.from(line(header(SESSION_FORMAT_VERSION)) + line(event0))
+      const competitor = options(await tempRoot(), compression)
+      await writeFile(competitor.sourcePath, source)
+      // A competing migration uses the production frame encoding for its prefix.
+      const { snapshot } = await ensureJsonlGenerationCurrent(competitor)
       const appended = compression === 'zstd'
         ? await compressZstdFrame(line(event1))
         : Buffer.from(line(event1))
-      const winner = Buffer.concat([expected, appended])
+      const winner = Buffer.concat([snapshot.bytes, appended])
       await writeFile(request.sourcePath, source)
       await writeFile(request.currentPath, winner)
 

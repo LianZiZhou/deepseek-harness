@@ -1,7 +1,8 @@
 /** Process reservations retain native cleanup ownership across stream and allocation failures. */
 import { once } from 'node:events'
-import { chmod, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
+import { chmod, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { createConnection, type Socket } from 'node:net'
+import { dirname, join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { Context } from '@deepseek-ai/cordis'
 import type { SubprocessHandle, SubprocessOutcome, SubprocessTerminalHandle } from '@deepseek-ai/dsh-subprocess'
@@ -198,14 +199,23 @@ describe.skipIf(process.platform === 'win32')('SSH helper process settlement', (
     } finally { await test.close() }
   })
 
-  it('rolls back a listener path that exceeds the operating system socket limit', async () => {
-    const root = await mkdtemp('/tmp/dsh-ssh-long-')
-    const longRoot = `${root}/${'x'.repeat(140)}`
-    await mkdir(longRoot)
-    const owner = new RemoteProcesses(new Context(), longRoot, 1, 5000)
+  it('rolls back an earlier listener when the next path is already occupied', async () => {
+    const { chmod: chmodFile } = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+    const test = await harness()
     try {
-      await expect(owner.prepare(ordinaryRequest)).rejects.toThrow()
-    } finally { await owner.close(); await rm(root, { recursive: true, force: true }) }
+      vi.mocked(chmod).mockImplementationOnce(async (path, mode) => {
+        await chmodFile(path, mode)
+        await writeFile(join(dirname(String(path)), 'stderr'), 'occupied')
+      })
+
+      await expect(test.owner.prepare(ordinaryRequest)).rejects.toMatchObject({ code: 'EADDRINUSE' })
+      expect(await readdir(test.root)).toEqual([])
+      const run = await test.prepare(ordinaryRequest)
+      await test.owner.terminate(run.id)
+    } finally {
+      vi.mocked(chmod).mockReset()
+      await test.close()
+    }
   })
 
   it('continues collecting while a live snapshot waits for acknowledgement', async () => {

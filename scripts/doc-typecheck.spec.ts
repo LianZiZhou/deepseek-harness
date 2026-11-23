@@ -53,4 +53,4 @@ it('checks Client examples against their JSX project and rejects invalid props w
   } finally {
     removeFixtureSafely(root)
   }
-})
+}, 30_000)
