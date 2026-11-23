@@ -171,7 +171,14 @@ describe('buildRewriteLog edge cases', () => {
     const session = Session.create(SessionId('system'))
     session.append('turn/start', { turn: 1 })
     session.append('step/start', { turn: 1, step: 1 })
-    session.append('system/message', { turn: 1, step: 1, message: createMessage({ role: 'system', content: [{ type: 'text', text: 'old' }], source: { kind: 'system-prompt' } }) }, { surfaceOp: 'append' })
+    session.append('system/message', { turn: 1, step: 1, message: createMessage({
+      role: 'system',
+      content: [{ type: 'text', text: 'old' }, { type: 'text', text: 'more' }],
+      source: { kind: 'system-prompt', complete: true, reset: true, sections: [
+        { name: 'old', order: 0, state: 'active', contentIndex: 0 },
+        { name: 'more', order: 1, state: 'active', contentIndex: 1 },
+      ] },
+    }) }, { surfaceOp: 'append' })
     session.append('developer/message', { turn: 1, step: 1, message: createMessage({ role: 'developer', content: [{ type: 'text', text: 'dev' }], source: { kind: 'user' } }) }, { surfaceOp: 'append' })
     const log = events(session)
     const result = rewrite(log, {
@@ -181,7 +188,11 @@ describe('buildRewriteLog edge cases', () => {
         { kind: 'replace-content', seq: SessionSeq(3), content: [{ type: 'text', text: 'dev2' }] },
       ],
     })
-    expect(result.events[2]).toMatchObject({ data: { message: { content: [{ type: 'text', text: 'new' }] } } })
+    const reopened = Session.create(SessionId('rewritten-system'), result.events)
+    const systemMessage = reopened.eventAt(SessionSeq(2))
+    expect(systemMessage).toMatchObject({ data: { message: { content: [{ type: 'text', text: 'new' }] } } })
+    if (systemMessage?.type !== 'system/message') throw new Error('Expected a system message at seq 2')
+    expect(systemMessage.data.message.source).toEqual({ kind: 'system-prompt' })
     expect(result.events[3]).toMatchObject({ data: { message: { content: [{ type: 'text', text: 'dev2' }] } } })
     expect(result.events.slice(4).map(e => e.type)).toEqual(['step/end', 'turn/end'])
   })

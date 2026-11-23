@@ -41,6 +41,12 @@ ctx.sessions.get(sessionId)      // the live session
 ctx.sessions.list()              // every live session, in creation order
 ```
 
+### 校验日志与构建头部
+
+`validateSessionLog(header, events?, inheritedEventCount?, eventState?, projections?)` 执行构造 Session 时的全部检查，顺序和报错相同，但不构造 Session。不传 `eventState` 时它与 `Session.create()` 一致：先复制借入的事件和头部再校验；传 `detached` 或 `shared-frozen` 时它与 `Session.fromRestore()` 一致：就地校验并深度冻结头部，不复制事件。Session 标识取自 `header.id`，也不在内存中追加继承标记。
+
+`buildSessionHeader(id, meta?)` 根据调用方提供的 `SessionHeaderMeta` 字段构建 `SessionStore.prepare()` 使用的当前格式头部；`createdAt` 缺省为当前时间，`isSeeded` 缺省为 false。结果既不校验也不冻结。`needsInheritedSeedMarker(header, events, inheritedEventCount)` 报告带 seed 的日志在切点处是否缺少 `session/end-seed { inherited: true }`，这正是 Session 构造为借入 seed 追加该标记的条件；更早的祖先标记不算。
+
 ### 追加与派生
 
 `session.append(type, data, opts?)` 提交一个类型化事件。它在读取载荷字段前拒绝只读实例，为有效 JSON 创建快照并冻结，再次检查写入权限后提交并通知观察者。`session.deriveMessages()` 把日志投影为模型看到的 `Message[]`，采用增量且有缓存的方式：
@@ -83,7 +89,9 @@ surface 事件（`system/message`、`developer/message`、`user/message`、`assi
 
 `ctx.sessions.fork(source, boundary?, childSessionId?)` 从实时源会话复制包含切点的精确事件前缀（默认：最后一个事件）。`dsh-session/fork` 的 `buildForkSeed` 在复制事件之后放置继承标记，仅为开放步骤补缺失的错误工具结果，并以 `forked` 原因关闭步骤和轮次。已关闭的步骤与轮次保持原样，包括历史缺失结果。标记和结束事件属于子会话；`inheritedEventCount` 只统计复制的前缀。
 
-`dsh-session/rewrite` 的 `buildRewriteLog(events, inheritedEventCount, plan)` 为原地改写构建替换日志。它保留 `events[0..throughSeq]`，应用按原始 seq 寻址的内容替换、对用户/开发者/助手/工具结果消息的删除以及插入的用户消息，重映射信封中的 seq 引用与 `headerSeq`，并以 `interrupted` 关闭未结束的尾部轮次。被编辑的助手消息会丢弃 stream、用量与回放状态；在继承前缀内的编辑或截断会返回非 seeded 的日志。对越界 seq、非消息目标、跨越数据可能引用 seq 的事件重新编号或破坏工具调用配对，它抛出 `SessionRewriteError`；调用方在存储前用 `Session.create` 校验结果（[决策](../../../.agents/notes/implemented/architecture/2026-10-17-in-place-session-rewrite.zh.md)）。
+被拒绝的 fork 抛出带 `SessionForkErrorCode` 的 `SessionForkError`；两者都从包根入口导出。
+
+`dsh-session/rewrite` 的 `buildRewriteLog(events, inheritedEventCount, plan)` 为原地改写构建替换日志。它保留 `events[0..throughSeq]`，应用按原始 seq 寻址的内容替换、对用户/开发者/助手/工具结果消息的删除以及插入的用户消息，重映射信封中的 seq 引用与 `headerSeq`，并以 `interrupted` 关闭未结束的尾部轮次。被编辑的助手消息会丢弃 stream、用量与回放状态；在继承前缀内的编辑或截断会返回非 seeded 的日志。对越界 seq、非消息目标、跨越数据可能引用 seq 的事件重新编号或破坏工具调用配对，它抛出 `SessionRewriteError`；调用方在存储前用 `Session.create` 校验结果（[决策](../../../.agents/notes/implemented/architecture/2026-10-17-in-place-session-rewrite.zh.md)）。 替换系统消息内容时会清除段落归属，因为原有内容块索引已不再适用。
 
 逻辑 `SessionHeader.isSeeded` 字段报告是否存在 fork 历史，而不公开位置整数。`Session.inheritedEventCount` 保留经过校验的精确 `SessionLogOffset`；`ownEvents()` 返回从该切点开始的事件，`isOwnSeq(seq)` 只接受已存在且由子会话拥有的位置。底层带 seed 构造必须显式提供 `seed` 与 `inheritedEventCount`，因为构造 seed 可以在继承前缀之后包含子会话自有的设置事件。
 
@@ -116,6 +124,7 @@ surface 事件（`system/message`、`developer/message`、`user/message`、`assi
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：`SessionStore` 服务、存储生命周期、`fork`、`flush` |
+| [`src/validation.ts`](src/validation.ts) | Session 构造与 `validateSessionLog` 共用的 Session 日志校验；头部构建 |
 | [`src/types.ts`](src/types.ts) | `SessionEventMap`、`SessionEvent`、`UserMessage`、`SessionHeader`、`TurnEndReasonMap` |
 | [`src/surface.ts`](src/surface.ts) | 有序 surface 投影、替换校验、`deriveEventMessage` |
 | [`src/request-header.ts`](src/request-header.ts) | `request/header` 折叠与重建 |

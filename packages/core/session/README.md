@@ -41,6 +41,12 @@ ctx.sessions.get(sessionId)      // the live session
 ctx.sessions.list()              // every live session, in creation order
 ```
 
+### Validate a log and build a header
+
+`validateSessionLog(header, events?, inheritedEventCount?, eventState?, projections?)` runs every check that constructing a Session performs, in the same order and with the same errors, without constructing one. Without `eventState` it matches `Session.create()`, which copies the borrowed events and header before validating them; with `detached` or `shared-frozen` it matches `Session.fromRestore()`, which validates and deeply freezes the header in place and leaves the events uncopied. The Session identity comes from `header.id`, and no in-memory inherited marker is appended.
+
+`buildSessionHeader(id, meta?)` builds the current-format header that `SessionStore.prepare()` uses from the caller-supplied `SessionHeaderMeta` fields; `createdAt` defaults to the current time and `isSeeded` to false. The result is neither validated nor frozen. `needsInheritedSeedMarker(header, events, inheritedEventCount)` reports whether a seeded log lacks `session/end-seed { inherited: true }` at its cut, the condition under which Session construction appends that marker to a borrowed seed; an earlier ancestor marker does not count.
+
 ### Append and derive
 
 `session.append(type, data, opts?)` commits one typed event. It rejects read-only instances before reading payload fields, snapshots and freezes valid JSON, then rechecks write permission before committing and notifying observers. `session.deriveMessages()` projects the log into the `Message[]` the model sees, incrementally and cached:
@@ -83,7 +89,9 @@ The [experimental persistence catalog](../../../docs/experimental-persistence-ca
 
 `ctx.sessions.fork(source, boundary?, childSessionId?)` copies an exact inclusive event prefix (default: the last event) from a live source. `buildForkSeed` in `dsh-session/fork` places an inherited marker after the copied events, adds missing error tool results only for the open step, and closes that step and turn with a `forked` reason. Closed steps and turns remain unchanged, including historical missing results. The marker and closers belong to the child; `inheritedEventCount` counts only the copied prefix.
 
-`buildRewriteLog(events, inheritedEventCount, plan)` in `dsh-session/rewrite` builds the replacement log for an in-place rewrite. It keeps `events[0..throughSeq]`, applies content replacements, deletions of user, developer, assistant, and tool-result messages, and inserted user messages addressed by original seqs, remaps envelope seq references and `headerSeq`, and closes an open tail turn as `interrupted`. An edited assistant message drops its stream, usage, and replay state; an edit or cut inside an inherited prefix returns an unseeded log. It throws `SessionRewriteError` for an out-of-range seq, a non-message target, renumbering across an event whose data may cite seqs, or broken tool-call pairing; callers validate the result with `Session.create` before storing it ([decision](../../../.agents/notes/implemented/architecture/2026-10-17-in-place-session-rewrite.md)).
+A rejected fork throws `SessionForkError` with a `SessionForkErrorCode`; both are exported from the package root.
+
+`buildRewriteLog(events, inheritedEventCount, plan)` in `dsh-session/rewrite` builds the replacement log for an in-place rewrite. It keeps `events[0..throughSeq]`, applies content replacements, deletions of user, developer, assistant, and tool-result messages, and inserted user messages addressed by original seqs, remaps envelope seq references and `headerSeq`, and closes an open tail turn as `interrupted`. An edited assistant message drops its stream, usage, and replay state; an edit or cut inside an inherited prefix returns an unseeded log. It throws `SessionRewriteError` for an out-of-range seq, a non-message target, renumbering across an event whose data may cite seqs, or broken tool-call pairing; callers validate the result with `Session.create` before storing it ([decision](../../../.agents/notes/implemented/architecture/2026-10-17-in-place-session-rewrite.md)). Replacing a system message’s content clears its section attribution because the original block indexes no longer apply.
 
 The logical `SessionHeader.isSeeded` field reports whether fork history exists without exposing a positional integer. `Session.inheritedEventCount` retains the exact checked `SessionLogOffset`; `ownEvents()` returns events at and after that cut, and `isOwnSeq(seq)` accepts only an existing child-owned position. A low-level seeded constructor must supply an explicit `seed` and `inheritedEventCount` because the constructor seed can contain child-owned setup events after the inherited prefix.
 
@@ -116,6 +124,7 @@ The package is built on event sourcing: a `Session` is an append-only log of typ
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: `SessionStore` service, store lifecycle, `fork`, `flush` |
+| [`src/validation.ts`](src/validation.ts) | Session log validation shared by Session construction and `validateSessionLog`; header construction |
 | [`src/types.ts`](src/types.ts) | `SessionEventMap`, `SessionEvent`, `UserMessage`, `SessionHeader`, `TurnEndReasonMap` |
 | [`src/surface.ts`](src/surface.ts) | Ordered surface projection, replacement validation, `deriveEventMessage` |
 | [`src/request-header.ts`](src/request-header.ts) | `request/header` folding and reconstruction |

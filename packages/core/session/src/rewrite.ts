@@ -6,7 +6,7 @@
  */
 
 import { brandString } from '@deepseek-ai/dsh-brand'
-import type { ContentBlock, MessageId, ToolCallId } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, MessageId, SystemMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import { openTurnClosers } from './repair.ts'
 import { SessionLogOffset, SessionSeq } from './types.ts'
 import type {
@@ -21,6 +21,7 @@ import type {
  *   event, keeping its id, role, and source. A tool result may also change
  *   `isError`. An assistant edit drops its embedded stream, usage, and
  *   provider replay state, and updates matching `tool/call` events.
+ *   A system edit drops the original section attribution and its markers.
  * - `delete`: remove one message-producing event other than the system head.
  * - `insert-user`: add a user message immediately after `afterSeq`.
  */
@@ -193,9 +194,15 @@ function applyReplace(
       slot.event = { ...event, data: { ...event.data, content: edit.content } }
       return
     case 'developer/message':
-    case 'system/message':
-      slot.event = { ...event, data: { ...event.data, message: { ...event.data.message, content: edit.content } } } as SessionEvent
+      slot.event = { ...event, data: { ...event.data, message: { ...event.data.message, content: edit.content } } }
       return
+    case 'system/message': {
+      const message: SystemMessage = {
+        ...event.data.message, content: edit.content, source: { kind: 'system-prompt' },
+      }
+      slot.event = { ...event, data: { ...event.data, message } }
+      return
+    }
     case 'tool/result': {
       // A successful result may not carry failure identity.
       const { error, ...data } = event.data
