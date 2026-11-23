@@ -13,136 +13,10 @@ import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { AssembledSection } from '@deepseek-ai/dsh-system-prompt'
 import { createdSectionName, sectionIdIssues, type CreatingRule } from './section-id.ts'
 export { ruleSectionName } from './section-id.ts'
-import type { PromptPresetWarning } from './types.ts'
+import type { PromptPreset, PromptPresetWarning, PromptRuleSubstitute } from './types.ts'
 
 /** Regular-expression flags a `substitute` rule accepts. */
 export const SUBSTITUTE_FLAGS = 'gimsu'
-
-/** Fields every rule carries. */
-interface PromptRuleCommon {
-  /**
-   * Whether this rule participates. Absent means it does — a preset written by
-   * hand needs no bookkeeping — while an editor turns a rule off without
-   * deleting text its author is still working on.
-   */
-  readonly enabled?: boolean
-}
-
-/** Put text ahead of every section the assembly produced. */
-export interface PromptRulePrepend extends PromptRuleCommon {
-  /** Discriminant selecting this rule kind. */
-  readonly kind: 'prepend'
-  /** Exact new section name; absent or empty uses the position-derived name. */
-  readonly sectionId?: string
-  /** The text, used verbatim. */
-  readonly text: string
-  /**
-   * Interpolate `{{variable}}` references in this text. Defaults to FALSE,
-   * inverting the registry default: an unknown reference makes rendering throw,
-   * and pasted prose must never be able to fail a turn.
-   */
-  readonly interpolate?: boolean
-}
-
-/** Put text after every section the assembly produced. */
-export interface PromptRuleAppend extends PromptRuleCommon {
-  /** Discriminant selecting this rule kind. */
-  readonly kind: 'append'
-  /** Exact new section name; absent or empty uses the position-derived name. */
-  readonly sectionId?: string
-  /** The text, used verbatim. */
-  readonly text: string
-  /** Interpolate `{{variable}}` references in this text. Defaults to false. */
-  readonly interpolate?: boolean
-}
-
-/** Put text immediately after one named section. */
-export interface PromptRuleInsert extends PromptRuleCommon {
-  /** Discriminant selecting this rule kind. */
-  readonly kind: 'insert'
-  /**
-   * The exact {@link AssembledSection} name to sit behind. A name nothing
-   * carries is a warning and the text lands at the end, because a preset whose
-   * anchor a composition stopped producing should still say what it says.
-   */
-  readonly after: string
-  /** The text, used verbatim. */
-  readonly text: string
-  /** Interpolate `{{variable}}` references in this text. Defaults to false. */
-  readonly interpolate?: boolean
-}
-
-/** Use this text as the whole prompt, keeping only protected sections. */
-export interface PromptRuleReplace extends PromptRuleCommon {
-  /** Discriminant selecting this rule kind. */
-  readonly kind: 'replace'
-  /** The text, used verbatim. */
-  readonly text: string
-  /** Interpolate `{{variable}}` references in this text. Defaults to false. */
-  readonly interpolate?: boolean
-}
-
-/** Replace the contents of one named section without moving it. */
-export interface PromptRuleRewrite extends PromptRuleCommon {
-  /** Discriminant selecting this rule kind. */
-  readonly kind: 'rewrite'
-  /** Exact name of the existing section. */
-  readonly section: string
-  /** Replacement text for the entire section. */
-  readonly text: string
-  /** Interpolate `{{variable}}` references in the replacement. Defaults to false. */
-  readonly interpolate?: boolean
-}
-
-/** Drop sections by exact name. */
-export interface PromptRuleRemove extends PromptRuleCommon {
-  /** Discriminant selecting this rule kind. */
-  readonly kind: 'remove'
-  /** Exact {@link AssembledSection} names; a name nothing carries is a warning. */
-  readonly sections: readonly string[]
-}
-
-/** Rewrite matching text inside the sections that remain. */
-export interface PromptRuleSubstitute extends PromptRuleCommon {
-  /** Discriminant selecting this rule kind. */
-  readonly kind: 'substitute'
-  /** Regular-expression source, compiled fresh for each section it touches. */
-  readonly pattern: string
-  /** Flags drawn from {@link SUBSTITUTE_FLAGS}; sticky and indices flags are refused. */
-  readonly flags?: string
-  /** `String.prototype.replace` replacement, so capture references work. */
-  readonly replacement: string
-  /**
-   * Restrict to these section names. Absent or empty means every section: a
-   * substitution restricted to no section could only ever be a no-op, so there
-   * is nothing to distinguish, and a stored document that lost an omitted list
-   * to a schema default still means what its author wrote.
-   */
-  readonly sections?: readonly string[]
-}
-
-/** One transform in a preset's ordered stack. */
-export type PromptRule =
-  | PromptRulePrepend
-  | PromptRuleAppend
-  | PromptRuleInsert
-  | PromptRuleReplace
-  | PromptRuleRewrite
-  | PromptRuleRemove
-  | PromptRuleSubstitute
-
-/** Every rule kind's discriminant. */
-export type PromptRuleKind = PromptRule['kind']
-
-/** An ordered transform stack a session applies to its assembled prompt. */
-export interface PromptPreset {
-  /** Display name. */
-  readonly name: string
-  /** One sentence on what this preset is for. */
-  readonly description?: string
-  /** Applied in array order, each over the previous rule's result. */
-  readonly rules: readonly PromptRule[]
-}
 
 /** Deployment bounds and protections one application runs under. */
 export interface RuleApplyOptions {
@@ -185,7 +59,7 @@ function addSection(
   warnings: PromptPresetWarning[],
   name: string,
 ): AssembledSection[] {
-  const section = { name, text: rule.text, interpolate: rule.interpolate === true }
+  const section = { name, order: 0, text: rule.text, interpolate: rule.interpolate === true }
   switch (rule.kind) {
     case 'prepend':
       return [section, ...current]
@@ -265,7 +139,9 @@ export function applyRules(
         } else if (options.protectedSections.includes(rule.section)) {
           warnings.push({ code: 'protected-section-kept', rule: index, section: rule.section })
         } else {
-          current = current.with(at, { name: rule.section, text: rule.text, interpolate: rule.interpolate === true })
+          current = current.map(section => section.name === rule.section
+            ? { ...section, text: rule.text, interpolate: rule.interpolate === true }
+            : section)
         }
         return
       }

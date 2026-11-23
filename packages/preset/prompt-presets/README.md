@@ -130,9 +130,9 @@ One registration covers every session: the override is global and unscoped, and 
 
 ### The committed-prompt check
 
-The override returns the prompt; the loop renders it, replaces surface node 0, and the session commits it as `system/message`. The committed text therefore arrives through a path this package does not control, which makes it an independent reading of the guarantee the override makes.
+The registry publishes the preset's ordered sections as a complete prompt. Changing the preset republishes every section, and switching to the default prompt restores the registered sections.
 
-The store keeps a digest of each prompt it produced for a session and compares the next committed `system/message` against them. A text matching none of them means something rewrote the prompt after the final override ran. It logs one warning per session and never interrupts: the step has already run by the time the message is committed, and failing a turn over a reporting mismatch would be worse than the mismatch. Digests, not prompts, are retained, and the set is dropped as soon as a commit has been checked. A preview records nothing — its assembly carries `preview: true`.
+The store compares the committed complete prompt's attributed text with the digests of the prompts it produced for that Session. It excludes supersession notices and skips ordinary section updates. A mismatch logs one warning per Session and the turn continues. Checking a complete prompt clears the digest set. Previews do not record digests.
 
 ### The render probe
 

@@ -11,7 +11,7 @@
  * @module @deepseek-ai/dsh-prompt-presets/completion
  */
 
-import type { PromptPreset } from './rules.ts'
+import type { PromptPreset } from './types.ts'
 
 /** The command name the completion tree is rooted at. */
 export const COMMAND_NAME = 'prompt-preset'

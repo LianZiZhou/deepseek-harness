@@ -1,6 +1,6 @@
 /** Section IDs shared by the preset editor and the Host rule engine. */
 import { assertNever } from '@deepseek-ai/dsh-util-values'
-import type { PromptRule } from './rules.ts'
+import type { PromptRule } from './types.ts'
 
 /**
  * The default name a text-creating rule's section carries.

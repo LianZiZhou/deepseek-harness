@@ -3092,7 +3092,7 @@ export interface PresetSpec {
 ## `@deepseek-ai/dsh-persona`
 
 - `inject`: `systemPrompt`
-- `source`: [`packages/preset/persona/src/index.ts:30`](../packages/preset/persona/src/index.ts)
+- `source`: [`packages/preset/persona/src/index.ts:23`](../packages/preset/persona/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the persona text this composition contributes. */
@@ -3247,7 +3247,7 @@ export interface Config {
 
 - `inject`: `systemPrompt` · `sessionProjections` · `sessions`
 - `refs`: `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/preset/prompt-presets/src/index.ts:106`](../packages/preset/prompt-presets/src/index.ts)
+- `source`: [`packages/preset/prompt-presets/src/index.ts:108`](../packages/preset/prompt-presets/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -3331,7 +3331,7 @@ export interface PromptRuleInsert extends PromptRuleCommon {
   /** Discriminant selecting this rule kind. */
   readonly kind: 'insert'
   /**
-   * The exact {@link AssembledSection} name to sit behind. A name nothing
+   * The exact assembled section name to sit behind. A name nothing
    * carries is a warning and the text lands at the end, because a preset whose
    * anchor a composition stopped producing should still say what it says.
    */
@@ -3368,7 +3368,7 @@ export interface PromptRuleRewrite extends PromptRuleCommon {
 export interface PromptRuleRemove extends PromptRuleCommon {
   /** Discriminant selecting this rule kind. */
   readonly kind: 'remove'
-  /** Exact {@link AssembledSection} names; a name nothing carries is a warning. */
+  /** Exact assembled section names; a name nothing carries is a warning. */
   readonly sections: readonly string[]
 }
 
@@ -4515,7 +4515,8 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-system-prompt`
 
-- `source`: [`packages/core/system-prompt/src/index.ts:275`](../packages/core/system-prompt/src/index.ts)
+- `inject`: `sessionProjections`
+- `source`: [`packages/core/system-prompt/src/index.ts:329`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
@@ -4525,13 +4526,13 @@ export interface Config {
   /** Include optional runtime-context snapshots in model history (default true); required context remains. */
   includeRuntimeContext?: boolean
   /**
-   * Deployment-wide persona prefix template before first-party guidance. A scoped section named
-   * `deployment:persona-prefix` shadows it; `{{variable}}` references are strict.
+   * Deployment-wide persona prefix template before first-party guidance. A section
+   * named {@link PERSONA_PREFIX_SECTION} can override it; `{{variable}}` references are strict.
    */
   personaPrefix?: string
   /**
-   * Persona suffix template after first-party guidance. A scoped `deployment:persona-suffix`
-   * section shadows it; `{{variable}}` references are strict. Defaults to empty.
+   * Persona suffix template after first-party guidance. A section named
+   * {@link PERSONA_SUFFIX_SECTION} can override it; `{{variable}}` references are strict. Defaults to empty.
    */
   personaSuffix?: string
   /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
-import type { AssembledSection, PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
+import type { AssembledSection, PromptDraft } from '@deepseek-ai/dsh-system-prompt'
 import { applyRules, ruleSectionName } from '@deepseek-ai/dsh-prompt-presets'
 import type { PromptPreset, PromptRule, RuleApplyOptions } from '@deepseek-ai/dsh-prompt-presets'
 
@@ -10,9 +10,9 @@ const OPTIONS: RuleApplyOptions = {
 }
 
 const SECTIONS: readonly AssembledSection[] = [
-  { name: 'harness:identity', text: 'You are an agent.' },
-  { name: 'tools:ptc-only', text: 'Only call tools through code.' },
-  { name: 'tool:bash', text: 'Prefer bash for files.' },
+  { name: 'harness:identity', order: -1000, text: 'You are an agent.' },
+  { name: 'tools:ptc-only', order: 1, text: 'Only call tools through code.' },
+  { name: 'tool:bash', order: 2, text: 'Prefer bash for files.' },
 ]
 
 function preset(...rules: PromptRule[]): PromptPreset {
@@ -26,7 +26,7 @@ function names(...rules: PromptRule[]): string[] {
 
 /** Render the result the way a step would, so order is observable as text. */
 function rendered(...rules: PromptRule[]): string {
-  const assembly: PromptAssembly = {
+  const assembly: PromptDraft = {
     sections: applyRules(SECTIONS, preset(...rules), OPTIONS).sections,
     contexts: [],
     tools: [],
@@ -261,9 +261,9 @@ describe('exact section IDs', () => {
       { kind: 'rewrite', section: 'tool:bash', text: 'use {{model}}', interpolate: true },
     ), OPTIONS)
     expect(result.sections).toEqual([
-      { name: 'harness:identity', text: 'literal {{model}}', interpolate: false },
+      { ...SECTIONS[0], text: 'literal {{model}}', interpolate: false },
       SECTIONS[1],
-      { name: 'tool:bash', text: 'use {{model}}', interpolate: true },
+      { ...SECTIONS[2], text: 'use {{model}}', interpolate: true },
     ])
     expect(result.warnings).toEqual([])
   })
@@ -283,7 +283,7 @@ describe('exact section IDs', () => {
   })
 
   it('reserves a later rule’s generated ID before accepting a custom ID', () => {
-    const result = applyRules([{ name: 'base', text: 'BASE' }], preset(
+    const result = applyRules([{ name: 'base', order: 0, text: 'BASE' }], preset(
       { kind: 'append', sectionId: 'prompt-preset:replace-1', text: 'CUSTOM' },
       { kind: 'replace', text: 'EXPECTED' },
     ), OPTIONS)
@@ -292,7 +292,7 @@ describe('exact section IDs', () => {
   })
 
   it('keeps baseline IDs reserved after removing a section', () => {
-    const result = applyRules([{ name: 'guide', text: 'Original' }], preset(
+    const result = applyRules([{ name: 'guide', order: 0, text: 'Original' }], preset(
       { kind: 'remove', sections: ['guide'] },
       { kind: 'append', sectionId: 'guide', text: 'Collision' },
     ), OPTIONS)
@@ -342,14 +342,14 @@ describe('exact section IDs', () => {
   })
 
   it('skips an entire creation on a baseline collision, including a replace', () => {
-    const existing = [...SECTIONS, { name: ruleSectionName('replace', 1), text: 'keep' }]
+    const existing = [...SECTIONS, { name: ruleSectionName('replace', 1), order: 0, text: 'keep' }]
     const result = applyRules(existing, preset(
       { kind: 'append', sectionId: 'tool:bash', text: 'duplicate' },
       { kind: 'replace', text: 'wrong' },
       { kind: 'append', sectionId: 'my:tail', text: 'end' },
       { kind: 'rewrite', section: 'my:tail', text: 'done' },
     ), OPTIONS)
-    expect(result.sections).toEqual([...existing, { name: 'my:tail', text: 'done', interpolate: false }])
+    expect(result.sections).toEqual([...existing, { name: 'my:tail', order: 0, text: 'done', interpolate: false }])
     expect(result.warnings).toEqual([
       { code: 'duplicate-section', rule: 0, section: 'tool:bash' },
       { code: 'duplicate-section', rule: 1, section: ruleSectionName('replace', 1) },

@@ -64,6 +64,8 @@ Electron starts the private Desktop Host in Electron Node mode. The Host invokes
 | [`core/scope`](subsystems/scope.md) | The per-agent scoped-registration primitive | library, no key |
 | [`llm/llm`](subsystems/llm-streaming.md) | Message and stream vocabulary plus the adapter seam | `ctx.llm` |
 
+<a id="events"></a>
+
 ## Events
 
 Events provide extension points in three domains.
@@ -78,6 +80,8 @@ AgentLoop rolls back failed initialization and awaits serial `agent/created` bef
 
 [Event producers and consumers](event-producer-consumer.md).
 
+<a id="turn-flow"></a>
+
 ## Turn flow
 
 A **step** is one model request plus the tools it calls. A **turn** is zero or more steps: it opens before its first input is claimed and closes once nothing is owed.
@@ -86,14 +90,15 @@ A **step** is one model request plus the tools it calls. A **turn** is zero or m
 turn/start
   claim next-step input plus one queued message
   snapshot Session model selection; assemble prompt sections + step-admitted tool schemas
-  -> agent/pre-step; agent/admit-context, project runtime context at fallback
-                                     reject | enter(messages, startsRequestSeries?)
-  -> agent/admit-messages
-     reject, or a first enter rewritten empty -> close the turn with no step
+  -> agent/pre-step (fallback projects runtime context after agent/admit-context)
+     reject -> close turn
+     enter(messages, startsRequestSeries?) -> agent/admit-messages
+     empty first batch -> close turn unless resume() opened it
      step/start
      agent/request -> prepareCall (cancellation commits neither system nor users)
-     reconcile system/message using the prepared call capability
-     append entered messages as user/message; reconcile retained runtime context
+     refresh runtime context -> agent/admit-context -> project reminder
+     commit system/message updates, rebuilding the head after compaction
+     append admitted user/message batch once, reconcile retained runtime context
      log request/header and request/context as needed
      derive and freeze model history from the log
      stream the bound prepared call -> llm/stream -> agent/assistant-stream start
@@ -112,7 +117,11 @@ Fork creation stores the caller-supplied history; a sharing backend persists the
 
 One inbox feeds the driver; injected context waits for a waking message. AgentLoop’s durable `inbox` projection exposes pending input without live Agents.
 
-Before assembly, the loop snapshots Session model selection in `AssembleContext.modelSelection` and `agent/pre-step.modelSelection`. Retries retain it. Omitted reasoning effort uses adapter defaults. `agent/pre-step` listeners accept, rewrite, or reject claimed messages; unless resuming, a rejected or empty first claim closes the durable turn without a step. On enter with `startsRequestSeries`, the loop logs a fresh `request/header` with reason `series`, or `change` and `startsSeries: true` if the envelope changed. Wrapping listeners preserve it with `{ ...decision, messages }`. After assembly and `step/start`, the deprecated `agent/request` hook adjusts controls while preserving provider, model, and effort. Then `prepareCall()` binds the adapter. Cancellation during either phase commits neither system prompt nor accepted users. Prepared call capabilities govern prompt admission, not preceding `request/context`. Each attempt refreshes registered runtime facts, reconciles the bound prompt, admits users once, reconciles reminders by recorded section, logs header/context as needed, and freezes the request before streaming the bound call. Retries do not repeat assembly or `agent/pre-step`. After attachment, surface replacements and image-offload decisions start a new request series even on the first resumed pre-step. Unchanged resume continues the series. The system prompt travels as `system/message` history: empty text clears it, capable routes append updates, and other routes consolidate it at the first system node. [Agent-loop](../packages/core/agent-loop/README.md#understand-the-implementation) owns prompt admission and replacement details.
+Before assembly, the loop captures Session model selection in `AssembleContext.modelSelection` and `agent/pre-step.modelSelection`. Retries retain it. Omitted reasoning effort uses adapter defaults. Assembly captures system section values and lifecycle. Any registered prompt preset finalizer runs before `systemUpdates()` derives writes from the finalized sections and committed Session admissions.
+
+`agent/pre-step` listeners can accept, rewrite, or reject claimed messages. After `agent/admit-messages`, a resumed turn can request logged history with an empty batch. Wrapping an enter decision with `{ ...decision, messages }` preserves `startsRequestSeries`, which requests a fresh `request/header` (`series`, or `change` with `startsSeries: true` for a changed envelope). After attachment, surface replacements and image-offload decisions start a series even on the first resumed pre-step. Unchanged resume continues it.
+
+After `step/start`, the deprecated `agent/request` hook adjusts controls while preserving provider, model, and effort. `prepareCall()` binds the adapter. Each attempt appends the returned `system/message` writes before new user messages. After a logged compaction summary, the next attempt, including a retry, clears retained system additions and replaces the initial system node with the captured instructions. Retries reuse the assembly without repeating `agent/pre-step` or user admission. [Agent-loop](../packages/core/agent-loop/README.md#understand-the-implementation) owns request and retry timing.
 
 The loop sends immutable requests with live cancellation and reuses freeze evidence for frozen identities; [agent-loop](../packages/core/agent-loop/README.md) owns construction and cancellation causes.
 

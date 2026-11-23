@@ -73,7 +73,7 @@ describe('previewing a preset', () => {
     const agent = bench.agent()
     await bench.ctx.plugin(Object.assign((inner: Context) => {
       const scope = createScope(inner, agent)
-      scope.ctx.systemPrompt.finalize(assembly => ({ ...assembly, sections: [{ name: 'scope:only', text: 'SCOPED' }] }))
+      scope.ctx.systemPrompt.finalize(assembly => ({ ...assembly, sections: [{ name: 'scope:only', order: 0, text: 'SCOPED' }] }))
     }, { inject: ['systemPrompt'] }))
     const preview = await bench.store.preview(agent, PRESETS.shout, SIGNAL)
     await bench.store.select(agent, 'shout')

@@ -142,7 +142,7 @@ interface PromptPresetPreviewSection {
   /** Rendered text: interpolated unless the section declares otherwise. */
   readonly text: string
   /** Variable references that produced non-empty ranges of this text. */
-  readonly variables?: readonly PromptVariableSpan[]
+  readonly variables?: readonly PromptPresetVariableSpan[]
   /** Index of the rule that created this section, when one did. */
   readonly fromRule?: number
   /** Whether the deployment protects this section from replacement. */

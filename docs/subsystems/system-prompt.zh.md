@@ -8,11 +8,13 @@
 
 ## 组装上下文
 
-`AssembleContext` 标识一次组装所解析的作用域层，并可携带该请求的显式控制信号。它可合并扩展：`dsh-agent` 添加可选字段 `agent` 和 `modelSelection`。`assembleContextFor(agent, signal)` 设置 agent（智能体）、作用域和信号；循环提供为该步骤捕获并在重试期间保留的模型选择，省略推理强度时使用适配器默认值。裸组装既没有作用域，也没有信号。`preview` 标记一次不会被任何请求使用的假设性组装；在 `system-prompt/assemble` 位置记录 per-agent（按智能体）状态的监听器在该字段为真时跳过那次写入，因此绘制预览不会改变并发步骤的路由。
+`AssembleContext` 标识一次组装的作用域及可选接收 Session。传入 Session 时，组装结果的 `systemUpdates()` 在调用时将捕获的段与该 Session 的已提交状态比较；未传入时，它不返回写入。该上下文可合并扩展：`dsh-agent` 添加可选字段 `agent` 和 `modelSelection`。`assembleContextFor(agent, signal)` 提供 agent、Session、作用域与信号；循环添加重试期间保留的模型选择，省略推理强度时使用适配器默认值。 预览渲染相同的输入，不返回系统消息写入。
 
 ```ts type-equiv
 /** Merge-extensible context for one prompt assembly. */
 interface AssembleContext {
+  /** Session receiving system updates; omission produces a registry-only presentation. */
+  session?: Session
   /**
    * Scope whose providers and waterfall listeners participate. When absent,
    * only global providers and subject-less listeners participate.
@@ -49,14 +51,14 @@ interface ToolProviderResult {
 
 ## 提示词段落
 
-导出的 `PERSONA_PREFIX_SECTION`（`deployment:persona-prefix`）与 `PERSONA_SUFFIX_SECTION`（`deployment:persona-suffix`）为全局配置和带作用域贡献所共享的段落命名。它们对应的 `PromptSectionOrderName` 项为 `DEPLOYMENT_PERSONA_PREFIX` 与 `DEPLOYMENT_PERSONA_SUFFIX`；[包 README](../../packages/core/system-prompt/README.zh.md#configure-the-prompt)规定其位置与模板配置。
+导出的 `PERSONA_PREFIX_SECTION`（`deployment:persona-prefix`）与 `PERSONA_SUFFIX_SECTION`（`deployment:persona-suffix`）为普通段命名，其部署默认值由系统服务注册。插件通过 `section()` 覆盖任一名称；前缀注册可携带完整模式。它们对应的 `PromptSectionOrderName` 项为 `DEPLOYMENT_PERSONA_PREFIX` 与 `DEPLOYMENT_PERSONA_SUFFIX`；[包 README](../../packages/core/system-prompt/README.zh.md#configure-the-prompt) 规定位置与模板配置。
 
-`PromptSection` 是一份只读的同进程注册约定。其文本可以是静态的，也可以从当前组装上下文动态解析。各段先按 order 升序排列，再按名称的代码单元顺序排列；仓库贡献方通过 `getSectionOrder()` 解析服务持有的具名分配。Runtime-context 贡献方通过 `getContextOrder()` 解析独立分配。协作式组装完成后，一个有效的 `complete` 段会成为唯一的提示词段落，而已注册的 `PromptFinalizer` 随后对该结果拥有最终决定权。agent loop（智能体循环）用 `renderPrompt` 渲染组装后的各段，并把文本作为 `system/message` surface 节点提交——首个步骤作为 surface 第 0 号节点追加，之后在渲染文本变化时原地替换，或者当已准备调用声明 `systemPromptUpdate: 'in-history'` 时，在序列延续期间把非空更新追加到已缓存历史之后——因此提示词作为派生历史中的消息而不是请求字段到达模型（[决策](../../.agents/notes/implemented/architecture/2026-09-02-system-prompt-as-surface-node.zh.md)；[决策规则](../../packages/core/agent-loop/README.zh.md#understand-the-implementation)）。
+`PromptSection` 注册文本以及可选的替换和退役通知。同名来源由最近作用域覆盖；同一作用域内，最后一个活跃注册生效。`AssembledSection` 在已求值文本之外保留 `name` 与 `order`；`PromptAssembly` 在 waterfall 的 `PromptPresentation` 上添加提供方拥有的工具和 `systemUpdates()`。返回的每个 `SystemUpdate` 包含一条系统消息及其 surface 意图：普通增量为追加，重建则先清空后续系统节点，再以一份完整提示词替换头节点。比较使用捕获的来源状态与调用时该 Session 的已提交文本。Cordis 清理移除一个注册；组装只为已提交且不再有可见注册的名称选择退役。提交退役后，该名称从最新投影移除。压缩后，下一次模型尝试根据捕获的来源提交完整重置，作为后续比较的基线。[包 README](../../packages/core/system-prompt/README.zh.md) 规定时序、纯段内容块元数据与重建语义。 已注册的最终覆盖方可以按选定的段落顺序提供完整替换。
 
 ```ts type-equiv
 /** One contributed section of the system prompt (registry input). */
 interface PromptSection {
-  /** Unique name — a duplicate registration throws (see {@link SystemPrompt.section}). */
+  /** Logical source name; the nearest scope and latest registration in that scope win. */
   readonly name: string
   /**
    * Sections are concatenated in ascending order. Equal orders use code-unit
@@ -64,9 +66,10 @@ interface PromptSection {
    */
   readonly order: number
   /**
-   * Static text or a provider evaluated at each assembly with that assembly's
-   * {@link AssembleContext}. The text may reference `{{variable}}`s — they are
-   * interpolated later, by {@link renderPrompt}, unless `interpolate` is false.
+   * Static text or a provider evaluated with that assembly's {@link AssembleContext}
+   * only while this registration is effective. The text may reference `{{variable}}`s — they are
+   * interpolated later unless `interpolate` is false, then trimmed before rendering
+   * and admission. Interior whitespace is preserved.
    */
   readonly text: string | ((context: AssembleContext) => string)
   /** Whether to interpolate prompt variables. Defaults to true; false preserves literal text. */
@@ -75,9 +78,20 @@ interface PromptSection {
    * Treat this contribution as the complete system prompt. Assembly still
    * runs the cooperative waterfall so tools, contexts, and variables can be
    * resolved, then restores this exact section as the sole prompt section.
+   * Admission appends prospective supersession notices on entry, changes,
+   * and exit; earlier messages retain their positions until compaction.
    * More than one effective complete section makes assembly fail.
    */
   readonly complete?: boolean
+  /** Optional trimmed notice before changed text; blank text suppresses this notice. */
+  readonly replacement?: string
+  /**
+   * Literal notice, nonempty after trimming, sent when no visible registration remains
+   * to Sessions that previously admitted this name. The last disposed definition captured
+   * by the Session supplies the notice; omission uses a notice naming the section.
+   * A remaining or newly registered definition is compared as ordinary source text.
+   */
+  readonly retirement?: string
 }
 ```
 
@@ -119,7 +133,7 @@ interface AssembledContext {
 
 ## 最终覆盖
 
-`PromptFinalizer` 是唯一在其余一切之后运行的贡献：调用它时，组装 waterfall（瀑布流）、生效的 complete 段落恢复以及运行时上下文抑制都已完成，而它的返回值就是 `assemble()` 的返回值。每一层至多注册一个，作用域内的会遮蔽全局的。它面向必须拥有最终决定权的部署方自有覆盖——当前的消费方是用户可控的提示词覆盖——而不面向普通贡献；普通贡献注册 `PromptSection`，与其余一切组合。finalizer（最终覆盖方）负责保留 `tools`、`contexts` 与 `variables`：agent loop（智能体循环）三者都读，而 PTC 与结构化输出的协议贡献位于 `sections` 中。invariant（不变式）伴生包校验的是 waterfall 的结果，而 finalizer 在其之后运行，因此 finalizer 对自己产出的有效性负责。
+`PromptFinalizer` 在组装 waterfall、完整段落恢复和运行时上下文抑制之后接收 `PromptDraft`。注册表根据返回的呈现内容生成系统消息写入。返回新的段落数组，以数组顺序替换此前的指令。每层最多注册一个最终覆盖方。作用域内的覆盖方会遮蔽全局覆盖方。除非覆盖方负责修改相关数据，否则保留 `tools`、`contexts` 和 `variables`。
 
 ```ts type-equiv
 /**
@@ -129,13 +143,17 @@ interface AssembledContext {
  * waterfall's result with any complete section restored and any runtime-context
  * suppression applied — and what it returns is what {@link SystemPrompt.assemble}
  * returns. Preserving `tools`, `contexts`, and `variables` is the provider's
- * obligation: the loop reads all three, and the PTC and structured-output
- * contributions live in `sections`.
+ * obligation. To replace the prompt, return a new sections array in the intended
+ * order. The service admits it as a complete prompt so omitted instructions are
+ * superseded in the Session.
+ * @param assembly - the presentation and ordered tool declarations.
+ * @param context - the context for this assembly.
+ * @returns the final presentation and tool declarations.
  */
 type PromptFinalizer = (
-  assembly: PromptAssembly,
+  assembly: PromptDraft,
   context: AssembleContext,
-) => PromptAssembly | Promise<PromptAssembly>
+) => PromptDraft | Promise<PromptDraft>
 ```
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
@@ -154,12 +172,11 @@ Registry service for the prompt inputs assembled before each model step.
 
 ```ts cordis-catalog
 /**
- * Register an ordered prompt section in the calling context's scope. A scoped
- * section shadows a global section with the same name; duplicates within one
- * layer and non-finite orders throw. Registration and disposal emit
- * `system-prompt/change`.
- * @param section - the section to register.
- * @returns the exact Cordis effect disposer.
+ * Register a section; the nearest scope wins, then the latest registration
+ * within that scope. Disposal reveals the next live definition. Retirement
+ * is admitted only after no registration remains in the visible scope chain.
+ * @param section - definition, canonical order and optional transition notices.
+ * @returns the exact Cordis disposer; retirement is observed at later assembly.
  */
 section(section: PromptSection): () => void
 
@@ -215,9 +232,8 @@ variable(name: string, provider: (context: AssembleContext) => string | undefine
 /**
  * Register the final override for the calling context's scope. It runs last,
  * after the assembly waterfall, after an effective complete section has been
- * restored, and after runtime-context suppression, and what it returns is
- * exactly what {@link assemble} returns — so nothing this registry admits can
- * change the prompt after it. A scoped override shadows a global one, and a
+ * restored, and after runtime-context suppression. {@link assemble} derives
+ * system writes from its returned presentation. A scoped override shadows a global one, and a
  * second registration in the same layer throws. Registration and disposal
  * emit `system-prompt/change`.
  *
@@ -243,13 +259,12 @@ refreshContext(assembly: PromptAssembly, context: AssembleContext = {}): PromptA
 
 /**
  * Assemble global and scoped providers, detach tool parameters, apply
- * canonical ordering, then run the presentation waterfall. Scoped sections
- * and variables shadow globals. The waterfall's text is authoritative except
- * that an effective complete section is restored afterwards as the sole
- * prompt section, and that a registered {@link finalize} override then has
- * the last word over all of it; tool declarations stay provider-owned.
+ * canonical ordering, then run the presentation waterfall. Scoped variables
+ * shadow globals. The method restores an effective complete section after the
+ * waterfall and applies the registered {@link finalize} override.
+ * `systemUpdates()` compares the captured result with committed sections.
  * @param context - the optional scope, step tool set, and plugin-defined assembly fields.
- * @returns the finalized assembly with ordered tool declarations and any complete prompt enforced first.
+ * @returns the finalized presentation, tool declarations, and system updates.
  */
 async assemble(context: AssembleContext = {}): Promise<PromptAssembly>
 ```
@@ -264,13 +279,16 @@ Source: [`packages/core/system-prompt/src/index.ts`](../../packages/core/system-
 
 #### `system-prompt/assemble` — waterfall
 
-Presentation waterfall over assembled sections, contexts, and variables. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): scoped listeners receive only that scope's assemblies. The returned text is authoritative; tool declarations remain provider-owned. A supplied signal controls only this explicit assembly request and must not be retained to control later turns. A registered complete section is restored after this waterfall, so listeners cannot add to or replace that scope's system prompt; only the final override registered through SystemPrompt.finalize runs later than that restoration.
+Presentation waterfall over assembled sections, contexts, and variables. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): scoped listeners receive only that scope's assemblies. Returned section text determines updates; omitting a previously admitted section leaves its instructions unchanged. Empty text withdraws its instructions; registration disposal retires it. Tool declarations remain provider-owned. A supplied signal controls only this explicit assembly request and must not be retained to control later turns. A registered complete section is restored after this waterfall, so listeners cannot add to or replace that scope's system prompt; only the final override registered through SystemPrompt.finalize runs later than that restoration.
 
 ```ts cordis-catalog
 /**
  * Presentation waterfall over assembled sections, contexts, and variables.
  * Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): scoped listeners
- * receive only that scope's assemblies. The returned text is authoritative; tool declarations remain provider-owned.
+ * receive only that scope's assemblies. Returned section text determines updates;
+ * omitting a previously admitted section leaves its instructions unchanged.
+ * Empty text withdraws its instructions; registration disposal retires it.
+ * Tool declarations remain provider-owned.
  * A supplied signal controls only this explicit assembly request and must not
  * be retained to control later turns. A registered complete section is
  * restored after this waterfall, so listeners cannot add to or replace

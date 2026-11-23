@@ -13,7 +13,8 @@ import z from '@deepseek-ai/schemastery'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { errorText, SUBSTITUTE_FLAGS } from './rules.ts'
 import { sectionIdIssues } from './section-id.ts'
-import type { PromptPreset, PromptRule, RuleApplyOptions } from './rules.ts'
+import type { RuleApplyOptions } from './rules.ts'
+import type { PromptPreset, PromptRule } from './types.ts'
 
 /** The `[a-z0-9][a-z0-9-]*` grammar a preset id must match. */
 export const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/

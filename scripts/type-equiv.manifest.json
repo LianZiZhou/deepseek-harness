@@ -541,6 +541,11 @@
     },
     {
       "doc": "docs/subsystems/session.md",
+      "symbol": "SystemSurfaceNode",
+      "source": "packages/core/session/src/surface.ts"
+    },
+    {
+      "doc": "docs/subsystems/session.md",
       "symbol": "SessionSurface",
       "source": "packages/core/session/src/surface.ts"
     },
@@ -2432,12 +2437,12 @@
     {
       "doc": "docs/subsystems/prompt-presets.md",
       "symbol": "PromptPreset",
-      "source": "packages/preset/prompt-presets/src/rules.ts"
+      "source": "packages/preset/prompt-presets/src/types.ts"
     },
     {
       "doc": "docs/subsystems/prompt-presets.md",
       "symbol": "PromptRule",
-      "source": "packages/preset/prompt-presets/src/rules.ts"
+      "source": "packages/preset/prompt-presets/src/types.ts"
     },
     {
       "doc": "docs/subsystems/prompt-presets.md",

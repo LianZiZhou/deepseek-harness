@@ -22,8 +22,9 @@ import type { ProjectionHandle } from '@deepseek-ai/dsh-session-projection'
 import z from '@deepseek-ai/schemastery'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent'
+import type { SystemMessage } from '@deepseek-ai/dsh-llm'
 import { renderPrompt, renderPromptSection } from '@deepseek-ai/dsh-system-prompt'
-import type { AssembleContext, AssembledSection, PromptAssembly, PromptVariableSpan } from '@deepseek-ai/dsh-system-prompt'
+import type { AssembleContext, AssembledSection, PromptAssembly, PromptDraft, PromptVariableSpan } from '@deepseek-ai/dsh-system-prompt'
 import { SettingsConflictError } from '@deepseek-ai/dsh-settings'
 import type { SettingsDescriptor, SettingsPathOp } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-session-projection'
@@ -34,7 +35,8 @@ import type {} from '@deepseek-ai/dsh-commands'
 // Type-only: the Loader's Fiber.entry and `loader/volatile-update` merges.
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { applyRules, errorText } from './rules.ts'
-import type { PromptPreset, PromptRule } from './rules.ts'
+import type { PromptPreset, PromptRule } from './types.ts'
+import type { RuleObserver } from './rules.ts'
 import {
   PRESET_ID,
   PromptPresetSchema,
@@ -236,7 +238,7 @@ export default class PromptPresetStore extends TypertRemoteService {
     ctx.on('agent/created', ({ agent }) => { this.stampInitial(agent) })
     ctx.on('session/event', (session, event) => {
       if (event.type === 'system/message') {
-        this.checkCommitted(session.id, event.data.message.content)
+        this.checkCommitted(session.id, event.data.message)
         return
       }
       if (event.type !== 'prompt-preset/selected') return
@@ -257,9 +259,9 @@ export default class PromptPresetStore extends TypertRemoteService {
    * contained warning: the remaining rules still apply.
    */
   private finalize(
-    assembly: PromptAssembly,
+    assembly: PromptDraft,
     context: AssembleContext,
-  ): PromptAssembly {
+  ): PromptDraft {
     const override = context.promptPresetOverride
     const resolved = override !== undefined
       ? (override.preset === null ? null : { id: '', preset: override.preset })
@@ -272,7 +274,7 @@ export default class PromptPresetStore extends TypertRemoteService {
       else this.warn(context.agent, resolved.id, warning)
     }
     for (const warning of warnings) report(warning)
-    const next: PromptAssembly = { ...assembly, sections }
+    const next: PromptDraft = { ...assembly, sections }
     let rendered: string
     try {
       rendered = renderPrompt(next)
@@ -301,30 +303,20 @@ export default class PromptPresetStore extends TypertRemoteService {
   }
 
   /**
-   * Check one committed system prompt against what this override produced.
-   *
-   * This is the end-to-end reading of the guarantee the final override makes:
-   * the committed text travels through `renderPrompt`, the surface projection,
-   * and the session log, so agreeing with it is an observation this package
-   * did not make itself. A divergence means something downstream rewrote the
-   * prompt after the override spoke, which the override alone cannot see. It
-   * warns and never interrupts: the step has already run, and failing the turn
-   * over a reporting mismatch would be worse than the mismatch.
-   *
-   * A session running several agents can commit one step's prompt while
-   * another is mid-assembly, so a committed text is a divergence only when it
-   * matches none of the prompts produced since the last commit.
+   * Compare complete prompt instructions with the captures for this Session.
+   * Several agents may have an assembly in flight, so any matching digest is accepted.
    * @param sessionId - the session that committed the message.
-   * @param content - the committed system message content.
+   * @param message - the committed system message, including section attribution.
    */
-  private checkCommitted(sessionId: string, content: readonly { type: string; text?: string }[]): void {
+  private checkCommitted(sessionId: string, message: SystemMessage): void {
     const digests = this.produced.get(sessionId)
     if (digests === undefined) return
+    const sections = message.source.sections
+    if (sections !== undefined && message.source.complete !== true) return
     this.produced.delete(sessionId)
-    const committed = content
-      .filter((part): part is { type: string; text: string } => typeof part.text === 'string')
-      .map(part => part.text)
-      .join('')
+    const content = sections === undefined ? message.content : sections.flatMap(section =>
+      section.state === 'active' ? [message.content[section.contentIndex]] : [])
+    const committed = content.flatMap(part => part?.type === 'text' && part.text !== '' ? [part.text] : []).join('\n\n')
     if (digests.has(digest(committed)) || this.diverged.has(sessionId)) return
     this.diverged.add(sessionId)
     this.selfCtx.logger.warn(
@@ -880,3 +872,23 @@ function rosterRank(row: PromptPresetRow): number {
 }
 
 export type { PromptRule, PromptPreset }
+
+/** Observations from the preset finalizer selected for this preview assembly. */
+interface PreviewObserver extends RuleObserver {
+  /**
+   * Report a contained failure without consuming the live task's warning.
+   * @param warning - rule or rendering problem found during this preview.
+   */
+  warning(warning: PromptPresetWarning): void
+}
+
+declare module '@deepseek-ai/dsh-system-prompt' {
+  interface AssembleContext {
+    /**
+     * Apply this candidate instead of the session's own selection. Wrapped so
+     * an explicit `null` (assemble with no preset) stays distinct from an
+     * absent field (assemble with whatever the session selected).
+     */
+    promptPresetOverride?: { readonly preset: PromptPreset | null; readonly observer?: PreviewObserver }
+  }
+}

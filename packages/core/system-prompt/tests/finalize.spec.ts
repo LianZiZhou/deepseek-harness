@@ -3,10 +3,12 @@ import { Context } from '@deepseek-ai/cordis'
 import { createScope, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { Scope, ScopeKey } from '@deepseek-ai/dsh-scope'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
-import type { Config, PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
+import type { Config, PromptDraft } from '@deepseek-ai/dsh-system-prompt'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 
 async function mount(config: Config = {}): Promise<Context> {
   const ctx = new Context()
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SystemPrompt, config)
   return ctx
 }
@@ -24,7 +26,7 @@ function scopeKeyOf(scope: Scope): ScopeKey {
 
 /** Replace every section with one named contribution, keeping the rest intact. */
 function onlySection(name: string, text: string) {
-  return (assembly: PromptAssembly): PromptAssembly => ({ ...assembly, sections: [{ name, text }] })
+  return (assembly: PromptDraft): PromptDraft => ({ ...assembly, sections: [{ name, order: 0, text }] })
 }
 
 describe('systemPrompt.finalize()', () => {
@@ -33,7 +35,7 @@ describe('systemPrompt.finalize()', () => {
     ctx.systemPrompt.finalize(onlySection('final', 'only this'))
 
     const assembly = await ctx.systemPrompt.assemble()
-    expect(assembly.sections).toEqual([{ name: 'final', text: 'only this' }])
+    expect(assembly.sections).toEqual([{ name: 'final', order: 0, text: 'only this' }])
     expect(renderPrompt(assembly)).toBe('only this')
   })
 
@@ -41,7 +43,7 @@ describe('systemPrompt.finalize()', () => {
     const ctx = await mount()
     ctx.on('system-prompt/assemble', async (_assembly, _context, next) => {
       const result = await next()
-      result.sections.push({ name: 'listener:extra', text: 'from the listener' })
+      result.sections.push({ name: 'listener:extra', order: 0, text: 'from the listener' })
       return result
     })
     const seen: string[][] = []
