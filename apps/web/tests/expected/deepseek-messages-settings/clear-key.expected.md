@@ -5,16 +5,18 @@
     - button "模型"
     - button "插件管理"
     - button "Agent 预设"
+    - button "提示词预设"
+    - button "上下文注入"
   - button "打开配置文件"
   - button "关闭"
   - heading "模型" [level=2]
   - paragraph: 填入各提供商的 API 密钥即可使用其模型。
   - list:
     - listitem:
-      - text: DeepSeek
+      - text: DeepSeek API
       - img "API 密钥已配置"
-      - button "编辑 DeepSeek (deepseek-official)": 编辑
-      - text: DeepSeek deepseek-official API 密钥
+      - button "编辑 DeepSeek API (deepseek-official)": 编辑
+      - text: DeepSeek API deepseek-official API 密钥
       - button "认证说明": "?"
       - textbox "API 密钥":
         - /placeholder: 留空使用环境认证（DEEPSEEK_API_KEY）
@@ -23,3 +25,45 @@
       - button "取消"
       - button "保存"
   - button "添加模型提供商"
+  - region "登录":
+    - heading "登录" [level=3]
+    - paragraph: 以下提供方通过浏览器登录签发凭据，而不是由你自己持有的 API 密钥。
+    - list:
+      - listitem:
+        - text: Anthropic llm-pi-ai/anthropic
+        - button "Anthropic (Claude Pro/Max)"
+        - button "Anthropic API key"
+      - listitem:
+        - text: GitHub Copilot llm-pi-ai/github-copilot
+        - button "GitHub Copilot"
+        - button "GitHub Copilot token"
+      - listitem:
+        - text: Kimi For Coding llm-pi-ai/kimi-coding
+        - button "Sign in with Kimi Code"
+        - button "Kimi API key"
+      - listitem:
+        - text: Meta llm-pi-ai/meta
+        - button "Sign in with Meta"
+        - button "Meta Model API key"
+      - listitem:
+        - text: OpenAI Codex (legacy) llm-pi-ai/openai-codex
+        - button "OpenAI (ChatGPT Plus/Pro)"
+      - listitem:
+        - text: OpenRouter llm-pi-ai/openrouter
+        - button "Sign in with OpenRouter"
+        - button "OpenRouter API key"
+      - listitem:
+        - text: Radius llm-pi-ai/radius
+        - button "Radius"
+        - button "Radius API key"
+      - listitem:
+        - text: xAI llm-pi-ai/xai
+        - button "Sign in with SuperGrok or X Premium"
+        - button "xAI API key"
+      - listitem:
+        - text: Z.AI llm-pi-ai/zai
+        - button "Sign in with Z.AI (GLM Coding Plan)"
+        - button "Z.AI API key"
+      - listitem:
+        - text: DeepSeek deepseek-account-platform/default
+        - button "DeepSeek"
