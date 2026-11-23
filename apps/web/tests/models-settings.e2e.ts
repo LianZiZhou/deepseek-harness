@@ -547,6 +547,51 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 
+  it('switches a catalog model between Custom, None, and Automatic reasoning', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-models-catalog-reasoning'))
+    await scaffold.ctx.settings.mutate('llm-pi-ai', [{
+      op: 'set', path: ['providers', 'openai'], value: { models: [{ id: 'gpt-6-astra', name: 'GPT-6 Astra' }] },
+    }])
+    const dialog = page.getByRole('dialog', { name: '设置' })
+    const edit = dialog.getByRole('button', { name: '编辑 openai', exact: true })
+    const reasoning = dialog.getByRole('group', { name: '推理等级 1' })
+    const efforts = async (): Promise<string[]> =>
+      (await scaffold.ctx.llm.resolveModelInfo('openai', 'gpt-6-astra')).reasoning?.efforts.map(effort => String(effort.id)) ?? []
+    const openModelOptions = async (): Promise<void> => {
+      await edit.click()
+      await dialog.getByText('自定义设置').click()
+      await dialog.getByRole('button', { name: '模型选项 1' }).click()
+    }
+    const saveMode = async (name: string): Promise<void> => {
+      await reasoning.getByRole('tab', { name, exact: true }).click()
+      await dialog.getByRole('button', { name: '保存', exact: true }).click()
+      await reasoning.waitFor({ state: 'detached' })
+      await dialog.getByText('已保存 openai。', { exact: true }).waitFor({ timeout: 10_000 })
+    }
+    try {
+      const inherited = await efforts()
+      expect(inherited).toContain('max')
+      await openModelOptions()
+      await reasoning.getByRole('tab', { name: '自动', selected: true }).waitFor()
+      await saveMode('自定义')
+      expect(await efforts()).toEqual(['off', 'low', 'medium', 'high'])
+
+      await openModelOptions()
+      await reasoning.getByRole('tab', { name: '自定义', selected: true }).waitFor()
+      await saveMode('不推理')
+      expect(await efforts()).toEqual([])
+
+      await openModelOptions()
+      await reasoning.getByRole('tab', { name: '不推理', selected: true }).waitFor()
+      await saveMode('自动')
+      expect(await efforts()).toEqual(inherited)
+    } finally {
+      await scaffold.ctx.settings.mutate('llm-pi-ai', [{ op: 'unset', path: ['providers', 'openai'] }])
+      await edit.waitFor({ state: 'detached' })
+    }
+    expect(tripwire.pageErrors).toEqual([])
+  }, 60_000)
+
   it('saves model drag order, discards canceled moves, and preserves the other provider', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-models-order'))
     const dialog = page.getByRole('dialog', { name: '设置' })

@@ -95,7 +95,7 @@ function outsideLevels(only: readonly string[], level: string, wire: unknown): b
 }
 
 /**
- * Mirror the pi-ai refusals of a hand-declared `reasoningEfforts`, so a card
+ * Mirror the pi-ai refusals of a model's `reasoningEfforts`, so a card
  * names the row instead of failing at the write.
  * @param value - drafted `models` value, or `undefined` while inherited.
  * @param only - the levels the route's protocol accepts, each sent under its

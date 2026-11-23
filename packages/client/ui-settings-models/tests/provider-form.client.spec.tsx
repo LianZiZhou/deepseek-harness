@@ -497,6 +497,22 @@ describe('model list editing', () => {
       .toContainEqual({ op: 'unset', path: ['providers', 'openai', 'models'] })
   })
 
+  it('declares reasoning levels on a catalog route model and stores them in its models list', async () => {
+    const { mutate } = await mountSection({
+      providers: { openai: { apiKeyEnv: 'OPENAI_API_KEY', models: [{ id: 'gpt-5', name: 'GPT-5' }] } },
+    })
+    openEditor('openai')
+    expandModel(1)
+    const group = within(screen.getByRole('group', { name: `${en.modelReasoning} 1` }))
+    expect(group.getByRole('tab', { name: en.modelReasoningAuto, selected: true })).toBeTruthy()
+    fireEvent.click(group.getByRole('tab', { name: en.modelReasoningCustom }))
+    fireEvent.click(screen.getByText(en.apply))
+    await waitFor(() => { expect(mutate).toHaveBeenCalledTimes(1) })
+    expect(firstMutate(mutate).ops).toEqual([{
+      op: 'set', path: ['providers', 'openai', 'models'],
+      value: [{ id: 'gpt-5', name: 'GPT-5', reasoningEfforts: { off: null, low: 'low', medium: 'medium', high: 'high' } }],
+    }])
+  })
 })
 
 describe('capacity spellings', () => {
