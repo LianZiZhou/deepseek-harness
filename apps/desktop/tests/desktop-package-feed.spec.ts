@@ -5,7 +5,7 @@ import { expect, it, onTestFinished } from 'vitest'
 import { desktopTargetBuildPaths } from '../scripts/desktop-build-paths.mjs'
 import { localMacOSPackageEnvironment, validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
 import { createElectronBuilderConfig } from '../scripts/electron-builder-config.mjs'
-import { createForkMacOSBuilderConfig } from '../scripts/sign-fork-macos.ts'
+import { createForkMacOSBuilderConfig, validateForkMacOSCheckoutAlignment } from '../scripts/sign-fork-macos.ts'
 import { runtimeFixture } from './runtime-fixture.ts'
 
 const appId = { DSH_DESKTOP_APP_ID: 'com.example.desktop' }
@@ -15,6 +15,24 @@ const macSigning = {
   DSH_DESKTOP_MACOS_TEAM_ID: 'TEAMID1234',
   APPLE_KEYCHAIN_PROFILE: 'fixture',
 }
+
+it('derives checkout dirtiness from version alignment in the selected commit', () => {
+  const commit = 'a'.repeat(40)
+  const path = 'packages/preset/prompt-presets/package.json'
+  const original = { name: '@deepseek-ai/dsh-prompt-presets', version: '0.2.2-rc.5' }
+  const version = '0.2.3-alpha.1'
+  const read = () => original
+  expect(validateForkMacOSCheckoutAlignment({ commit, manifests: [] }, commit, version, read)).toBe(false)
+  expect(validateForkMacOSCheckoutAlignment({ commit, manifests: [path] }, commit, version, read)).toBe(true)
+  expect(() => validateForkMacOSCheckoutAlignment({ commit: 'b'.repeat(40), manifests: [path] }, commit, version, read))
+    .toThrow('invalid checkout alignment record')
+  expect(() => validateForkMacOSCheckoutAlignment({ commit, manifests: [path, path] }, commit, version, read))
+    .toThrow('invalid aligned manifest path')
+  expect(() => validateForkMacOSCheckoutAlignment({ commit, manifests: ['vendor/cordis/package.json'] }, commit, version, read))
+    .toThrow('invalid aligned manifest path')
+  expect(() => validateForkMacOSCheckoutAlignment({ commit, manifests: [path] }, commit, original.version, read))
+    .toThrow('unexpected aligned manifest')
+})
 
 it('packages signed macOS updates from the fork by default', () => {
   const config = createElectronBuilderConfig({ ...appId, ...macSigning }, 'darwin', 'arm64')

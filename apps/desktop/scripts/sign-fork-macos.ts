@@ -26,11 +26,41 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function sourceManifest(commit: string, app: 'cli' | 'desktop'): Record<string, unknown> {
-  const path = `apps/${app}/package.json`
+function sourceManifest(commit: string, path: string): Record<string, unknown> {
   const value: unknown = JSON.parse(execFileSync('git', ['show', `${commit}:${path}`], { cwd: appRoot, encoding: 'utf8' }))
   if (!isRecord(value)) throw new Error(`fork macOS signing: invalid source manifest ${path}`)
   return value
+}
+
+/**
+ * Verify which release-family manifests the packaging checkout aligned.
+ * @param value - version alignment record from the verified packaging checkout.
+ * @param commit - selected release commit.
+ * @param version - DSH release-family version at the selected commit.
+ * @param readManifest - reads a manifest from the selected commit.
+ * @returns whether the packaging checkout had approved version edits.
+ */
+export function validateForkMacOSCheckoutAlignment(
+  value: unknown, commit: string, version: string, readManifest: (path: string) => Record<string, unknown>,
+): boolean {
+  if (!isRecord(value) || value.commit !== commit || !Array.isArray(value.manifests)) {
+    throw new Error('fork macOS signing: invalid checkout alignment record')
+  }
+  const manifests: readonly unknown[] = value.manifests
+  const seen = new Set<string>()
+  for (const path of manifests) {
+    if (typeof path !== 'string' || !/^(?:apps\/[a-z0-9-]+|packages\/[a-z0-9-]+\/[a-z0-9-]+)\/package\.json$/u.test(path)
+      || seen.has(path)) {
+      throw new Error('fork macOS signing: invalid aligned manifest path')
+    }
+    seen.add(path)
+    const original = readManifest(path)
+    if (typeof original.name !== 'string' || !original.name.startsWith('@deepseek-ai/') || original.private === true
+      || typeof original.version !== 'string' || original.version === version) {
+      throw new Error(`fork macOS signing: unexpected aligned manifest ${path}`)
+    }
+  }
+  return seen.size > 0
 }
 
 async function verifyUpdateZip(archive: string, shipsCua: boolean, environment: NodeJS.ProcessEnv): Promise<void> {
@@ -99,16 +129,20 @@ async function signForkMacOS(output: string, environment: NodeJS.ProcessEnv): Pr
   const inputs = desktopTargetBuildPaths('mac-arm64', environment)
   const shell = join(inputs.root, 'shell')
   const paths = { ...inputs, dsh: join(shell, 'dsh') }
+  const source = sourceManifest(commit, 'apps/desktop/package.json')
+  if (typeof source.version !== 'string') throw new Error('fork macOS signing: missing source product version')
+  const alignmentPath = join(shell, 'checkout-alignment.json')
+  if (!(await lstat(alignmentPath)).isFile()) throw new Error('fork macOS signing: missing regular checkout alignment record')
+  const alignment: unknown = JSON.parse(await readFile(alignmentPath, 'utf8'))
+  const aligned = validateForkMacOSCheckoutAlignment(alignment, commit, source.version, path => sourceManifest(commit, path))
   const shellManifest = join(shell, 'package.json')
   if (!(await lstat(shellManifest)).isFile()) throw new Error('fork macOS signing: missing regular shell manifest')
   const manifest: unknown = JSON.parse(await readFile(shellManifest, 'utf8'))
   if (!isRecord(manifest) || manifest.name !== '@deepseek-ai/dsh-desktop' || manifest.main !== 'lib/main.js'
-    || manifest.version !== version || manifest.dshBuildCommit !== commit || manifest.dshBuildDirty !== false) {
+    || manifest.version !== version || manifest.dshBuildCommit !== commit || manifest.dshBuildDirty !== aligned) {
     throw new Error('fork macOS signing: unsigned shell does not match the selected release')
   }
-  const source = sourceManifest(commit, 'desktop')
-  if (typeof source.version !== 'string') throw new Error('fork macOS signing: missing source product version')
-  const cli = sourceManifest(commit, 'cli')
+  const cli = sourceManifest(commit, 'apps/cli/package.json')
   if (!isRecord(cli.dependencies)) throw new Error('fork macOS signing: missing CLI dependencies')
   const shipsCua = '@deepseek-ai/dsh-cua-bundle' in cli.dependencies
   // Electron-builder matches asarUnpack against source paths relative to the app directory.
@@ -125,6 +159,7 @@ async function signForkMacOS(output: string, environment: NodeJS.ProcessEnv): Pr
     description: 'DeepSeek Harness Desktop', license: 'MIT', author: { name: 'Hangzhou DeepSeek Artificial Intelligence Co., Ltd.' },
   }), { flag: 'wx' })
   await rename(sanitized, shellManifest)
+  await rm(alignmentPath)
 
   const identity = resolveMacOSSigningEnvironment(environment)
   const appId = resolveDesktopAppId(environment)

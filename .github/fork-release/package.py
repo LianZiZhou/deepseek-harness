@@ -44,6 +44,11 @@ def prepare_macos(pnpm, version, output):
         run(str(application / "MacOS/DeepSeek Harness"), "--expose-internals",
             str(Path(__file__).with_name("stage-macos-shell.cjs")), str(application / "Resources/app.asar"), str(shell),
             env={**os.environ, "ELECTRON_RUN_AS_NODE": "1"})
+        alignment = subprocess.check_output([
+            "node", "--import", "tsx/esm", str(Path(__file__).with_name("align-package-versions.mjs")),
+            "--verify-checkout",
+        ], text=True)
+        (shell / "checkout-alignment.json").write_text(alignment, encoding="utf-8")
         run("tar", "-czf", str((output / MAC_INPUT).resolve()), "-C", str(MAC_BUILD.resolve()),
             "dsh", "runtime", "electron", "-C", directory, "shell",
             env={**os.environ, "COPYFILE_DISABLE": "1"})

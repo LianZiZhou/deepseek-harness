@@ -79,14 +79,18 @@ class DesktopPackageTests(unittest.TestCase):
                 shell.mkdir()
                 (shell / "fixture").write_text("shell")
 
-        with patch.object(package, "run", side_effect=prepare) as builder:
+        alignment = {"commit": "a" * 40, "manifests": ["packages/preset/prompt-presets/package.json"]}
+        with patch.object(package, "run", side_effect=prepare) as builder, \
+                patch.object(package.subprocess, "check_output", return_value=json.dumps(alignment)) as verify:
             package.desktop("mac-arm64", {"version": "1.2.3"}, self.output, "pnpm")
         self.assertIn("--dir", builder.call_args_list[0].args)
+        self.assertEqual(verify.call_args.args[0][-1], "--verify-checkout")
         archive = (self.output / package.MAC_INPUT).resolve()
         with tempfile.TemporaryDirectory() as signer, chdir(signer):
             package.unpack_macos(archive)
             for directory in ("dsh", "runtime", "electron", "shell"):
                 self.assertEqual((package.MAC_BUILD / directory / "fixture").read_text(), directory)
+            self.assertEqual(json.loads((package.MAC_BUILD / "shell/checkout-alignment.json").read_text()), alignment)
 
     def test_builds_both_helpers_from_the_release_source_without_a_distribution_identity(self):
         self.cli.write_text(json.dumps({"dependencies": {"@deepseek-ai/dsh-cua-bundle": "workspace:*"}}))
