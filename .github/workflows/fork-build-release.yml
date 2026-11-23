@@ -67,6 +67,8 @@ jobs:
           node-version: '24'
           package-manager-cache: false
       - run: pnpm install --frozen-lockfile
+      - name: Align release package versions
+        run: node --import tsx/esm ../control/.github/fork-release/align-package-versions.mjs
       - run: pnpm run build
       - name: Package and check distribution
         run: python -B ../control/.github/fork-release/package.py ${{ matrix.product }} ${{ matrix.host.target }}
@@ -120,6 +122,8 @@ jobs:
           node-version: '24'
           package-manager-cache: false
       - run: pnpm install --frozen-lockfile
+      - name: Align release package versions
+        run: node --import tsx/esm ../control/.github/fork-release/align-package-versions.mjs
       - run: pnpm run build
       - name: Build and check the unsigned Apple Silicon application
         run: python3 -B ../control/.github/fork-release/package.py desktop mac-arm64
