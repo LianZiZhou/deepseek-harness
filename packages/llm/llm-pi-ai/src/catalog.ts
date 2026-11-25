@@ -413,7 +413,7 @@ const MISTRAL_COMPAT_GATE = {
   supportsMidConvoSystemMessages: 'withhold',
 } as const satisfies Record<keyof MistralConversationsCompat, CompatDisposition>
 
-type GoogleApi = 'google-generative-ai' | 'google-vertex'
+type GoogleApi = Extract<KnownApi, 'google-generative-ai' | 'google-vertex'>
 /** SDKs without Google compat contribute no fields to the profile type check. */
 type GoogleCompat = Model<GoogleApi>['compat'] extends undefined ? Record<never, never> : NonNullable<Model<GoogleApi>['compat']>
 /** Include fields unique to one protocol when the SDK declares different compat types. */
