@@ -54,7 +54,7 @@ jobs:
         if: github.event_name == 'pull_request' || steps.update.outputs.version
         run: |
           pnpm run build:artifacts
-          pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium
+          pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium webkit
       - name: Refresh the catalog in the Models and onboarding snapshots
         if: steps.update.outputs.version
         env:
