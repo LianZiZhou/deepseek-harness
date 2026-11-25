@@ -1,63 +1,37 @@
 ---
 kind: upgrade-guide
-description: "pi-ai 1.6.0 removes chat model IDs and lowers token limits for some models."
+description: "pi-ai 1.6.1 removes chat model IDs and reduces token limits or reasoning options on some routes."
 ---
 
-# pi-ai 1.6.0 model catalog changes
+# pi-ai 1.6.1 chat model catalog changes
 
 English | [中文](guide.zh.md)
 
 ## Change
 
-The following chat models leave the pi-ai catalog in 1.6.0. Stored `modelOverrides` for these IDs report a missing catalog model. New overrides require an ID present in the catalog. Explicit `models` entries for removed IDs lose their catalog defaults.
+DSH reports a missing catalog model when a saved `modelOverrides` entry names a removed ID. New overrides must name an ID in that provider's catalog. An explicit `models` entry for a removed ID loses the defaults it inherited from that catalog entry.
 
-| Provider | Removed model IDs |
-|---|---|
-| `fireworks` | `accounts/fireworks/models/gpt-oss-120b`, `accounts/fireworks/models/inkling`, `accounts/fireworks/models/nemotron-3-ultra-nvfp4`, `accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b` |
-| `nvidia` | `deepseek-ai/deepseek-v4.1-flash`, `google/diffusiongemma-26b-a4b-it`, `meta/llama-3.2-11b-vision-instruct`, `meta/llama-3.2-90b-vision-instruct`, `mistralai/mistral-7b-instruct-v0.3`, `moonshotai/kimi-k2.6`, `nvidia/llama-3.1-nemotron-70b-instruct`, `nvidia/llama-3.1-nemotron-ultra-253b-v1`, `openai/gpt-oss-20b` |
-| `opencode-go` | `glm-5.2` |
-| `opencode` | `gemini-3-flash`, `gemini-3.1-pro`, `glm-5`, `glm-5.1`, `glm-5.2`, `glm-5.3-flash-free` |
-| `openrouter` | `bytedance-seed/seed-1.6`, `bytedance-seed/seed-1.6-flash`, `bytedance-seed/seed-2.0-code`, `cohere/north-mini-code:free`, `inception/mercury-2`, `inception/mercury-2.5`, `inception/mercury-3`, `liquid/lfm-2.5-2.6b`, `liquid/lfm-2.5-2.6b:free`, `minimax/minimax-m1`, `minimax/minimax-m2`, `minimax/minimax-m2.1`, `qwen/qwen-2.5-7b-instruct`, `qwen/qwen3-vl-30b-a3b-thinking`, `stepfun/step-3.5-flash`, `thinkingmachines/inkling-small:free`, `thinkingmachines/inkling:free`, `x-ai/grok-build-0.1`, `xingchen-agi/xing4.0-29b-a4b:free` |
-| `qwen-token-plan-cn` | `deepseek-v3.2`, `deepseek-v4-flash` |
-| `qwen-token-plan` | `deepseek-v3.2`, `deepseek-v4-flash` |
-| `vercel-ai-gateway` | `alibaba/qwen-3-235b`, `alibaba/qwen3-coder`, `alibaba/qwen3-next-80b-a3b-thinking`, `bytedance/seed-1.6`, `bytedance/seed-1.8`, `google/gemini-3.5-flash-batch`, `google/gemini-3.7-flash-batch`, `inception/mercury-2`, `inception/mercury-2.5`, `inception/mercury-coder-small`, `meituan/longcat-2.5-preview`, `minimax/minimax-m2`, `minimax/minimax-m2.1-lightning`, `minimax/minimax-m2.5-highspeed`, `minimax/minimax-m2.7-highspeed`, `nvidia/nemotron-3-nano-30b-a3b`, `poolside/laguna-s-2.1`, `spacexai/grok-build-0.1`, `xiaomi/mimo-v2.5`, `xiaomi/mimo-v2.5-pro` |
+Each provider/model ID counts separately. The last two columns count IDs present in both versions. An ID can have both limits reduced.
 
-The following catalog limits decrease. Values are tokens. A dash means that limit did not decrease.
+| pi-ai upgrade | IDs added | IDs removed | Smaller context window | Lower maximum output |
+|---|---:|---:|---:|---:|
+| 1.5.0 to 1.6.0 | 169 | 63 | 14 | 16 |
+| 1.6.0 to 1.6.1 | 63 | 65 | 12 | 13 |
+| 1.5.0 to 1.6.1 | 230 | 126 | 22 | 24 |
 
-| Provider/model | Context window | Maximum output |
-|---|---:|---:|
-| `huggingface/thinkingmachines/Inkling-Small` | — | 524288 |
-| `mistral/ministral-3b-2512` | — | 131072 |
-| `openrouter/deepseek/deepseek-r1-0528` | 128000 | 32000 |
-| `openrouter/deepseek/deepseek-v4-flash` | — | 393216 |
-| `openrouter/deepseek/deepseek-v4-flash-vision-exp` | 1048575 | — |
-| `openrouter/google/gemma-3-27b-it` | — | 16384 |
-| `openrouter/meta-llama/llama-3.1-70b-instruct` | — | 8192 |
-| `openrouter/meta-llama/llama-3.1-8b-instruct` | — | 16384 |
-| `openrouter/meta-llama/llama-3.3-70b-instruct` | 128000 | — |
-| `openrouter/minimax/minimax-m2.5` | 196608 | — |
-| `openrouter/minimax/minimax-m2.7` | 196608 | — |
-| `openrouter/nvidia/nemotron-3-super-120b-a12b` | 262144 | 16384 |
-| `openrouter/nvidia/nemotron-3-ultra-550b-a55b` | — | 16384 |
-| `openrouter/qwen/qwen3-235b-a22b-2507` | 131072 | — |
-| `openrouter/qwen/qwen3.5-397b-a17b` | — | 81920 |
-| `openrouter/z-ai/glm-5.3-flash:batch` | 1048575 | — |
-| `openrouter/z-ai/glm-5.3:batch` | 1048575 | — |
-| `radius/glm-5.3` | — | 128000 |
-| `radius/grok-4.7` | — | 450000 |
-| `vercel-ai-gateway/alibaba/qwen3-next-80b-a3b-instruct` | — | 32768 |
-| `vercel-ai-gateway/alibaba/qwen3.8-27b` | 262144 | — |
-| `vercel-ai-gateway/minimax/minimax-m2.5` | — | 8192 |
-| `vercel-ai-gateway/minimax/minimax-m2.7` | 196608 | — |
-| `vercel-ai-gateway/minimax/minimax-m3.1-flash` | 1000000 | 524288 |
-| `vercel-ai-gateway/moonshotai/kimi-k3.1-pro` | 1000000 | — |
-| `vercel-ai-gateway/stepfun/step-5-preview` | 1000000 | 1000000 |
+In 1.6.0, `qwen-token-plan` and `qwen-token-plan-cn` dropped `deepseek-v3.2` and `deepseek-v4-flash`. In 1.6.1, both cut the output limit for `kimi-k2.7-code` from 262,144 to 16,384 tokens.
 
-On a custom OpenAI-compatible Chat Completions gateway, reasoning models now send instructions with the `system` role by default. A gateway that requires `developer` needs an explicit override.
+In 1.6.1, `openai` and `azure` each drop the same ten IDs, including `gpt-5-chat-latest` and `o4-mini`. On `opencode` and `opencode-go`, `longcat-2.5-free` appeared only in 1.6.0.
+
+On `huggingface`, `MiniMaxAI/MiniMax-M2.5` drops from 204,800 context tokens and 131,072 output tokens to 65,536 for each in 1.6.1. On `openrouter`, `meta-llama/llama-3.1-8b-instruct` regains its 1.5.0 output limit of 117,964 after a limit of 16,384 in 1.6.0.
+
+In 1.6.1, `radius/balanced` gains the `medium` and `xhigh` reasoning levels and loses `max`. GitHub Copilot's `claude-sonnet-5.5` loses `off`. Google Generative AI and Vertex now recognize vendor-prefixed Gemini 3+ IDs when detecting strict tool support.
+
+Since 1.6.0, reasoning models on custom non-OpenAI Chat Completions routes use the `system` role for instructions by default.
 
 ## Migration
 
-1. In Settings → Models, select a supported replacement for each removed ID you use.
-2. In `cordis.patch.yml`, remove obsolete `providers.<provider>.modelOverrides.<id>` entries and update IDs in `providers.<provider>.models`. Adjust prompt and output budgets for models with lower limits.
-3. If your gateway requires developer-role instructions, set `compat.supportsDeveloperRole: true` on its route or model.
-4. Start the profile, confirm its model has no configuration diagnostic and send a short prompt.
+1. Find `chat:<id>` in your provider's JSON file to check the ID, `contextWindow`, and `maxTokens`. Compare the published catalogs for [1.5.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.5.0/dist/providers/data/), [1.6.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.6.0/dist/providers/data/), and [1.6.1](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.6.1/dist/providers/data/).
+2. In Settings → Models, select a replacement your provider serves. For example, on `mistral`, replace `mistral-medium-3.5` with `mistral-medium-2604` or `mistral-medium-latest`.
+3. In `cordis.patch.yml`, remove obsolete `providers.<provider>.modelOverrides.<id>` entries and update IDs under `providers.<provider>.models`. Adjust prompt and output budgets to the new limits and select a supported reasoning level.
+4. If your Chat Completions gateway requires `developer`, set `compat.supportsDeveloperRole: true` on the route or model. Start the profile, confirm the selected model has no configuration diagnostic, and send a short prompt.

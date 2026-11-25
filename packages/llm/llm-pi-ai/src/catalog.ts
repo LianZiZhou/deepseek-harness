@@ -413,6 +413,17 @@ const MISTRAL_COMPAT_GATE = {
   supportsMidConvoSystemMessages: 'withhold',
 } as const satisfies Record<keyof MistralConversationsCompat, CompatDisposition>
 
+type GoogleApi = 'google-generative-ai' | 'google-vertex'
+/** SDKs without Google compat contribute no fields to the profile type check. */
+type GoogleCompat = Model<GoogleApi>['compat'] extends undefined ? Record<never, never> : NonNullable<Model<GoogleApi>['compat']>
+/** Include fields unique to one protocol when the SDK declares different compat types. */
+type CompatKeys<T> = T extends object ? keyof T : never
+
+/** Both Google protocols inherit strict tool schemas from their catalog models. */
+const GOOGLE_COMPAT_GATE = {
+  supportsStrictMode: 'withhold',
+} as const satisfies Record<CompatKeys<GoogleCompat>, CompatDisposition>
+
 /**
  * Every wire protocol pi-ai gives a compat type. Derived from `Model.compat`'s
  * own conditional rather than listed by hand, so a pi-ai release that gives a
@@ -421,6 +432,7 @@ const MISTRAL_COMPAT_GATE = {
  * resolves away here and takes no configured compat at all.
  */
 type ApiWithCompat = { [K in KnownApi]: NonNullable<Model<K>['compat']> extends never ? never : K }[KnownApi]
+type ProtocolCompatGate = Readonly<Record<string, CompatDisposition>>
 
 /**
  * The compat gate of every wire protocol a profile may configure.
@@ -431,7 +443,9 @@ type ApiWithCompat = { [K in KnownApi]: NonNullable<Model<K>['compat']> extends 
  * `azure-openai-responses` and `openai-codex-responses` the fields their own
  * models declare.
  */
-const COMPAT_GATES: Readonly<Record<ApiWithCompat, Readonly<Record<string, CompatDisposition>>>> = {
+const COMPAT_GATES = {
+  'google-generative-ai': GOOGLE_COMPAT_GATE,
+  'google-vertex': GOOGLE_COMPAT_GATE,
   'mistral-conversations': MISTRAL_COMPAT_GATE,
   'openai-completions': COMPLETIONS_COMPAT_GATE,
   'openai-responses': RESPONSES_COMPAT_GATE,
@@ -439,7 +453,7 @@ const COMPAT_GATES: Readonly<Record<ApiWithCompat, Readonly<Record<string, Compa
   'openai-codex-responses': RESPONSES_COMPAT_GATE,
   'anthropic-messages': ANTHROPIC_COMPAT_GATE,
   'bedrock-converse-stream': BEDROCK_COMPAT_GATE,
-}
+} satisfies Record<ApiWithCompat | GoogleApi, ProtocolCompatGate>
 
 /**
  * The compat gate of one resolved protocol. A `string` lookup rather than a
@@ -448,21 +462,15 @@ const COMPAT_GATES: Readonly<Record<ApiWithCompat, Readonly<Record<string, Compa
  * @param api - resolved wire protocol.
  * @returns that protocol's field gate, or `undefined` when it takes no compat.
  */
-function compatGate(api: string): Readonly<Record<string, CompatDisposition>> | undefined {
-  return (COMPAT_GATES as Readonly<Record<string, Readonly<Record<string, CompatDisposition>>>>)[api]
+function compatGate(api: string): ProtocolCompatGate | undefined {
+  return (COMPAT_GATES as Readonly<Partial<Record<string, ProtocolCompatGate>>>)[api]
 }
 
 /** The field names one gate offers. */
 type OfferedIn<G> = { [K in keyof G]: G[K] extends 'offer' ? K : never }[keyof G]
 
 /** Every compat field name a profile may set, on whichever protocol takes it. */
-type OfferedCompatField =
-  | OfferedIn<typeof COMPLETIONS_COMPAT_GATE>
-  | OfferedIn<typeof RESPONSES_COMPAT_GATE>
-  | OfferedIn<typeof ANTHROPIC_COMPAT_GATE>
-  | OfferedIn<typeof BEDROCK_COMPAT_GATE>
-  // oxlint-disable-next-line typescript/no-redundant-type-constituents -- Include gates whose current offering is empty.
-  | OfferedIn<typeof MISTRAL_COMPAT_GATE>
+type OfferedCompatField = { [K in keyof typeof COMPAT_GATES]: OfferedIn<(typeof COMPAT_GATES)[K]> }[keyof typeof COMPAT_GATES]
 
 /**
  * pi-ai wire-compatibility switches, set on the route (its models' default) or
@@ -591,6 +599,7 @@ export type ChatTemplateKwargMatchesUpstream = AssertTrue<
 
 /** Every compat type a gate classifies, merged so one `Pick` reaches all offered fields. */
 type UpstreamCompat = OpenAICompletionsCompat & OpenAIResponsesCompat & AnthropicMessagesCompat & BedrockCompat & MistralConversationsCompat
+  & GoogleCompat
 
 /**
  * Proof that each documented field carries its upstream type, not a hand-copied
@@ -636,7 +645,7 @@ function configuredCompatEntries(compat: PiAiCompatProfile | undefined): readonl
  *   is either a withheld field or a name no upstream compat type declares.
  */
 function compatProtocols(field: string): readonly string[] {
-  return Object.entries(COMPAT_GATES).flatMap(([api, gate]) => gate[field] === 'offer' ? [api] : [])
+  return Object.entries<ProtocolCompatGate>(COMPAT_GATES).flatMap(([api, gate]) => gate[field] === 'offer' ? [api] : [])
 }
 
 /**
@@ -688,7 +697,7 @@ function assertOfferedCompatFields(
     // the other order sends someone to supply a value the key would be refused
     // with anyway.
     if (compatProtocols(field).length === 0) {
-      const declared = Object.values(COMPAT_GATES).some(gate => gate[field] !== undefined)
+      const declared = Object.values<ProtocolCompatGate>(COMPAT_GATES).some(gate => gate[field] !== undefined)
       if (declared) {
         invalid(provider, `${site} sets compat "${field}", which is not configurable here. Remove the key to use pi-ai's catalog or protocol default.`)
       }

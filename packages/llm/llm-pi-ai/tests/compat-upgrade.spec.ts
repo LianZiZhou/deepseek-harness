@@ -68,8 +68,8 @@ describe('pi-ai gateway compatibility declarations', () => {
     expect(() => resolved({ [field]: value }, api)).toThrow(`compat "${field}", which is not configurable here`)
   })
 
-  it('leaves Mistral strict mode to the installed provider', () => {
-    expect(() => resolveProfiles({ mistral: { compat: { supportsStrictMode: true } } }))
+  it.each(['mistral', 'google', 'google-vertex'])('leaves strict mode on %s to the installed provider', (provider) => {
+    expect(() => resolveProfiles({ [provider]: { compat: { supportsStrictMode: true } } }))
       .toThrow(/compat "supportsStrictMode", but no model on the route speaks a protocol that takes it/)
   })
 
