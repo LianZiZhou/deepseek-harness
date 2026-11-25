@@ -50,6 +50,18 @@ jobs:
           if ! git diff --quiet HEAD; then echo "version=$version" >> "$GITHUB_OUTPUT"; fi
       - if: github.event_name == 'pull_request'
         run: pnpm install --frozen-lockfile
+      - name: Build the host and Web assets for browser checks
+        if: github.event_name == 'pull_request' || steps.update.outputs.version
+        run: |
+          pnpm run build:artifacts
+          pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium
+      - name: Refresh the catalog in the Models and onboarding snapshots
+        if: steps.update.outputs.version
+        env:
+          DSH_SNAPSHOT: refresh
+        run: >-
+          pnpm exec vitest run --config vitest.web.config.ts
+          apps/web/tests/models-settings.e2e.ts apps/web/tests/onboarding-usable-provider.e2e.ts
       - id: patch
         if: steps.update.outputs.version
         name: Record the candidate update
@@ -58,12 +70,14 @@ jobs:
           git diff --cached --check
           git diff --cached --binary --no-renames > "$RUNNER_TEMP/pi-ai.patch"
           echo "tree=$(git write-tree)" >> "$GITHUB_OUTPUT"
-      - name: Check adapter types, provider behavior, picker options and Desktop patches
+      - name: Check provider behavior, Desktop patches and browser snapshots
         if: github.event_name == 'pull_request' || steps.update.outputs.version
+        env:
+          DSH_SNAPSHOT: replay
         run: |
-          pnpm exec tsc -b packages/llm/llm-pi-ai
-          node --import tsx/esm .github/fork-sync/check-pi-ai-picker.mjs
           pnpm exec vitest run packages/llm/llm-pi-ai/tests apps/desktop/tests/prepare-runtime-patches.spec.ts
+          pnpm exec vitest run --config vitest.web.config.ts \
+            apps/web/tests/models-settings.e2e.ts apps/web/tests/onboarding-usable-provider.e2e.ts
       - name: Verify the checked files still match the candidate
         if: steps.patch.outputs.tree
         env:
@@ -107,6 +121,8 @@ jobs:
             --include='packages/llm/llm-pi-ai/package.json' \
             --include='packages/llm/llm-pi-ai/src/provider-data.generated.ts' \
             --include='apps/desktop/scripts/runtime-patch-policy.ts' \
+            --include='apps/web/tests/expected/models-settings/*.expected.md' \
+            --include='apps/web/tests/expected/onboarding-usable-provider/*.expected.md' \
             --include='THIRD_PARTY_NOTICES.md' --include='docs/config-catalog.md' \
             --include='docs/config-catalog.zh.md' --include='docs/config-catalog.i18n.yaml' \
             "$RUNNER_TEMP/pi-ai-update/pi-ai.patch"
