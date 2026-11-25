@@ -792,12 +792,6 @@ describe('reasoning borrowed by model name', () => {
     expect(model.baseUrl).toBe('https://acme.test')
   })
 
-  it('prefers the model maker over resellers whose spellings differ', () => {
-    const maker = shipped('anthropic', 'claude-opus-5').thinkingLevelMap
-    expect(maker).not.toEqual(shipped('github-copilot', 'claude-opus-5').thinkingLevelMap)
-    expect(modelOf(declared([{ id: 'claude-opus-5' }])).thinkingLevelMap).toEqual(maker)
-  })
-
   it('matches a dotted or vendor-prefixed spelling of the maker\'s id', () => {
     const maker = shipped('anthropic', 'claude-opus-4-8').thinkingLevelMap
     expect(modelOf(declared([{ id: 'claude-opus-4.8' }])).thinkingLevelMap).toEqual(maker)

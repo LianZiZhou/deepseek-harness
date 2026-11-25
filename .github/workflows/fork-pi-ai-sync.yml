@@ -8,7 +8,7 @@ on:
     paths:
       - .github/workflows/fork-pi-ai-sync.yml
       - .github/fork-sync/*pi-ai*.mjs
-      - packages/llm/llm-pi-ai/package.json
+      - packages/llm/llm-pi-ai/**
 
 permissions:
   contents: read
