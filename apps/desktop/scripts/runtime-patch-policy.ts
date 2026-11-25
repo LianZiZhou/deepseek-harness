@@ -11,7 +11,7 @@ export const DESKTOP_RUNTIME_PATCHES: Readonly<Record<string, DesktopRuntimePatc
   '@deepseek-ai/libreoffice-kit@0.2.3': { scope: 'shared', reason: 'Inside app.asar a missing Linux native engine must fall back to WASM, not read as present.' },
   '@botiverse/oar@0.67.0': { scope: 'workspace-only', reason: 'Patched OAR adapters are embedded in the provider bundle.' },
   '@earendil-works/pi-ai@1.3.0': { scope: 'workspace-only', reason: 'Only the experimental OAR subagent\'s coding agent resolves 1.3.0, and Desktop does not ship it.' },
-  '@earendil-works/pi-ai@1.6.0': { scope: 'shared', reason: 'Runtime providers replay Gemini tool-call thought signatures over Chat Completions.' },
+  '@earendil-works/pi-ai@1.6.1': { scope: 'shared', reason: 'Runtime providers replay Gemini tool-call thought signatures over Chat Completions.' },
   '@electron/osx-sign@1.3.3': { scope: 'workspace-only', reason: 'Signing executes on the build host.' },
   '@fortune-sheet/core@1.0.4': { scope: 'workspace-only', reason: 'Patched spreadsheet code is embedded in the client bundle.' },
   '@fortune-sheet/react@1.0.4': { scope: 'workspace-only', reason: 'Patched spreadsheet code is embedded in the client bundle.' },
@@ -27,5 +27,5 @@ export const DESKTOP_RUNTIME_PATCHES: Readonly<Record<string, DesktopRuntimePatc
 /** Reviewed Desktop dependency constraints, independent of patch selection. */
 export const DESKTOP_RUNTIME_DEPENDENCY_OVERRIDES: Readonly<Record<string, string>> = {
   // Pin Desktop to the workspace adapter's reviewed pi-ai release.
-  '@earendil-works/pi-ai@^1.6.0': '1.6.0',
+  '@earendil-works/pi-ai@^1.6.1': '1.6.1',
 }
