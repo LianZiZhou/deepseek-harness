@@ -21,3 +21,11 @@ The hourly workflow opens one issue per conflicting upstream commit. While a con
 4. Run **Fork upstream catchup** from Actions. It fetches the latest upstream tip, including releases published during the repair. At a new conflict the run fails after pushing the clean prefix. Repeat the repair for that issue. A fully successful recovery closes the resolved issues. The next successful hourly sync dispatches a nightly for its exact fork commit.
 
 Run the checkpoint and recovery tests locally with `python3 -m unittest discover -s .github/fork-sync`.
+
+## Daily pi-ai updates
+
+[Fork pi-ai sync](../workflows/fork-pi-ai-sync.yml) checks the npm `latest` tag for `@earendil-works/pi-ai` daily at 00:43 UTC (08:43 Hong Kong). You can also run it from Actions on the fork's default branch. It checks the published package directly, so the fork can pick up new models before the hourly harness sync supplies them.
+
+A newer stable version updates the adapter, lockfile, Desktop pin and generated provider metadata. The updater checks the existing patch against the published tarball and keeps the experimental OAR dependency at its own locked version. After the adapter and Desktop checks pass, a separate job pushes the tested changes in one commit. An up-to-date checkout produces no commit. Both sync workflows share a queue.
+
+To reproduce an update, run `node .github/fork-sync/update-pi-ai.mjs VERSION` in a clean checkout, replacing `VERSION` with the exact npm release. If a release needs a patch or adapter change, resolve it on the default branch, then select **Run workflow** on that branch to check the new commit. Run the updater tests with `node --test .github/fork-sync/update-pi-ai.test.mjs`.

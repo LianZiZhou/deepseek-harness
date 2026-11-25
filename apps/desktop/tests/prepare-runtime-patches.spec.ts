@@ -42,15 +42,17 @@ it('classifies the current workspace and shares only runtime patch bytes', () =>
   const repository = resolve(import.meta.dirname, '../../..')
   const before = readFileSync(join(repository, 'pnpm-lock.yaml'))
   const plan = prepareRuntimePatches(project, repository)
-  expect(plan.patches.map(entry => entry.spec)).toEqual(['@deepseek-ai/libreoffice-kit@0.2.3', '@earendil-works/pi-ai@1.5.0', 'node-pty@1.2.0-beta.15'])
-  // pi-ai@1.3.0 is workspace-only, but its name stays allowed because 1.5.0 is shared.
+  const adapter = JSON.parse(readFileSync(join(repository, 'packages/llm/llm-pi-ai/package.json'), 'utf8')) as { dependencies: Record<string, string> }
+  const piAiRange = adapter.dependencies['@earendil-works/pi-ai']!
+  const piAiVersion = piAiRange.slice(1)
+  expect(plan.patches.map(entry => entry.spec)).toEqual(['@deepseek-ai/libreoffice-kit@0.2.3', `@earendil-works/pi-ai@${piAiVersion}`, 'node-pty@1.2.0-beta.15'])
   expect(plan.workspaceOnly).toHaveLength(10)
   expect(plan.workspaceOnly).not.toContain('@earendil-works/pi-ai')
   expect(plan.workspaceOnly).toContain('@botiverse/oar')
   expect(plan.workspaceOnly).toContain('lexical')
   const settings = yaml.load(readFileSync(join(project, 'pnpm-workspace.yaml'), 'utf8')) as { overrides: Record<string, string> }
   expect(settings.overrides['@earendil-works/pi-ai']).toBeUndefined()
-  expect(settings.overrides['@earendil-works/pi-ai@^1.5.0']).toBe('1.5.0')
+  expect(settings.overrides[`@earendil-works/pi-ai@${piAiRange}`]).toBe(piAiVersion)
   expect(readFileSync(join(repository, 'pnpm-lock.yaml'))).toEqual(before)
   writeFileSync(join(project, 'pnpm-lock.yaml'), yaml.dump({
     patchedDependencies: Object.fromEntries(plan.patches.map(entry => [entry.spec, entry.hash])),
