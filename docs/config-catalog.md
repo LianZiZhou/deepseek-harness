@@ -2585,15 +2585,12 @@ export type PiAiModelOverride = Omit<PiAiModelProfile, 'id'>
  * pi-ai wire-compatibility switches, set on the route (its models' default) or
  * per model (winning over the route, field by field).
  *
- * pi-ai decides each of these from the provider id and baseURL when no layer
- * sets it, and a private gateway's URL says nothing: for an endpoint it does
- * not recognize the detection answers as though it were OpenAI itself, which
- * is wrong for most OpenAI-compatible gateways. So every field here is one a
- * deployment must be able to state because nothing can infer it, while the
- * fields pi-ai's catalog sets for a named vendor stay withheld.
+ * pi-ai derives defaults from the provider id and baseURL. A private gateway
+ * can override these fields to match the request fields and roles it accepts.
+ * Other fields use pi-ai's catalog or protocol defaults.
  *
- * A field belongs to the protocols whose upstream compat type declares it: a
- * model-level switch its protocol does not take fails resolution, and a
+ * Each protocol accepts its offered fields. A model-level switch its
+ * protocol does not accept fails resolution, and a
  * route-level one skips past models it cannot fit. "The three Responses
  * protocols" below means `openai-responses`, `azure-openai-responses`, and
  * `openai-codex-responses`, which pi-ai gives one shared compat type, so a
