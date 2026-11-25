@@ -58,6 +58,21 @@ describe('pi-ai gateway compatibility declarations', () => {
       .toThrow(/which is not configurable here/)
   })
 
+  it.each([
+    ['openai-completions', 'requiresNonNullAssistantContent', true],
+    ['openai-completions', 'requiresToolsWithToolHistory', true],
+    ['openai-completions', 'promptCacheKeyMode', 'enabled'],
+    ['openai-responses', 'promptCacheKeyMode', 'disabled'],
+    ['anthropic-messages', 'supportsMessageThreads', true],
+  ] as const)('leaves %s field %s to the installed provider', (api, field, value) => {
+    expect(() => resolved({ [field]: value }, api)).toThrow(`compat "${field}", which is not configurable here`)
+  })
+
+  it('leaves Mistral strict mode to the installed provider', () => {
+    expect(() => resolveProfiles({ mistral: { compat: { supportsStrictMode: true } } }))
+      .toThrow(/compat "supportsStrictMode", but no model on the route speaks a protocol that takes it/)
+  })
+
   it('withholds Mistral conversation capabilities', () => {
     expect(() => resolveProfiles({
       mistral: { compat: { supportsMidConvoSystemMessages: true } as never },

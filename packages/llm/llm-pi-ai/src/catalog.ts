@@ -326,10 +326,7 @@ export type PiAiReasoningEfforts = Partial<Record<ModelThinkingLevel, string | n
 /**
  * Whether one pi-ai compat field is configurable on a profile.
  *
- * `withhold` is the disposition for a field pi-ai's installed catalog already
- * sets for a named vendor. Reaching for one of those on a hand-declared route
- * means configuring a provider that should have been named as a catalog route
- * instead, where the installed entry carries the right value already.
+ * A withheld field uses pi-ai's installed catalog or protocol default.
  */
 type CompatDisposition = 'offer' | 'withhold'
 
@@ -358,6 +355,9 @@ const COMPLETIONS_COMPAT_GATE = {
   supportsStrictMode: 'offer',
   cacheControlFormat: 'offer',
   supportsLongCacheRetention: 'offer',
+  requiresNonNullAssistantContent: 'withhold',
+  requiresToolsWithToolHistory: 'withhold',
+  promptCacheKeyMode: 'withhold',
   openRouterRouting: 'withhold',
   vercelGatewayRouting: 'withhold',
   zaiToolStream: 'withhold',
@@ -374,6 +374,7 @@ const RESPONSES_COMPAT_GATE = {
   supportsMaxOutputTokens: 'offer',
   supportsStrictMode: 'offer',
   supportsLongCacheRetention: 'offer',
+  promptCacheKeyMode: 'withhold',
   sessionAffinityFormat: 'withhold',
   supportsOpenAIGrammarTools: 'withhold',
   supportsAdditionalTools: 'withhold',
@@ -392,6 +393,7 @@ const ANTHROPIC_COMPAT_GATE = {
   forceAdaptiveThinking: 'offer',
   allowEmptySignature: 'offer',
   supportsStrictTools: 'offer',
+  supportsMessageThreads: 'withhold',
   sendSessionAffinityHeaders: 'withhold',
   sessionAffinityFormat: 'withhold',
   supportsMidConvoSystemMessages: 'withhold',
@@ -407,6 +409,7 @@ const BEDROCK_COMPAT_GATE = {
 
 /** Disposition of every `MistralConversationsCompat` field. */
 const MISTRAL_COMPAT_GATE = {
+  supportsStrictMode: 'withhold',
   supportsMidConvoSystemMessages: 'withhold',
 } as const satisfies Record<keyof MistralConversationsCompat, CompatDisposition>
 
@@ -465,15 +468,12 @@ type OfferedCompatField =
  * pi-ai wire-compatibility switches, set on the route (its models' default) or
  * per model (winning over the route, field by field).
  *
- * pi-ai decides each of these from the provider id and baseURL when no layer
- * sets it, and a private gateway's URL says nothing: for an endpoint it does
- * not recognize the detection answers as though it were OpenAI itself, which
- * is wrong for most OpenAI-compatible gateways. So every field here is one a
- * deployment must be able to state because nothing can infer it, while the
- * fields pi-ai's catalog sets for a named vendor stay withheld.
+ * pi-ai derives defaults from the provider id and baseURL. A private gateway
+ * can override these fields to match the request fields and roles it accepts.
+ * Other fields use pi-ai's catalog or protocol defaults.
  *
- * A field belongs to the protocols whose upstream compat type declares it: a
- * model-level switch its protocol does not take fails resolution, and a
+ * Each protocol accepts its offered fields. A model-level switch its
+ * protocol does not accept fails resolution, and a
  * route-level one skips past models it cannot fit. "The three Responses
  * protocols" below means `openai-responses`, `azure-openai-responses`, and
  * `openai-codex-responses`, which pi-ai gives one shared compat type, so a
@@ -690,8 +690,7 @@ function assertOfferedCompatFields(
     if (compatProtocols(field).length === 0) {
       const declared = Object.values(COMPAT_GATES).some(gate => gate[field] !== undefined)
       if (declared) {
-        invalid(provider, `${site} sets compat "${field}", which is not configurable here: pi-ai's installed`
-          + ' catalog sets it for the vendors that need it, so name that provider as the route instead')
+        invalid(provider, `${site} sets compat "${field}", which is not configurable here. Remove the key to use pi-ai's catalog or protocol default.`)
       }
       invalid(provider, `${site} sets compat "${field}", which no wire protocol declares; the configurable`
         + ` switches are ${allOfferedCompatFields().join(', ')}`)

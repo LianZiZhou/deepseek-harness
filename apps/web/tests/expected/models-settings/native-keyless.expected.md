@@ -51,6 +51,7 @@
       - option "qwen-token-plan"
       - option "qwen-token-plan-cn"
       - option "qwen-token-plan-individual"
+      - option "qwen-token-plan-individual-cn"
       - option "radius"
       - option "together"
       - option "vercel-ai-gateway"
@@ -85,7 +86,7 @@
         - button "Sign in with Meta"
         - button "Meta Model API key"
       - listitem:
-        - text: OpenAI Codex (legacy) llm-pi-ai/openai-codex
+        - text: OpenAI Codex llm-pi-ai/openai-codex
         - button "OpenAI (ChatGPT Plus/Pro)"
       - listitem:
         - text: OpenRouter llm-pi-ai/openrouter

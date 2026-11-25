@@ -1,0 +1,133 @@
+name: Fork pi-ai sync
+
+on:
+  schedule:
+    - cron: '43 0 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/fork-pi-ai-sync.yml
+      - .github/fork-sync/*pi-ai*.mjs
+      - packages/llm/llm-pi-ai/package.json
+
+permissions:
+  contents: read
+
+# The hourly harness sync also writes the fork's default branch.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('fork-pi-ai-pr-{0}', github.event.number) || 'fork-upstream-writer' }}
+  queue: max
+
+jobs:
+  update:
+    if: github.repository == 'LianZiZhou/deepseek-harness' && (github.event_name == 'pull_request' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      base: ${{ steps.checkout.outputs.commit }}
+      version: ${{ steps.update.outputs.version }}
+      tree: ${{ steps.patch.outputs.tree }}
+    env:
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - id: checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.sha || github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v5.0.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '^24.22.3'
+          package-manager-cache: false
+      - run: node --test .github/fork-sync/update-pi-ai.test.mjs
+      - id: update
+        if: github.event_name != 'pull_request'
+        name: Check the published pi-ai release
+        run: |
+          version=$(npm view --registry=https://registry.npmjs.org @earendil-works/pi-ai@latest version)
+          node .github/fork-sync/update-pi-ai.mjs "$version"
+          if ! git diff --quiet HEAD; then echo "version=$version" >> "$GITHUB_OUTPUT"; fi
+      - if: github.event_name == 'pull_request'
+        run: pnpm install --frozen-lockfile
+      - name: Build the host and Web assets for browser checks
+        if: github.event_name == 'pull_request' || steps.update.outputs.version
+        run: |
+          pnpm run build:artifacts
+          pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium webkit
+      - name: Refresh the catalog in the Models and onboarding snapshots
+        if: steps.update.outputs.version
+        env:
+          DSH_SNAPSHOT: refresh
+        run: >-
+          pnpm exec vitest run --config vitest.web.config.ts
+          apps/web/tests/models-settings.e2e.ts apps/web/tests/onboarding-usable-provider.e2e.ts
+      - id: patch
+        if: steps.update.outputs.version
+        name: Record the candidate update
+        run: |
+          git add -A
+          git diff --cached --check
+          git diff --cached --binary --no-renames > "$RUNNER_TEMP/pi-ai.patch"
+          echo "tree=$(git write-tree)" >> "$GITHUB_OUTPUT"
+      - name: Check provider behavior, Desktop patches and browser snapshots
+        if: github.event_name == 'pull_request' || steps.update.outputs.version
+        env:
+          DSH_SNAPSHOT: replay
+        run: |
+          pnpm exec vitest run packages/llm/llm-pi-ai/tests apps/desktop/tests/prepare-runtime-patches.spec.ts
+          pnpm exec vitest run --config vitest.web.config.ts \
+            apps/web/tests/models-settings.e2e.ts apps/web/tests/onboarding-usable-provider.e2e.ts
+      - name: Verify the checked files still match the candidate
+        if: steps.patch.outputs.tree
+        env:
+          TREE: ${{ steps.patch.outputs.tree }}
+        run: |
+          git add -A
+          test "$(git write-tree)" = "$TREE"
+      - uses: actions/upload-artifact@v7
+        if: steps.patch.outputs.tree
+        with:
+          name: pi-ai-update
+          path: ${{ runner.temp }}/pi-ai.patch
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: update
+    if: github.event_name != 'pull_request' && needs.update.outputs.tree
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: pi-ai-update
+          path: ${{ runner.temp }}/pi-ai-update
+      - name: Push the checked update
+        env:
+          BRANCH: ${{ github.event.repository.default_branch }}
+          BASE: ${{ needs.update.outputs.base }}
+          VERSION: ${{ needs.update.outputs.version }}
+          TREE: ${{ needs.update.outputs.tree }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$BASE"
+          git apply --index \
+            --include='pnpm-lock.yaml' --include='pnpm-workspace.yaml' \
+            --include='packages/llm/llm-pi-ai/package.json' \
+            --include='packages/llm/llm-pi-ai/src/provider-data.generated.ts' \
+            --include='apps/desktop/scripts/runtime-patch-policy.ts' \
+            --include='apps/web/tests/expected/models-settings/*.expected.md' \
+            --include='apps/web/tests/expected/onboarding-usable-provider/*.expected.md' \
+            --include='THIRD_PARTY_NOTICES.md' --include='docs/config-catalog.md' \
+            --include='docs/config-catalog.zh.md' --include='docs/config-catalog.i18n.yaml' \
+            "$RUNNER_TEMP/pi-ai-update/pi-ai.patch"
+          test "$(git write-tree)" = "$TREE"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore(llm-pi-ai): sync pi-ai $VERSION"
+          git push origin "HEAD:refs/heads/$BRANCH"

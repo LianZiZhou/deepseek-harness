@@ -133,7 +133,7 @@
         - button "Sign in with Meta"
         - button "Meta Model API key"
       - listitem:
-        - text: OpenAI Codex (legacy) llm-pi-ai/openai-codex
+        - text: OpenAI Codex llm-pi-ai/openai-codex
         - button "OpenAI (ChatGPT Plus/Pro)"
       - listitem:
         - text: OpenRouter llm-pi-ai/openrouter
