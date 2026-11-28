@@ -38,6 +38,9 @@
     - paragraph: 以下提供方通过浏览器登录签发凭据，而不是由你自己持有的 API 密钥。
     - list:
       - listitem:
+        - text: DeepSeek deepseek-account-platform/default
+        - button "DeepSeek"
+      - listitem:
         - text: Anthropic llm-pi-ai/anthropic
         - button "Anthropic (Claude Pro/Max)"
         - button "Anthropic API key"
@@ -54,7 +57,7 @@
         - button "Sign in with Meta"
         - button "Meta Model API key"
       - listitem:
-        - text: OpenAI Codex (legacy) llm-pi-ai/openai-codex
+        - text: OpenAI Codex llm-pi-ai/openai-codex
         - button "OpenAI (ChatGPT Plus/Pro)"
       - listitem:
         - text: OpenRouter llm-pi-ai/openrouter
@@ -72,6 +75,3 @@
         - text: Z.AI llm-pi-ai/zai
         - button "Sign in with Z.AI (GLM Coding Plan)"
         - button "Z.AI API key"
-      - listitem:
-        - text: DeepSeek deepseek-account-platform/default
-        - button "DeepSeek"

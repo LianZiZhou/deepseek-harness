@@ -81,6 +81,9 @@
     - paragraph: 以下提供方通过浏览器登录签发凭据，而不是由你自己持有的 API 密钥。
     - list:
       - listitem:
+        - text: DeepSeek deepseek-account-platform/default
+        - button "DeepSeek"
+      - listitem:
         - text: Anthropic llm-pi-ai/anthropic
         - button "Anthropic (Claude Pro/Max)"
         - button "Anthropic API key"
@@ -115,6 +118,3 @@
         - text: Z.AI llm-pi-ai/zai
         - button "Sign in with Z.AI (GLM Coding Plan)"
         - button "Z.AI API key"
-      - listitem:
-        - text: DeepSeek deepseek-account-platform/default
-        - button "DeepSeek"
