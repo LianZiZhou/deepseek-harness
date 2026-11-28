@@ -30,12 +30,12 @@
 | `api-authorization/notice` | `emit` | [`packages/api/settings-controller/src/types.ts:131`](../packages/api/settings-controller/src/types.ts) | `settings-controller` (`emit`) | `remotes` |
 | `api-authorization/prompt` | `emit` | [`packages/api/settings-controller/src/types.ts:137`](../packages/api/settings-controller/src/types.ts) | `settings-controller` (`emit`) | `remotes` |
 | `api-authorization/prompt-closed` | `emit` | [`packages/api/settings-controller/src/types.ts:143`](../packages/api/settings-controller/src/types.ts) | `settings-controller` (`emit`) | `remotes` |
-| `api-session/activity` | `emit` | [`packages/api/session-controller/src/types.ts:805`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
-| `api-session/added` | `emit` | [`packages/api/session-controller/src/types.ts:779`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
-| `api-session/error` | `emit` | [`packages/api/session-controller/src/types.ts:812`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
-| `api-session/removed` | `emit` | [`packages/api/session-controller/src/types.ts:785`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
-| `api-session/rewritten` | `emit` | [`packages/api/session-controller/src/types.ts:791`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `session-controller` |
-| `api-session/status` | `emit` | [`packages/api/session-controller/src/types.ts:798`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
+| `api-session/activity` | `emit` | [`packages/api/session-controller/src/types.ts:807`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
+| `api-session/added` | `emit` | [`packages/api/session-controller/src/types.ts:781`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
+| `api-session/error` | `emit` | [`packages/api/session-controller/src/types.ts:814`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
+| `api-session/removed` | `emit` | [`packages/api/session-controller/src/types.ts:787`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
+| `api-session/rewritten` | `emit` | [`packages/api/session-controller/src/types.ts:793`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `session-controller` |
+| `api-session/status` | `emit` | [`packages/api/session-controller/src/types.ts:800`](../packages/api/session-controller/src/types.ts) | `session-controller` (`emit`) | `remotes` |
 | `app-boot/config-reload` | `emit` | [`packages/boot/app-boot/src/index.ts:58`](../packages/boot/app-boot/src/index.ts) | [`app-boot`](../packages/boot/app-boot) (`emit`) | [`llm-pi-ai`](../packages/llm/llm-pi-ai), [`settings`](../packages/settings/settings) |
 | `approval/request` | `waterfall` | [`packages/interaction/user-approval/src/types.ts:87`](../packages/interaction/user-approval/src/types.ts) | [`user-approval`](../packages/interaction/user-approval) (`waterfall`) | [`acp`](../packages/acp/acp), `remotes`, `server` |
 | `authorization/settled` | `emit` | [`packages/credentials/authorization/src/index.ts:57`](../packages/credentials/authorization/src/index.ts) | [`authorization`](../packages/credentials/authorization) (`events.dispatch`) | - |
