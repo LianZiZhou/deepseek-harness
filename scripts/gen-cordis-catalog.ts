@@ -425,6 +425,7 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   ShareCapabilities: 'liveshare.md',
   ShareCapabilityOffers: 'liveshare.md',
   SharePermissions: 'liveshare.md',
+  ReconnectShareRequest: 'liveshare.md',
   StopShareRequest: 'liveshare.md',
   StopShareResult: 'liveshare.md',
   TestPublishRequest: 'liveshare.md',
