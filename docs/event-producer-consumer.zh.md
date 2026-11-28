@@ -13,7 +13,7 @@
 | Event | Mode | Declared in | Dispatchers | Listeners |
 | --- | --- | --- | --- | --- |
 | `agent-loop/config-start-failed` | `emit` | [`packages/core/agent-loop/src/index.ts:198`](../packages/core/agent-loop/src/index.ts) | [`agent-loop`](../packages/core/agent-loop) (`events.dispatch`) | - |
-| `agent-preset/selected` | `emit` | [`packages/preset/agent-preset-registry/src/types.ts:90`](../packages/preset/agent-preset-registry/src/types.ts) | [`agent-preset-registry`](../packages/preset/agent-preset-registry) (`emit`) | [`cua`](../packages/experimental/cua), `remotes` |
+| `agent-preset/selected` | `emit` | [`packages/preset/agent-preset-registry/src/types.ts:92`](../packages/preset/agent-preset-registry/src/types.ts) | [`agent-preset-registry`](../packages/preset/agent-preset-registry) (`emit`) | [`cua`](../packages/experimental/cua), `remotes` |
 | `agent/admit-context` | `waterfall` | [`packages/core/agent/src/runtime-types.ts:397`](../packages/core/agent/src/runtime-types.ts) | [`agent-loop`](../packages/core/agent-loop) (`waterfall`) | [`context-injections`](../packages/context/context-injections) |
 | `agent/admit-messages` | `waterfall` | [`packages/core/agent/src/runtime-types.ts:381`](../packages/core/agent/src/runtime-types.ts) | [`agent-loop`](../packages/core/agent-loop) (`waterfall`) | [`context-injections`](../packages/context/context-injections) |
 | `agent/assistant-stream` | `emit` | [`packages/core/agent/src/runtime-types.ts:446`](../packages/core/agent/src/runtime-types.ts) | [`agent-loop`](../packages/core/agent-loop) (`emit`) | [`headless`](../packages/bundle/headless), `session-controller` |
