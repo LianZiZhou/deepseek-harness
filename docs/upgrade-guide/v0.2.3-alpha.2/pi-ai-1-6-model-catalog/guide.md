@@ -1,9 +1,9 @@
 ---
 kind: upgrade-guide
-description: "pi-ai 1.6.1 removes chat model IDs and reduces token limits or reasoning options on some routes."
+description: "pi-ai 1.6–1.7 removes chat model IDs and reduces token limits or reasoning options on some routes."
 ---
 
-# pi-ai 1.6.1 chat model catalog changes
+# pi-ai 1.6–1.7 chat model catalog changes
 
 English | [中文](guide.zh.md)
 
@@ -18,6 +18,9 @@ Each provider/model ID counts separately. The last two columns count IDs present
 | 1.5.0 to 1.6.0 | 169 | 63 | 14 | 16 |
 | 1.6.0 to 1.6.1 | 63 | 65 | 12 | 13 |
 | 1.5.0 to 1.6.1 | 230 | 126 | 22 | 24 |
+| 1.6.1 to 1.7.0 | 43 | 38 | 2 | 6 |
+
+In 1.7.0, Qwen Token Plan replaces `qwen4-max-preview` with `qwen4-max`. Ant Ling retires its Ling and Ring 2.6 models. Bedrock Kimi K3 and K3.1 omit earlier reasoning on replay.
 
 In 1.6.0, `qwen-token-plan` and `qwen-token-plan-cn` dropped `deepseek-v3.2` and `deepseek-v4-flash`. In 1.6.1, both cut the output limit for `kimi-k2.7-code` from 262,144 to 16,384 tokens.
 
@@ -33,7 +36,7 @@ Google Generative AI and Vertex routes use pi-ai's default for `compat.supportsS
 
 ## Migration
 
-1. Find `chat:<id>` in your provider's JSON file to check the ID, `contextWindow`, and `maxTokens`. Compare the published catalogs for [1.5.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.5.0/dist/providers/data/), [1.6.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.6.0/dist/providers/data/), and [1.6.1](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.6.1/dist/providers/data/).
+1. Find `chat:<id>` in your provider's JSON file to check the ID, `contextWindow`, and `maxTokens`. Compare the published catalogs for [1.5.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.5.0/dist/providers/data/), [1.6.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.6.0/dist/providers/data/), [1.6.1](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.6.1/dist/providers/data/), and [1.7.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.7.0/dist/providers/data/).
 2. In Settings → Models, select a replacement your provider serves. For example, on `mistral`, replace `mistral-medium-3.5` with `mistral-medium-2604` or `mistral-medium-latest`.
 3. In `$DSH_HOME/profiles/<profile>/cordis.patch.yml`, remove obsolete `providers.<provider>.modelOverrides.<id>` entries and update IDs under `providers.<provider>.models`. Adjust prompt and output budgets to the new limits. If the selected model drops your route's `reasoning` level, choose one it offers.
 4. If your Chat Completions gateway requires `developer`, set `compat.supportsDeveloperRole: true` on the route or model.
