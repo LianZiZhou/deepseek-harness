@@ -404,6 +404,7 @@ const ANTHROPIC_COMPAT_GATE = {
 
 /** Disposition of every `BedrockCompat` field; a drift gate like the one above. */
 const BEDROCK_COMPAT_GATE = {
+  supportsReasoningReplay: 'withhold',
   supportsStrictMode: 'offer',
 } as const satisfies Record<keyof BedrockCompat, CompatDisposition>
 

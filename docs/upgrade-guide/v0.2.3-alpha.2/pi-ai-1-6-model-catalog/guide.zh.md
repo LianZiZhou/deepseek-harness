@@ -1,9 +1,9 @@
 ---
 kind: upgrade-guide
-description: "pi-ai 1.6.1 移除了部分聊天模型 ID，降低了部分路由的 token 上限或减少了可选的推理级别。"
+description: "pi-ai 1.6–1.7 移除了部分聊天模型 ID，降低了部分路由的 token 上限或减少了可选的推理级别。"
 ---
 
-# pi-ai 1.6.1 聊天模型目录变更
+# pi-ai 1.6–1.7 聊天模型目录变更
 
 [English](guide.md) | 中文
 
@@ -18,6 +18,9 @@ description: "pi-ai 1.6.1 移除了部分聊天模型 ID，降低了部分路由
 | 1.5.0 至 1.6.0 | 169 | 63 | 14 | 16 |
 | 1.6.0 至 1.6.1 | 63 | 65 | 12 | 13 |
 | 1.5.0 至 1.6.1 | 230 | 126 | 22 | 24 |
+| 1.6.1 至 1.7.0 | 43 | 38 | 2 | 6 |
+
+1.7.0 中，Qwen Token Plan 将 `qwen4-max-preview` 替换为 `qwen4-max`。Ant Ling 移除了 Ling 和 Ring 2.6 模型。Bedrock 上的 Kimi K3 和 K3.1 在重放时省略此前的推理。
 
 1.6.0 中，`qwen-token-plan` 和 `qwen-token-plan-cn` 都移除了 `deepseek-v3.2` 和 `deepseek-v4-flash`。1.6.1 中，这两个提供商将 `kimi-k2.7-code` 的输出上限从 262,144 个 token 降至 16,384 个。
 
@@ -33,7 +36,7 @@ Google Generative AI 和 Vertex 路由使用 pi-ai 的 `compat.supportsStrictMod
 
 ## 迁移
 
-1. 在提供商的 JSON 文件中搜索 `chat:<id>`，核对 ID、`contextWindow` 和 `maxTokens`。对照已发布的模型目录 [1.5.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.5.0/dist/providers/data/)、[1.6.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.6.0/dist/providers/data/) 和 [1.6.1](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.6.1/dist/providers/data/)。
+1. 在提供商的 JSON 文件中搜索 `chat:<id>`，核对 ID、`contextWindow` 和 `maxTokens`。对照已发布的模型目录 [1.5.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.5.0/dist/providers/data/)、[1.6.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.6.0/dist/providers/data/)、[1.6.1](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.6.1/dist/providers/data/) 和 [1.7.0](https://cdn.jsdelivr.net/npm/@earendil-works/pi-ai@1.7.0/dist/providers/data/)。
 2. 在「设置 → 模型」中，选择提供商支持的替代模型。例如，在 `mistral` 上，将 `mistral-medium-3.5` 换成 `mistral-medium-2604` 或 `mistral-medium-latest`。
 3. 在 `$DSH_HOME/profiles/<profile>/cordis.patch.yml` 中，删除失效的 `providers.<provider>.modelOverrides.<id>` 条目，并更新 `providers.<provider>.models` 中的 ID。根据新上限调整提示词和输出预算。如果所选模型移除了路由中配置的 `reasoning` 级别，改用该模型支持的级别。
 4. 如果 Chat Completions 网关要求使用 `developer` 角色，在对应路由或模型上设置 `compat.supportsDeveloperRole: true`。
