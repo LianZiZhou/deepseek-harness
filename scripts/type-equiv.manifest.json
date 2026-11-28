@@ -2971,6 +2971,21 @@
     },
     {
       "doc": "docs/subsystems/forge.md",
+      "symbol": "ForgeLocalWriteFile",
+      "source": "packages/experimental/client-ui-forge/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/forge.md",
+      "symbol": "ForgeLocalWrite",
+      "source": "packages/experimental/client-ui-forge/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/forge.md",
+      "symbol": "ForgeLocalWriteResult",
+      "source": "packages/experimental/client-ui-forge/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/forge.md",
       "symbol": "ForgeLocalCommits",
       "source": "packages/experimental/client-ui-forge/src/types.ts"
     },
