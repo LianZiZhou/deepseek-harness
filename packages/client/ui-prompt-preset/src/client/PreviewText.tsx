@@ -1,7 +1,7 @@
 /** Literal prompt text with optional baseline edits and Host-attributed interpolation spans. */
 import { Fragment, useMemo, type ReactNode } from 'react'
 import { diffLines, diffWordsWithSpace, type ChangeObject } from 'diff'
-import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives/client'
 import type { PromptPresetPreviewSection } from '@deepseek-ai/dsh-prompt-presets/types'
 import css from './PromptPreview.module.css'
 

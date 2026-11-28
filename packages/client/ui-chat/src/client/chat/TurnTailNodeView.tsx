@@ -1,6 +1,6 @@
 import { memo } from 'react'
-import { Button, IconPlayOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import { Button, IconPlayOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives/client'
+import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots/client'
 import type { ChatNodeViewProps, PerformanceUsageInjected, TurnTailOwnerProps } from '../contract/slots.ts'
 import { MessageIconActions } from './MessageIconActions.tsx'
 import { TurnUsagePanel } from './TurnUsagePanel.tsx'

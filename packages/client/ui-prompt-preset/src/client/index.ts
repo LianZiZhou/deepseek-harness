@@ -29,7 +29,7 @@ import { PromptPresetSectionController } from './section-store.ts'
 import { PromptPresetSeatController } from './seat-store.ts'
 import { de, en, es, fr, ja, pt, ru, zh, type PromptPresetKey } from './locales.ts'
 
-declare module '@deepseek-ai/dsh-client-ui-slots' {
+declare module '@deepseek-ai/dsh-client-ui-slots/client' {
   interface LocaleNamespaceMap {
     /** Prompt-preset surface copy. */
     'settings.promptPreset': PromptPresetKey

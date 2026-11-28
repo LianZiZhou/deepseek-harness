@@ -6,9 +6,9 @@
  */
 
 import clsx from 'clsx'
-import { Checkbox, Input } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Checkbox, Input } from '@deepseek-ai/dsh-client-ui-primitives/client'
 import type { PromptRule } from '@deepseek-ai/dsh-prompt-presets/types'
-import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots/client'
 import type { Blocker } from './preset-model.ts'
 import { SectionPicker } from './SectionPicker.tsx'
 import { TextArea } from './TextArea.tsx'

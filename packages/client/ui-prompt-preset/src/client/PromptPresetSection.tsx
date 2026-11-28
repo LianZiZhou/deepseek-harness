@@ -9,9 +9,9 @@
 
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { Button, IconPlusOutlineRegular, Input, Menu, Modal, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPlusOutlineRegular, Input, Menu, Modal, Tag } from '@deepseek-ai/dsh-client-ui-primitives/client'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots/client'
 import type { PromptPresetRow, PromptRule, PromptRuleKind } from '@deepseek-ai/dsh-prompt-presets/types'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { RULE_KINDS, draftBlocker, isShadowed } from './preset-model.ts'

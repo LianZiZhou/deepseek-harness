@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { contextMenuHook, responsiveHooks, themeHooks } from '@deepseek-ai/dsh-client-test-runtime'
 /** Conversation tab registration, plugin disposal, and trajectory interactions. */
-import type { GlobalStandardProps, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import type { GlobalStandardProps, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createElement, type ComponentProps, type FC, type ReactNode } from 'react'
 import { allowAllAccess, bindSnapshotSelector, SlotTestRuntime, stubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
-import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
+import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots/client'
 import {
   EMPTY_CONVERSATION_SNAPSHOT, UiConversation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'

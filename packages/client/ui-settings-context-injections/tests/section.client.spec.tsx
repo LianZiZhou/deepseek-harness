@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { SettingsFieldState, SettingsFormShell } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SettingsFieldState, SettingsFormShell } from '@deepseek-ai/dsh-client-ui-primitives/client'
 import { ContextInjectionsSection, type ContextInjectionsSectionProps } from '../src/client/ContextInjectionsSection.tsx'
 import { textField, type ContextInjectionsRowState, type ContextInjectionsState } from '../src/client/controller.ts'
 import { en, type ContextInjectionsLocaleKey } from '../src/client/locales.ts'

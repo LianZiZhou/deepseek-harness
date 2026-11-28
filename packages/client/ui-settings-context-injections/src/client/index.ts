@@ -26,7 +26,7 @@ export type { ContextInjectionsLocaleKey } from './locales.ts'
 export type { ContextInjectionsPageRow, ContextInjectionsRowId } from './rows.ts'
 export { CONTEXT_INJECTIONS_NS, PAGE_ROWS } from './rows.ts'
 
-declare module '@deepseek-ai/dsh-client-ui-slots' {
+declare module '@deepseek-ai/dsh-client-ui-slots/client' {
   interface LocaleNamespaceMap {
     /** Context injections settings page copy. */
     'settings.contextInjections': ContextInjectionsLocaleKey

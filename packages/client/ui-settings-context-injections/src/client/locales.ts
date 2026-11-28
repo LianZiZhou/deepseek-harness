@@ -1,6 +1,6 @@
 /** Locale bundles for the context injections settings page. */
 
-import type { SettingsFormLabels } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SettingsFormLabels } from '@deepseek-ai/dsh-client-ui-primitives/client'
 import type { ContextInjectionsRowId, ContextInjectionsVariantKey } from './rows.ts'
 
 /** Locale keys the page renders: page copy, a label and a hint per row, and a label per named shape. */

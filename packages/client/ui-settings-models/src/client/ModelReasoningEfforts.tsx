@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react'
 import type { ReactNode } from 'react'
-import { IconPlusOutlineRegular, IconTrashOutlineRegular, SegmentedControl, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconPlusOutlineRegular, IconTrashOutlineRegular, SegmentedControl, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives/client'
 import type { DeepSeekModelDraft } from './DeepSeekModelsEditor.tsx'
 import { modelDrafts } from './DeepSeekModelsEditor.tsx'
 import type { ModelsKey } from './locales.ts'

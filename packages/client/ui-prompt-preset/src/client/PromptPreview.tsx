@@ -10,9 +10,9 @@ import { useMemo, useState } from 'react'
 import {
   Button, Checkbox, IconChevronDownOutlineRegular, IconChevronRightOutlineRegular, IconRefreshOutlineRegular,
   IconWarningOutlineRegular, Modal, Pill, Tag, Tooltip,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+} from '@deepseek-ai/dsh-client-ui-primitives/client'
 import type { PromptPresetPreviewSection, PromptPresetWarningCode } from '@deepseek-ai/dsh-prompt-presets/types'
-import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots/client'
 import type { PreviewState } from './section-store.ts'
 import type { PromptPresetKey } from './locales.ts'
 import { PreviewText, promptSource, sectionExcerpt } from './PreviewText.tsx'

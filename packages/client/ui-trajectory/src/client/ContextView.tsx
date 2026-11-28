@@ -9,11 +9,11 @@ import type {
   SessionContextValue, SessionEdit, SessionRewriteValue,
 } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { ConvViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots/client'
 import {
   Button, IconBranchOutlineRegular, IconChevronRightOutlineRegular, IconRefreshOutlineRegular,
   InlineEditor, JsonTree, RiskConfirmation, Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+} from '@deepseek-ai/dsh-client-ui-primitives/client'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { jsonTreeLabels } from './TrajectoryTable.tsx'
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'

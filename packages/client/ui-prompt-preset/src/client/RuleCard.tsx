@@ -5,12 +5,12 @@
  * every move directly.
  */
 
-import { Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives/client'
 import {
   IconChevronDownOutlineRegular, IconChevronUpOutlineRegular, IconTrashOutlineRegular, IconWarningOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+} from '@deepseek-ai/dsh-client-ui-primitives/client'
 import type { PromptRule } from '@deepseek-ai/dsh-prompt-presets/types'
-import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots/client'
 import { ruleBlocker } from './preset-model.ts'
 import type { Blocker, DraftRule } from './preset-model.ts'
 import { RuleFields } from './RuleFields.tsx'

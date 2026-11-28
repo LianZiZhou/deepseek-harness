@@ -6,8 +6,8 @@
 
 import { useEffect, useState } from 'react'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots/client'
+import { IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives/client'
 import type { PermissionSettingsState } from './settings-store.ts'
 import type { PermissionSettingsKey } from './locales.ts'
 import { displayPermissionPreset } from './presentation.ts'
@@ -93,7 +93,7 @@ export function PermissionRow({ load, select, usePermission, t }: PermissionRowP
   )
 }
 
-declare module '@deepseek-ai/dsh-client-ui-slots' {
+declare module '@deepseek-ai/dsh-client-ui-slots/client' {
   interface LocaleNamespaceMap {
     /** Permission row copy. */
     'settings.permission': PermissionSettingsKey

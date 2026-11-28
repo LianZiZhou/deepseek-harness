@@ -6,8 +6,8 @@
  */
 
 import { useState } from 'react'
-import { SettingsForm, SettingsSwitchField, SettingsTextAreaField } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { SettingsForm, SettingsSwitchField, SettingsTextAreaField } from '@deepseek-ai/dsh-client-ui-primitives/client'
+import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots/client'
 import { enabledField, type ContextInjectionsFace, type ContextInjectionsRowState } from './controller.ts'
 import { formLabels, type ContextInjectionsLocaleKey } from './locales.ts'
 import { PAGE_ROWS, type ContextInjectionsPageRow } from './rows.ts'

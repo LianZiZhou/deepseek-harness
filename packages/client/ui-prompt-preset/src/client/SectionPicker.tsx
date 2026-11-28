@@ -1,7 +1,7 @@
 /** Filter preview section names without filtering out a rule's current selections. */
 import { useMemo, useRef, useState } from 'react'
-import { IconCloseOutlineRegular, Input, Pill } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import { IconCloseOutlineRegular, Input, Pill } from '@deepseek-ai/dsh-client-ui-primitives/client'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots/client'
 import { TextSearchIndex } from '@deepseek-ai/dsh-util-text-search'
 import css from './RuleCard.module.css'
 

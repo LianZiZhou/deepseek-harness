@@ -2,7 +2,7 @@
 /** Preview interaction through the same portaled modal and tooltip used in Settings. */
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
-import { Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Modal } from '@deepseek-ai/dsh-client-ui-primitives/client'
 import { PromptPresetPreview, type PromptPresetPreviewProps } from '../src/client/PromptPreview.tsx'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
