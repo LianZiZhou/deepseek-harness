@@ -89,7 +89,7 @@ export function createForkMacOSBuilderConfig(
   buildVersion: string, electronVersion: string, environment: NodeJS.ProcessEnv,
 ): Configuration {
   const shell = dirname(paths.dsh)
-  const config = createElectronBuilderConfig(environment, 'darwin', target.arch, paths.dsh, descriptor.release.version)
+  const config = createElectronBuilderConfig(environment, 'darwin', target.arch, paths.dsh)
   return {
     appId: config.appId, productName: 'DeepSeek Harness', copyright: config.copyright, artifactName: config.artifactName,
     protocols: config.protocols.map(({ name, schemes }) => ({ name, schemes: [...schemes] })),
