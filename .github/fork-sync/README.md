@@ -22,6 +22,8 @@ The hourly workflow opens one issue per conflicting upstream commit. While a con
 
 Run the checkpoint and recovery tests locally with `python3 -m unittest discover -s .github/fork-sync`.
 
+A proposed topic patch queue that keeps conflicts within one fork feature and rebuilds generated files and the lockfile instead of merging them is described in [patch-queue.md](patch-queue.md). It is not wired into any workflow yet.
+
 ## Daily pi-ai updates
 
 [Fork pi-ai sync](../workflows/fork-pi-ai-sync.yml) checks the npm `latest` tag for `@earendil-works/pi-ai` daily at 00:43 UTC (08:43 Hong Kong). You can also run it from Actions on the fork's default branch. It checks the published package directly, so the fork can pick up new models before the hourly harness sync supplies them.

@@ -1,0 +1,214 @@
+# Fork patch queue: every path the fork changes relative to upstream belongs to exactly one
+# topic, to `generated`, or to `lockfile`. Topics are matched in order; the first matching
+# glob wins. `patchqueue.py classify` fails on a changed path that no topic claims.
+# Glob syntax: `*` matches within one path segment, `**/` matches any directory prefix,
+# a trailing `/**` matches everything below a directory, and `{a,b}` lists alternatives.
+
+# Derived from sources; never carried in a topic patch. Rebuilt after the queue applies.
+[generated]
+paths = [
+  "docs/{event-producer-consumer,config-catalog,persistence-catalog,module-graph,capability-seams,tool-catalog,cli-help,graph-atlas,agent-lifecycle,tool-execution-pipeline,experimental-persistence-catalog}.md",
+  "docs/{event-producer-consumer,config-catalog,persistence-catalog,module-graph,capability-seams,tool-catalog,cli-help,graph-atlas,agent-lifecycle,tool-execution-pipeline,experimental-persistence-catalog}.zh.md",
+  "docs/persistence-schema.json",
+  "packages/extensions/cordis-host-runner/src/api-catalog.ts",
+  "packages/extensions/cordis-client-runner/src/client/{api,slot}-catalog.ts",
+  "packages/llm/llm-pi-ai/src/provider-data.generated.ts",
+  # Bilingual pairing records hash the paired Markdown; re-recorded for every pair a topic touches.
+  "**/*.i18n.yaml",
+]
+commands = [
+  ["pnpm", "run", "gen-provider-data"],
+  ["pnpm", "run", "gen-cordis-api"],
+  ["pnpm", "run", "gen-client-catalog"],
+  ["pnpm", "run", "gen-config-catalog"],
+  ["pnpm", "run", "gen-persistence-catalog"],
+  ["pnpm", "run", "gen-module-graph"],
+  ["pnpm", "run", "gen-doc-graphs"],
+  ["pnpm", "run", "gen-tool-catalog"],
+  ["pnpm", "run", "gen-cli-help"],
+]
+# Run once per sync with the Markdown pairs touched by any topic appended as arguments.
+pairing = ["pnpm", "run", "verify-translation-pairing", "--write"]
+
+# Taken from upstream and re-resolved against the fork's manifests, never three-way merged.
+[lockfile]
+paths = ["pnpm-lock.yaml"]
+command = ["pnpm", "install", "--lockfile-only", "--ignore-scripts"]
+
+# --- Overlay topics: fork-owned files that upstream does not have. ---
+
+[[topic]]
+id = "fork-infra"
+title = "Fork sync, release and CI gating"
+paths = [
+  ".github/fork-*/**",
+  ".github/workflows/fork-*.yml",
+  ".github/dependabot.yml",
+  ".github/workflows/{ci,ci-windows,build-preview-cloudflare,issue-lifecycle,issue-policy}.yml",
+  ".github/issue-management/**",
+  "scripts/ci-workflow.spec.ts",
+  "scripts/tests/ci-master-platforms.spec.ts",
+]
+
+[[topic]]
+id = "provider-sign-in"
+title = "Contributed pi-ai logins, the authorization seam and Z.AI GLM Coding Plan"
+paths = [
+  "packages/llm/llm-zai-coding-plan/**",
+  "packages/llm/llm-pi-ai/src/{external-login,login,index}.ts",
+  "packages/llm/llm-pi-ai/tests/external-login.spec.ts",
+  "packages/llm/llm/**",
+  "packages/llm/README*",
+  "packages/api/settings-controller/**",
+  "packages/client/ui-settings-models/src/client/{SignInSection.tsx,SignInSection.module.css,sign-in-store.ts}",
+  "packages/client/ui-settings-models/tests/sign-in-*",
+  "docs/subsystems/credentials*",
+  ".agents/notes/implemented/architecture/2026-09-11-*",
+  "python/sdk-runtime/package.json",
+]
+
+[[topic]]
+id = "pi-ai-catalog"
+title = "pi-ai version, dependency patch and model catalog"
+paths = [
+  "packages/llm/llm-pi-ai/**",
+  "patches/@earendil-works__pi-ai@*.patch",
+  "docs/upgrade-guide/*/pi-ai-*/**",
+  "THIRD_PARTY_NOTICES.md",
+  "apps/web/tests/expected/{models-settings,onboarding-deepseek-config,onboarding-usable-provider,deepseek-messages-settings}/**",
+]
+
+[[topic]]
+id = "reasoning-effort-ui"
+title = "Automatic / None / Custom reasoning levels in Models settings"
+paths = [
+  "packages/client/ui-settings-models/**",
+  "apps/web/tests/models-settings.e2e.ts",
+  "docs/user/guide/providers*",
+]
+
+[[topic]]
+id = "prompt-presets"
+title = "User-owned prompt presets and the /prompt-preset command"
+paths = [
+  "packages/client/ui-prompt-preset/**",
+  "packages/preset/prompt-presets/**",
+  "packages/preset/README*",
+  "packages/core/system-prompt/**",
+  "packages/core/scope/**",
+  "packages/core/session/src/known-event-types.ts",
+  "packages/client/ui-conversation/**",
+  "packages/client/ui-settings-general/**",
+  "deploy/**",
+  "docs/subsystems/{prompt-presets,system-prompt,scope,slots}*",
+  "docs/persistence-changes/*-prompt-preset-*",
+  "docs/upgrade-guide/*/{prompt-preset-section-ids,system-prompt-integrations}/**",
+  "docs/cookbook/extension-cookbook*",
+  ".agents/notes/implemented/architecture/2026-09-1{8,9}-*",
+  "apps/web/tests/prompt-preset-sections.e2e.ts",
+  "apps/web/tests/expected/prompt-preset-sections/**",
+  "snapshots/session/prompt-preset-section-rewrite/**",
+  "snapshots/sdk/system-prompt-in-history/**",
+  ".gitignore",
+]
+
+[[topic]]
+id = "agent-loop-hooks"
+title = "Agent.resume() and the agent/admit-context, agent/admit-messages waterfalls"
+paths = [
+  "packages/core/agent/**",
+  "packages/core/agent-loop/**",
+  "docs/subsystems/{core,llm-streaming}*",
+]
+
+[[topic]]
+id = "context-injections"
+title = "Per-injection switches and rewrites from Settings"
+paths = [
+  "packages/context/context-injections/**",
+  "packages/client/ui-settings-context-injections/**",
+  "packages/client/ui-primitives/**",
+  "packages/preset/agent-preset/**",
+  ".agents/notes/implemented/architecture/2026-11-18-*",
+  "snapshots/session/model-switch-*/**",
+]
+
+[[topic]]
+id = "continue-command"
+title = "/continue and the Continue button for interrupted turns"
+paths = [
+  "packages/interaction/command-continue/**",
+]
+
+[[topic]]
+id = "chat-ui"
+title = "Fork-anytime, Continue seat and session-relative image paths in chat"
+paths = [
+  "packages/client/ui-chat/**",
+  "packages/client/ui-workspace/**",
+  "packages/client/ui-tool/**",
+  "packages/client/ui-user-questions/**",
+  "packages/client/ui-workflow-run/**",
+  "packages/fs/tool-fs/**",
+]
+
+[[topic]]
+id = "session-rewrite"
+title = "In-place Session rewrite, session.context and the trajectory Context tab"
+paths = [
+  "packages/api/session-controller/**",
+  "packages/core/session/**",
+  "packages/session/**",
+  "packages/client/ui-trajectory/**",
+  "packages/test-support/client-runtime/**",
+  "docs/subsystems/{session,persistence,session-projection}*",
+  "docs/upgrade-guide/*/trajectory-context-editor/**",
+  ".agents/notes/implemented/architecture/2026-10-17-*",
+  "apps/web/tests/navigation-panes.e2e.ts",
+  "snapshots/web/**",
+]
+
+[[topic]]
+id = "permission-full-access"
+title = "Full access without a confirmation dialog"
+paths = ["packages/client/ui-permission-presets/**"]
+
+[[topic]]
+id = "desktop-release"
+title = "Fork Desktop packaging, signing, update feed and Linux Office engine"
+paths = [
+  "apps/desktop/**",
+  "packages/document/office-kit/**",
+  "packages/experimental/cua-macos/**",
+  "patches/@deepseek-ai__libreoffice-kit@*.patch",
+  "docs/upgrade-guide/*/fork-desktop-app-id/**",
+]
+
+[[topic]]
+id = "sidebar-edition"
+title = "Fork edition label beside the brand"
+paths = ["packages/client/ui-sidebar/**"]
+
+# --- Shared wiring: registration points several topics touch. Kept last and small. ---
+
+[[topic]]
+id = "integration"
+title = "Workspace, bundle, tsconfig, catalog-generator and architecture wiring"
+paths = [
+  "package.json",
+  "pnpm-workspace.yaml",
+  "tsconfig*.json",
+  "apps/web/tsconfig.json",
+  "apps/cli/**",
+  "packages/bundle/**",
+  "packages/api/remotes/**",
+  "packages/client/tsdown.client.ts",
+  "packages/boot/**",
+  "packages/ssh/**",
+  "packages/experimental/{liveshare,timeline}/**",
+  "scripts/**",
+  "docs/architecture*",
+  "docs/subsystems/README*",
+  "docs/persistence-changes/historical-formats/**",
+  "apps/web/tests/expected/reference-composer/**",
+]
