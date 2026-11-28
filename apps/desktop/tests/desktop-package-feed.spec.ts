@@ -36,7 +36,7 @@ it('derives checkout dirtiness from version alignment in the selected commit', (
 
 it('packages signed macOS updates from the fork by default', () => {
   const config = createElectronBuilderConfig({ ...appId, ...macSigning }, 'darwin', 'arm64')
-  expect(config.publish).toEqual([{ provider: 'generic', url: forkUrl, channel: 'nightly' }])
+  expect(config.publish).toEqual([{ provider: 'generic', url: forkUrl, channel: 'stable' }])
   expect(config.extraMetadata).not.toHaveProperty('dshMandatoryUpdatePolicy')
 })
 
