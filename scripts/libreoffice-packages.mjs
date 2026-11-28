@@ -5,17 +5,20 @@ import { createRequire } from 'node:module'
 import { isAbsolute, join, relative, sep } from 'node:path'
 
 /**
- * Require the declared native engine, or use WASM on other targets. A Linux
- * distribution targets glibc, the ABI the kit's own runtime resolver selects
- * on a glibc host before it falls back to WASM.
+ * Require the declared native engine for the target. Linux distributions are glibc builds, so a Linux target selects
+ * the kit's glibc engine for its CPU.
  * @param {{ optionalDependencies?: Record<string, string> }} manifest - Installed kit manifest.
  * @param {{ platform: string, arch: string }} target - Distribution platform and CPU.
  * @returns {string} Engine package suffix.
+ * @throws {Error} When the kit manifest does not declare a native engine for the target.
  */
 export function selectOfficeEngine(manifest, target) {
-  const native = `${target.platform}-${target.arch}`
-  const candidates = target.platform === 'linux' ? [`${native}-glibc`, native] : [native]
-  return candidates.find(engine => Object.hasOwn(manifest.optionalDependencies ?? {}, `@deepseek-ai/libreoffice-kit-${engine}`)) ?? 'wasm'
+  const native = target.platform === 'linux' ? `linux-${target.arch}-glibc` : `${target.platform}-${target.arch}`
+  const name = `@deepseek-ai/libreoffice-kit-${native}`
+  if (!Object.hasOwn(manifest.optionalDependencies ?? {}, name)) {
+    throw new Error(`Office engine ${name} is not declared for ${target.platform}/${target.arch}.`)
+  }
+  return native
 }
 
 /**

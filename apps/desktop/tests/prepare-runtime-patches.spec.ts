@@ -45,7 +45,7 @@ it('classifies the current workspace and shares only runtime patch bytes', () =>
   const adapter = JSON.parse(readFileSync(join(repository, 'packages/llm/llm-pi-ai/package.json'), 'utf8')) as { dependencies: Record<string, string> }
   const piAiRange = adapter.dependencies['@earendil-works/pi-ai']!
   const piAiVersion = piAiRange.slice(1)
-  expect(plan.patches.map(entry => entry.spec)).toEqual(['@deepseek-ai/libreoffice-kit@0.2.3', `@earendil-works/pi-ai@${piAiVersion}`, 'node-pty@1.2.0-beta.15'])
+  expect(plan.patches.map(entry => entry.spec)).toEqual(['@deepseek-ai/libreoffice-kit@0.2.4', `@earendil-works/pi-ai@${piAiVersion}`, 'node-pty@1.2.0-beta.15'])
   expect(plan.workspaceOnly).toHaveLength(10)
   expect(plan.workspaceOnly).not.toContain('@earendil-works/pi-ai')
   expect(plan.workspaceOnly).toContain('@botiverse/oar')

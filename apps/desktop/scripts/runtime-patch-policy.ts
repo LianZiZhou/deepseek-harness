@@ -8,7 +8,7 @@ export type DesktopRuntimePatch =
 
 /** Every workspace patch requires an explicit Desktop decision; runtime-only entries may add or replace a patch. */
 export const DESKTOP_RUNTIME_PATCHES: Readonly<Record<string, DesktopRuntimePatch>> = {
-  '@deepseek-ai/libreoffice-kit@0.2.3': { scope: 'shared', reason: 'Inside app.asar a missing Linux native engine must fall back to WASM, not read as present.' },
+  '@deepseek-ai/libreoffice-kit@0.2.4': { scope: 'shared', reason: 'Inside app.asar a missing Linux native engine must fall back to WASM, not read as present.' },
   '@botiverse/oar@0.67.0': { scope: 'workspace-only', reason: 'Patched OAR adapters are embedded in the provider bundle.' },
   '@earendil-works/pi-ai@1.3.0': { scope: 'workspace-only', reason: 'Only the experimental OAR subagent\'s coding agent resolves 1.3.0, and Desktop does not ship it.' },
   '@earendil-works/pi-ai@1.7.0': { scope: 'shared', reason: 'Runtime providers replay Gemini tool-call thought signatures over Chat Completions.' },

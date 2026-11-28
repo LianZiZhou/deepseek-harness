@@ -184,7 +184,7 @@ External packages installed for runtime use or embedded in distributed Host or b
 
 pnpm applies local patches to the following packages at install time, so shipped artifacts carry modified copies; each patch file is the complete record of the modification:
 
-- `@deepseek-ai/libreoffice-kit@0.2.3` — [`patches/@deepseek-ai__libreoffice-kit@0.2.3.patch`](patches/@deepseek-ai__libreoffice-kit@0.2.3.patch)
+- `@deepseek-ai/libreoffice-kit@0.2.4` — [`patches/@deepseek-ai__libreoffice-kit@0.2.4.patch`](patches/@deepseek-ai__libreoffice-kit@0.2.4.patch)
 - `@botiverse/oar@0.67.0` — [`patches/@botiverse__oar@0.67.0.patch`](patches/@botiverse__oar@0.67.0.patch)
 - `@earendil-works/pi-ai@1.3.0` — [`patches/@earendil-works__pi-ai@1.3.0.patch`](patches/@earendil-works__pi-ai@1.3.0.patch)
 - `@earendil-works/pi-ai@1.7.0` — [`patches/@earendil-works__pi-ai@1.7.0.patch`](patches/@earendil-works__pi-ai@1.7.0.patch)
@@ -224,7 +224,7 @@ The installed SDK 0.3.263 declares the following optional platform packages. Eac
 
 ## LibreOffice conversion kit
 
-`@deepseek-ai/libreoffice-kit`, `@deepseek-ai/libreoffice-kit-wasm`, `@deepseek-ai/libreoffice-kit-darwin-arm64`, `@deepseek-ai/libreoffice-kit-darwin-x64`, `@deepseek-ai/libreoffice-kit-win32-arm64`, `@deepseek-ai/libreoffice-kit-win32-x64` declare MPL-2.0, which remains outside the permissive-license allowlist; the notices check accepts only these package identities at those terms. The [distribution decision](.agents/notes/implemented/architecture/2026-09-14-independent-libreoffice-kit.md) records the source obligations.
+`@deepseek-ai/libreoffice-kit`, `@deepseek-ai/libreoffice-kit-wasm`, `@deepseek-ai/libreoffice-kit-darwin-arm64`, `@deepseek-ai/libreoffice-kit-darwin-x64`, `@deepseek-ai/libreoffice-kit-win32-arm64`, `@deepseek-ai/libreoffice-kit-win32-x64`, `@deepseek-ai/libreoffice-kit-linux-arm64-glibc`, `@deepseek-ai/libreoffice-kit-linux-x64-glibc` declare MPL-2.0, which remains outside the permissive-license allowlist; the notices check accepts only these package identities at those terms. The [distribution decision](.agents/notes/implemented/architecture/2026-09-14-independent-libreoffice-kit.md) records the source obligations.
 
 The [kit repository](https://github.com/deepseek-ai/dsh-libreoffice-kit) supplies the corresponding LibreOffice source pin, modifications, build instructions, Node API, and artifact validation. Its engine packages retain their license and third-party notices; the Node API retains its MPL-2.0 declaration and NOTICE. Recipients must have access to those corresponding sources and notices.
 
