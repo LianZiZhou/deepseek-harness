@@ -2,6 +2,7 @@
 
 exports[`sidebar shell snapshots > renders Windows caption controls in expanded and collapsed states > windows collapsed 1`] = `
 <div
+  data-plugin=""
   data-slot="sidebar"
   style="display: contents;"
 >
@@ -28,6 +29,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           width="16"
         />
         <div
+          data-plugin=""
           data-slot="sidebar.toggle.badge"
           style="display: contents;"
         />
@@ -37,6 +39,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
       class="newSessionRow"
     >
       <div
+        data-plugin=""
         data-slot="sidebar.session.action"
         style="display: contents;"
       >
@@ -73,6 +76,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           class="regionArea"
         >
           <div
+            data-plugin=""
             data-slot="sidebar.workspaces"
             style="display: contents;"
           />
@@ -90,6 +94,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
         class="footerActions"
       >
         <div
+          data-plugin=""
           data-slot="sidebar.footer.action"
           style="display: contents;"
         />
@@ -98,6 +103,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
         class="settingsArea"
       >
         <div
+          data-plugin=""
           data-slot="sidebar.settings"
           style="display: contents;"
         />
@@ -109,6 +115,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
 
 exports[`sidebar shell snapshots > renders Windows caption controls in expanded and collapsed states > windows expanded 1`] = `
 <div
+  data-plugin=""
   data-slot="sidebar"
   style="display: contents;"
 >
@@ -133,6 +140,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
             class="brandMark"
           >
             <div
+              data-plugin=""
               data-slot="sidebar.brand.mark"
               style="display: contents;"
             >
@@ -155,6 +163,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
             class="brandName"
           >
             <div
+              data-plugin=""
               data-slot="sidebar.brand.name"
               style="display: contents;"
             >
@@ -211,6 +220,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
       class="newSessionRow"
     >
       <div
+        data-plugin=""
         data-slot="sidebar.session.action"
         style="display: contents;"
       >
@@ -253,6 +263,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
           class="regionArea"
         >
           <div
+            data-plugin=""
             data-slot="sidebar.workspaces"
             style="display: contents;"
           />
@@ -270,6 +281,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
         class="footerActions"
       >
         <div
+          data-plugin=""
           data-slot="sidebar.footer.action"
           style="display: contents;"
         />
@@ -278,6 +290,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
         class="settingsArea"
       >
         <div
+          data-plugin=""
           data-slot="sidebar.settings"
           style="display: contents;"
         />
@@ -289,6 +302,7 @@ exports[`sidebar shell snapshots > renders Windows caption controls in expanded 
 
 exports[`sidebar shell snapshots > renders the collapsed rail after the crossfade settles, in place 1`] = `
 <div
+  data-plugin=""
   data-slot="sidebar"
   style="display: contents;"
 >
@@ -311,6 +325,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
           class="railMark"
         >
           <div
+            data-plugin=""
             data-slot="sidebar.brand.mark"
             style="display: contents;"
           >
@@ -333,6 +348,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
           width="18"
         />
         <div
+          data-plugin=""
           data-slot="sidebar.toggle.badge"
           style="display: contents;"
         />
@@ -342,6 +358,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
       class="newSessionRow"
     >
       <div
+        data-plugin=""
         data-slot="sidebar.session.action"
         style="display: contents;"
       >
@@ -378,6 +395,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
           class="regionArea"
         >
           <div
+            data-plugin=""
             data-slot="sidebar.workspaces"
             style="display: contents;"
           />
@@ -395,6 +413,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
         class="footerActions"
       >
         <div
+          data-plugin=""
           data-slot="sidebar.footer.action"
           style="display: contents;"
         />
@@ -403,6 +422,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
         class="settingsArea"
       >
         <div
+          data-plugin=""
           data-slot="sidebar.settings"
           style="display: contents;"
         />
@@ -414,6 +434,7 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
 
 exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsule, empty holes) 1`] = `
 <div
+  data-plugin=""
   data-slot="sidebar"
   style="display: contents;"
 >
@@ -438,6 +459,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
             class="brandMark"
           >
             <div
+              data-plugin=""
               data-slot="sidebar.brand.mark"
               style="display: contents;"
             >
@@ -460,6 +482,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
             class="brandName"
           >
             <div
+              data-plugin=""
               data-slot="sidebar.brand.name"
               style="display: contents;"
             >
@@ -516,6 +539,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       class="newSessionRow"
     >
       <div
+        data-plugin=""
         data-slot="sidebar.session.action"
         style="display: contents;"
       >
@@ -558,6 +582,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
           class="regionArea"
         >
           <div
+            data-plugin=""
             data-slot="sidebar.workspaces"
             style="display: contents;"
           />
@@ -575,6 +600,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
         class="footerActions"
       >
         <div
+          data-plugin=""
           data-slot="sidebar.footer.action"
           style="display: contents;"
         />
@@ -583,6 +609,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
         class="settingsArea"
       >
         <div
+          data-plugin=""
           data-slot="sidebar.settings"
           style="display: contents;"
         />
@@ -594,6 +621,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
 
 exports[`sidebar shell snapshots > renders the expanded column in the default locale (zh, no setLocale) 1`] = `
 <div
+  data-plugin=""
   data-slot="sidebar"
   style="display: contents;"
 >
@@ -618,6 +646,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
             class="brandMark"
           >
             <div
+              data-plugin=""
               data-slot="sidebar.brand.mark"
               style="display: contents;"
             >
@@ -640,6 +669,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
             class="brandName"
           >
             <div
+              data-plugin=""
               data-slot="sidebar.brand.name"
               style="display: contents;"
             >
@@ -696,6 +726,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
       class="newSessionRow"
     >
       <div
+        data-plugin=""
         data-slot="sidebar.session.action"
         style="display: contents;"
       >
@@ -738,6 +769,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
           class="regionArea"
         >
           <div
+            data-plugin=""
             data-slot="sidebar.workspaces"
             style="display: contents;"
           />
@@ -755,6 +787,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
         class="footerActions"
       >
         <div
+          data-plugin=""
           data-slot="sidebar.footer.action"
           style="display: contents;"
         />
@@ -763,6 +796,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
         class="settingsArea"
       >
         <div
+          data-plugin=""
           data-slot="sidebar.settings"
           style="display: contents;"
         />
