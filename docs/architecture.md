@@ -115,7 +115,7 @@ turn/end
 
 Fork creation stores the caller-supplied history; a sharing backend persists the parent prefix first ([lifecycle](../packages/core/agent-loop/README.md#understand-the-implementation)). Factory setup follows SessionStore entry and `session/created`, preceding `agent/created`; closing events commit before removal.
 
-One inbox feeds the driver; injected context waits for a waking message. AgentLoop’s durable `inbox` projection exposes pending input without live Agents.
+Injected context waits for a wake. The `inbox` projection tracks queues and [claims for unopened steps](../packages/core/agent-loop/README.md#returned-input) across Agent lifetimes.
 
 Before assembly, the loop captures Session model selection in `AssembleContext.modelSelection` and `agent/pre-step.modelSelection`. Retries retain it. Omitted reasoning effort uses adapter defaults. Assembly captures system section values and lifecycle. Any registered prompt preset finalizer runs before `systemUpdates()` derives writes from the finalized sections and committed Session admissions.
 

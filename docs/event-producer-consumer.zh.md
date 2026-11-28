@@ -12,7 +12,7 @@
 <!-- BEGIN GENERATED event-producer-consumer:events -->
 | Event | Mode | Declared in | Dispatchers | Listeners |
 | --- | --- | --- | --- | --- |
-| `agent-loop/config-start-failed` | `emit` | [`packages/core/agent-loop/src/index.ts:198`](../packages/core/agent-loop/src/index.ts) | [`agent-loop`](../packages/core/agent-loop) (`events.dispatch`) | - |
+| `agent-loop/config-start-failed` | `emit` | [`packages/core/agent-loop/src/index.ts:197`](../packages/core/agent-loop/src/index.ts) | [`agent-loop`](../packages/core/agent-loop) (`events.dispatch`) | - |
 | `agent-preset/selected` | `emit` | [`packages/preset/agent-preset-registry/src/types.ts:92`](../packages/preset/agent-preset-registry/src/types.ts) | [`agent-preset-registry`](../packages/preset/agent-preset-registry) (`emit`) | [`cua`](../packages/experimental/cua), `remotes` |
 | `agent/admit-context` | `waterfall` | [`packages/core/agent/src/runtime-types.ts:397`](../packages/core/agent/src/runtime-types.ts) | [`agent-loop`](../packages/core/agent-loop) (`waterfall`) | [`context-injections`](../packages/context/context-injections) |
 | `agent/admit-messages` | `waterfall` | [`packages/core/agent/src/runtime-types.ts:381`](../packages/core/agent/src/runtime-types.ts) | [`agent-loop`](../packages/core/agent-loop) (`waterfall`) | [`context-injections`](../packages/context/context-injections) |
@@ -140,7 +140,7 @@
 <!-- BEGIN GENERATED event-producer-consumer:undeclared -->
 | Event string | Dispatchers | Listeners |
 | --- | --- | --- |
-| `agent/request` | [`agent-loop`](../packages/core/agent-loop) (`waterfall`) | [`compaction-basic`](../packages/compaction/compaction-basic), [`timeline`](../packages/experimental/timeline) |
+| `agent/request` | [`agent-loop`](../packages/core/agent-loop) (`waterfall`) | [`timeline`](../packages/experimental/timeline) |
 | `connection/reset` | `gateway` (`emit`) | `terminal-controller`, `ui-settings` |
 | `interaction/button` | - | [`im`](../packages/experimental/im) |
 | `interaction/check` | - | [`im`](../packages/experimental/im) |

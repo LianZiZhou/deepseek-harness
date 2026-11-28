@@ -115,7 +115,7 @@ turn/end
 
 fork 创建存储调用方提供的历史；共享前缀的后端先持久化父前缀（[生命周期](../packages/core/agent-loop/README.zh.md#understand-the-implementation)）。工厂 setup 在 Session 进入 SessionStore 并完成 `session/created` 之后、`agent/created` 之前运行；收尾事件在移除之前提交。
 
-输入通过同一个 inbox 到达驱动器；注入的上下文等待一条唤醒消息。AgentLoop 的持久 `inbox` 投影使待处理输入在没有活跃 Agent 时仍可读取。
+注入的上下文等待正常唤醒。`inbox` 投影记录队列和[为尚未开启的步骤领取的消息](../packages/core/agent-loop/README.zh.md#returned-input)，独立于 Agent 的生命周期。
 
 循环在组装前捕获 Session 的模型选择，通过 `AssembleContext.modelSelection` 和 `agent/pre-step.modelSelection` 传递，重试时沿用该选择。省略推理强度时使用适配器默认值。组装时捕获系统提示词各段的内容和生命周期。若注册了提示词预设的最终处理函数，该函数先运行，`systemUpdates()` 再根据处理后的各段和 Session 中已提交的准入记录生成写入。
 
