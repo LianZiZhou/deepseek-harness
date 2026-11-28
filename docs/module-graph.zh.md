@@ -208,6 +208,7 @@ flowchart TD
     pkg_client_ui_prompt_preset["client-ui-prompt-preset"]
     pkg_client_ui_reference["client-ui-reference"]
     pkg_client_ui_renderer["client-ui-renderer"]
+    pkg_client_ui_responsive["client-ui-responsive"]
     pkg_client_ui_schedule["client-ui-schedule"]
     pkg_client_ui_secret_mask["client-ui-secret-mask"]
     pkg_client_ui_session["client-ui-session"]
@@ -1789,6 +1790,7 @@ flowchart TD
 | [`client-ui-prompt-preset`](../packages/client/ui-prompt-preset) | `client` | — |
 | [`client-ui-reference`](../packages/client/ui-reference) | `client` | — |
 | [`client-ui-renderer`](../packages/client/ui-renderer) | `client` | — |
+| [`client-ui-responsive`](../packages/client/ui-responsive) | `client` | — |
 | [`client-ui-schedule`](../packages/client/ui-schedule) | `client` | — |
 | [`client-ui-secret-mask`](../packages/client/ui-secret-mask) | `client` | — |
 | [`client-ui-session`](../packages/client/ui-session) | `client` | — |

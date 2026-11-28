@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { contextMenuHook } from '@deepseek-ai/dsh-client-test-runtime'
+import { contextMenuHook, responsiveHooks } from '@deepseek-ai/dsh-client-test-runtime'
 
 import { ChatViewport } from '../src/client/chat/use-chat-viewport.ts'
 import type { ProcessGroupData } from '../src/client/contract/process-groups.ts'
@@ -550,6 +550,7 @@ function makeHarness(
     useSessions: emptySessions(),
     useSessionRetainInfo: () => undefined,
     useContextMenu: contextMenuHook(),
+    ...responsiveHooks(),
     useResource,
     useSessionStatus: bindSnapshotSelector(
       createSnapshotStore<SessionStatusSnapshot>(new Map()),

@@ -6222,6 +6222,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-client-ui-prompt-preset` | — | [`packages/client/ui-prompt-preset/src/index.ts`](../packages/client/ui-prompt-preset/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-reference` | — | [`packages/client/ui-reference/src/index.ts`](../packages/client/ui-reference/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-renderer` | — | [`packages/client/ui-renderer/src/index.ts`](../packages/client/ui-renderer/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-responsive` | — | [`packages/client/ui-responsive/src/index.ts`](../packages/client/ui-responsive/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-schedule` | — | [`packages/client/ui-schedule/src/index.ts`](../packages/client/ui-schedule/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-secret-mask` | — | [`packages/client/ui-secret-mask/src/index.ts`](../packages/client/ui-secret-mask/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-session` | — | [`packages/client/ui-session/src/index.ts`](../packages/client/ui-session/src/index.ts) |

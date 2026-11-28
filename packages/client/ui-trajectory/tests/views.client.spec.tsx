@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { contextMenuHook } from '@deepseek-ai/dsh-client-test-runtime'
+import { contextMenuHook, responsiveHooks } from '@deepseek-ai/dsh-client-test-runtime'
 /** Conversation tab registration, plugin disposal, and trajectory interactions. */
 import type { GlobalStandardProps, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -231,6 +231,7 @@ function standaloneProps(
     useWorkspaces: emptyWorkspaces(),
     ...allowAllAccess,
     useContextMenu: contextMenuHook(),
+    ...responsiveHooks(),
     useConversation: bindSnapshotSelector(createSnapshotStore(conversationSnapshot(trajectory))),
     useInput: bindSnapshotSelector(input),
     inputActions,
@@ -383,6 +384,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
     useWorkspaces,
     ...allowAllAccess,
     useContextMenu: contextMenuHook(),
+    ...responsiveHooks(),
     useProjection,
     useInput,
     inputActions,
