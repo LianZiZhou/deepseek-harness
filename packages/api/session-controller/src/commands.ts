@@ -252,6 +252,7 @@ export class SessionCommandController {
    * `atSeq` is the inclusive cut; an omitted value selects the latest
    * completed-turn prefix, or the live tail of a Turn opened after it. An
    * open cut receives synthetic fork closers.
+   * A `side` child records the source Session as its `parentSession`.
    * @param request - source Session, optional exact event boundary, and optional child origin.
    * @returns the new Session identity.
    */
@@ -330,7 +331,8 @@ export class SessionCommandController {
         meta: {
           ...(source.header.cwd === undefined ? {} : { cwd: source.header.cwd }),
           isSeeded: true,
-          ...(request.origin === undefined ? {} : { origin: request.origin }),
+          // A side conversation records its source so the source can list its side conversations.
+          ...(request.origin === 'side' ? { origin: request.origin, parentSession: request.sessionId } : {}),
           ...(composition.agentPreset === undefined
             ? {}
             : { agentPreset: composition.agentPreset }),
@@ -736,7 +738,8 @@ export class SessionCommandController {
   private async forkWorkspace(source: SessionHeader): Promise<Workspace | undefined> {
     const workspaces = this.ctx.workspaceRegistry.list()
     const direct = workspaces.find(workspace => workspace.sessionIds.includes(source.id))
-    if (direct !== undefined || source.origin !== 'subagent') return direct
+    // A subagent or side child that is not attached itself belongs with its creator's Workspace.
+    if (direct !== undefined || source.parentSession === undefined) return direct
     const lineage = await this.ctx.sessionQuery.traceSession(source.id)
     for (const ancestor of lineage.ancestors) {
       const workspace = workspaces.find(candidate => candidate.sessionIds.includes(ancestor.header.id))
