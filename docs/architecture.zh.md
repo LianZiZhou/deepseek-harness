@@ -89,7 +89,7 @@ AgentLoop 回滚失败的初始化，并在启动已排队工作前等待串行 
 ```text
 turn/start
   claim next-step input plus one queued message
-  snapshot Session model selection; assemble prompt sections + step-admitted tool schemas
+  snapshot Session model selection; capture ToolStep; assemble sections + ToolStep schemas
   -> agent/pre-step (fallback projects runtime context after agent/admit-context)
      reject -> close turn
      enter(messages, startsRequestSeries?) -> agent/admit-messages
@@ -117,19 +117,17 @@ fork 创建存储调用方提供的历史；共享前缀的后端先持久化父
 
 注入的上下文等待正常唤醒。`inbox` 投影记录队列和[为尚未开启的步骤领取的消息](../packages/core/agent-loop/README.zh.md#returned-input)，独立于 Agent 的生命周期。
 
-循环在组装前捕获 Session 的模型选择，通过 `AssembleContext.modelSelection` 和 `agent/pre-step.modelSelection` 传递，重试时沿用该选择。省略推理强度时使用适配器默认值。组装时捕获系统提示词各段的内容和生命周期。若注册了提示词预设的最终处理函数，该函数先运行，`systemUpdates()` 再根据处理后的各段和 Session 中已提交的准入记录生成写入。
+循环在组装前捕获 Session 的模型选择，通过 `AssembleContext.modelSelection` 和 `agent/pre-step.modelSelection` 传递，并捕获该 Agent 的 [`ToolStep`](subsystems/tools.zh.md#tool-registries-roots-and-model-steps)，重试时沿用这两者。省略推理强度时使用适配器默认值。组装时捕获系统提示词各段的内容和生命周期。若注册了提示词预设的最终处理函数，该函数先运行，`systemUpdates()` 再根据处理后的各段和 Session 中已提交的准入记录生成写入。
 
 `agent/pre-step` 监听器可以接纳、改写或拒绝已领取的消息。经过 `agent/admit-messages` 后，即使消息批次为空，恢复的轮次也可以依据已记录的历史发起请求。用 `{ ...decision, messages }` 包装 enter 决策可保留 `startsRequestSeries`，它要求记录新的 `request/header`（原因为 `series`，若请求封装也发生变化，则为带有 `startsSeries: true` 的 `change`）。附接后，surface 替换和图片省略决定都会开启新请求序列，即使发生在恢复后的首次 pre-step 中也是如此。恢复时若无变化，则延续原序列。
 
-记录 `step/start` 后，已弃用的 `agent/request` hook 在保留提供方、模型和推理强度的前提下调整控制参数，`prepareCall()` 绑定适配器。每次尝试都先追加返回的 `system/message` 写入，再追加新的用户消息。记录压缩摘要后的下一次尝试（包括重试）会清空保留的系统增量，并用捕获的指令替换初始系统节点。重试复用组装结果，跳过 `agent/pre-step` 和用户消息准入。[Agent-loop](../packages/core/agent-loop/README.zh.md#understand-the-implementation) 说明请求与重试的时序。
+记录 `step/start` 后，已弃用的 `agent/request` hook 在保留提供方、模型和推理强度的前提下调整控制参数，`prepareCall()` 绑定适配器。每次尝试都先追加返回的 `system/message` 写入，再追加新的用户消息。记录压缩摘要后的下一次尝试（包括重试）会清空保留的系统增量，并用捕获的指令替换初始系统节点。重试复用组装结果与 `ToolStep`，跳过 `agent/pre-step` 和用户消息准入。[Agent-loop](../packages/core/agent-loop/README.zh.md#understand-the-implementation) 说明请求与重试的时序。
 
 循环发送不可变请求，同时保持取消有效，仅对完全冻结的对象复用冻结证据；[agent-loop](../packages/core/agent-loop/README.zh.md) 负责请求构建与取消原因。
 
 失败步骤会[记录缺失的工具结果](../packages/core/agent-loop/README.zh.md#understand-the-implementation)。
 
-详情见[时序图](agent-lifecycle.zh.md)、[工具流水线](tool-execution-pipeline.zh.md)和[取消与错误恢复](subsystems/core.zh.md#the-agent-handle)。
-
-[`ctx.tools.execute()`](subsystems/tools.zh.md) 接收原始调用批次和并发上限。
+详情见[时序图](agent-lifecycle.zh.md)、[工具流水线](tool-execution-pipeline.zh.md)（位于 [`ctx.tools.execute()`](subsystems/tools.zh.md) 背后）和[取消与错误恢复](subsystems/core.zh.md#the-agent-handle)。
 
 ## 会话日志
 

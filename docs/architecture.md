@@ -89,7 +89,7 @@ A **step** is one model request plus the tools it calls. A **turn** is zero or m
 ```text
 turn/start
   claim next-step input plus one queued message
-  snapshot Session model selection; assemble prompt sections + step-admitted tool schemas
+  snapshot Session model selection; capture ToolStep; assemble sections + ToolStep schemas
   -> agent/pre-step (fallback projects runtime context after agent/admit-context)
      reject -> close turn
      enter(messages, startsRequestSeries?) -> agent/admit-messages
@@ -117,19 +117,17 @@ Fork creation stores the caller-supplied history; a sharing backend persists the
 
 Injected context waits for a wake. The `inbox` projection tracks queues and [claims for unopened steps](../packages/core/agent-loop/README.md#returned-input) across Agent lifetimes.
 
-Before assembly, the loop captures Session model selection in `AssembleContext.modelSelection` and `agent/pre-step.modelSelection`. Retries retain it. Omitted reasoning effort uses adapter defaults. Assembly captures system section values and lifecycle. Any registered prompt preset finalizer runs before `systemUpdates()` derives writes from the finalized sections and committed Session admissions.
+Before assembly, the loop captures Session model selection in `AssembleContext.modelSelection` and `agent/pre-step.modelSelection`, and the Agent's [`ToolStep`](subsystems/tools.md#tool-registries-roots-and-model-steps). Retries retain both. Omitted reasoning effort uses adapter defaults. Assembly captures system section values and lifecycle. Any registered prompt preset finalizer runs before `systemUpdates()` derives writes from the finalized sections and committed Session admissions.
 
 `agent/pre-step` listeners can accept, rewrite, or reject claimed messages. After `agent/admit-messages`, a resumed turn can request logged history with an empty batch. Wrapping an enter decision with `{ ...decision, messages }` preserves `startsRequestSeries`, which requests a fresh `request/header` (`series`, or `change` with `startsSeries: true` for a changed envelope). After attachment, surface replacements and image-offload decisions start a series even on the first resumed pre-step. Unchanged resume continues it.
 
-After `step/start`, the deprecated `agent/request` hook adjusts controls while preserving provider, model, and effort. `prepareCall()` binds the adapter. Each attempt appends the returned `system/message` writes before new user messages. After a logged compaction summary, the next attempt, including a retry, clears retained system additions and replaces the initial system node with the captured instructions. Retries reuse the assembly without repeating `agent/pre-step` or user admission. [Agent-loop](../packages/core/agent-loop/README.md#understand-the-implementation) owns request and retry timing.
+After `step/start`, the deprecated `agent/request` hook adjusts controls while preserving provider, model, and effort. `prepareCall()` binds the adapter. Each attempt appends the returned `system/message` writes before new user messages. After a logged compaction summary, the next attempt, including a retry, clears retained system additions and replaces the initial system node with the captured instructions. Retries reuse the assembly and `ToolStep` without repeating `agent/pre-step` or user admission. [Agent-loop](../packages/core/agent-loop/README.md#understand-the-implementation) owns request and retry timing.
 
 The loop sends immutable requests with live cancellation and reuses freeze evidence for frozen identities; [agent-loop](../packages/core/agent-loop/README.md) owns construction and cancellation causes.
 
 Failed steps [record missing tool results](../packages/core/agent-loop/README.md#understand-the-implementation).
 
-Details: the [sequence diagram](agent-lifecycle.md), the [tool pipeline](tool-execution-pipeline.md), and [cancellation and error recovery](subsystems/core.md#the-agent-handle).
-
-[`ctx.tools.execute()`](subsystems/tools.md) receives raw batches and concurrency limits.
+Details: the [sequence diagram](agent-lifecycle.md), the [tool pipeline](tool-execution-pipeline.md) behind [`ctx.tools.execute()`](subsystems/tools.md), and [cancellation and error recovery](subsystems/core.md#the-agent-handle).
 
 ## Session log
 

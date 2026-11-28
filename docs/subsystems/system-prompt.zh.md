@@ -263,7 +263,7 @@ refreshContext(assembly: PromptAssembly, context: AssembleContext = {}): PromptA
  * shadow globals. The method restores an effective complete section after the
  * waterfall and applies the registered {@link finalize} override.
  * `systemUpdates()` compares the captured result with committed sections.
- * @param context - the optional scope, step tool set, and plugin-defined assembly fields.
+ * @param context - the optional scope, model step, and plugin-defined assembly fields.
  * @returns the finalized presentation, tool declarations, and system updates.
  */
 async assemble(context: AssembleContext = {}): Promise<PromptAssembly>
